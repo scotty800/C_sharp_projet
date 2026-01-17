@@ -1,0 +1,22 @@
+# Build Folders
+bin/
+obj/
+
+# Visual Studio / VS Code
+.vs/
+*.user
+*.suo
+*.vscode/
+
+# Logs
+*.log
+
+# Secrets
+*.env
+
+# Rider
+.idea/
+
+# Other
+*.exe
+*.dll
