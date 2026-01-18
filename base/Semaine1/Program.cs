@@ -1,47 +1,29 @@
-﻿using System;
-using System.Linq;
-
-bool IsEven(int number)
+﻿
+User user = new User
 {
-    if (number % 2 == 0)
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
+    Id = 1,
+    Name = "John Doe",
+    Email = "john.doe@example.com"
+};
 
-bool result1 = IsEven(4);  // true
-Console.WriteLine(result1);
-bool result2 = IsEven(7);  // false
-Console.WriteLine(result2);
+user.Display();
 
-string Grade(int score)
+INotificationService email = new EmailNotificationService();
+INotificationService sms = new SMSNotificationService();
+
+email.Send("Welcome to our service!");
+sms.Send("Your verification code is 123456.");
+
+Shape Rectangle = new Rectangle
 {
-    return score switch
-    {
-        >= 90 => "A",
-        >= 80 => "B",
-        >= 70 => "C",
-        _ => "F"
-    };
-}
+    width = 5,
+    height = 10
+};
 
-string grade1 = Grade(95);  // "A"
-Console.WriteLine(grade1);
-string grade2 = Grade(86);  // "B"
-Console.WriteLine(grade2);
-string grade3 = Grade(72);  // "C"
-Console.WriteLine(grade3);
-string grade4 = Grade(65);  // "F"
-Console.WriteLine(grade4);
-
-foreach (int n in Enumerable.Range(1, 100))
+Shape Circle = new Circle
 {
-    if (n % 3 == 0 )
-    {
-        Console.WriteLine(n);
-    }
-}
+    radius = 7
+};
+
+Console.WriteLine($"Area of Rectangle: {Rectangle.Area()}");
+Console.WriteLine($"Area of Circle: {Circle.Area()}");
