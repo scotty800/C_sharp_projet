@@ -1,13 +1,21 @@
 using System;
 
-class User 
+class User
 {
-    public int Id { get; set; }
     public string Name { get; set; }
-    public string Email { get; set; }
+    public string Email { get; private set; }
 
-    public void Display()
+    public User(string name)
     {
-        Console.WriteLine($"ID: {Id}, Name: {Name}, Email: {Email}");
+        Name = name;
+    }
+
+    public void SetEmail(string email)
+    {
+        if (!email.Contains("@"))
+        {
+            throw new ArgumentException("l'email doit contenir un '@'");
+        }
+        Email = email;
     }
 }

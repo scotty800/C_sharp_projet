@@ -1,29 +1,47 @@
-﻿
-User user = new User
+﻿using System.Threading.Tasks;
+
+int Divide(int a, int b)
 {
-    Id = 1,
-    Name = "John Doe",
-    Email = "john.doe@example.com"
-};
+    try
+    {
+        return a / b;
+    }
+    catch (DivideByZeroException)
+    {
+        Console.WriteLine("Error: Division by zero is not allowed.");
+        return 0; // or handle it as appropriate
+    }
+}
 
-user.Display();
 
-INotificationService email = new EmailNotificationService();
-INotificationService sms = new SMSNotificationService();
+int result = Divide(10, 2);
+Console.WriteLine($"Result: {result}");
 
-email.Send("Welcome to our service!");
-sms.Send("Your verification code is 123456.");
+User user = new User("John");
 
-Shape Rectangle = new Rectangle
+user.SetEmail("john@example.com");
+Console.WriteLine(user.Email);
+
+async Task<int> GetRandomNumberAsync()
 {
-    width = 5,
-    height = 10
-};
+    await Task.Delay(1000);
 
-Shape Circle = new Circle
+    Random rand = new Random();
+    int number = rand.Next(0, 11);
+
+    if (number < 3)
+    {
+        throw new Exception($"Nombre trop petit: {number}");
+    }
+    return number;
+}
+
+try
 {
-    radius = 7
-};
-
-Console.WriteLine($"Area of Rectangle: {Rectangle.Area()}");
-Console.WriteLine($"Area of Circle: {Circle.Area()}");
+    int n = await GetRandomNumberAsync();
+    Console.WriteLine($"Result after delay: {n}");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Caught an exception: {ex.Message}");
+}
