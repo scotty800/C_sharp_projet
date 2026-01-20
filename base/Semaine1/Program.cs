@@ -1,47 +1,23 @@
-﻿using System.Threading.Tasks;
+﻿
+Func<int, int> square = x => x * x;
 
-int Divide(int a, int b)
+int result = square(5);
+Console.WriteLine(result);
+
+var nombres = new List<int> { 1, 2, 3, 4, 5 };
+
+var resulte = nombres
+    .Where(n => n % 2 == 0)
+    .Select(n => n * 10)
+    .ToList();
+
+Console.WriteLine(string.Join(", ", resulte));
+
+async Task<string> FetchDataAsync()
 {
-    try
-    {
-        return a / b;
-    }
-    catch (DivideByZeroException)
-    {
-        Console.WriteLine("Error: Division by zero is not allowed.");
-        return 0; // or handle it as appropriate
-    }
+    await Task.Delay(2000);
+    return "Data chargées";
 }
 
-
-int result = Divide(10, 2);
-Console.WriteLine($"Result: {result}");
-
-User user = new User("John");
-
-user.SetEmail("john@example.com");
-Console.WriteLine(user.Email);
-
-async Task<int> GetRandomNumberAsync()
-{
-    await Task.Delay(1000);
-
-    Random rand = new Random();
-    int number = rand.Next(0, 11);
-
-    if (number < 3)
-    {
-        throw new Exception($"Nombre trop petit: {number}");
-    }
-    return number;
-}
-
-try
-{
-    int n = await GetRandomNumberAsync();
-    Console.WriteLine($"Result after delay: {n}");
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Caught an exception: {ex.Message}");
-}
+var data = await FetchDataAsync();
+Console.WriteLine(data);
