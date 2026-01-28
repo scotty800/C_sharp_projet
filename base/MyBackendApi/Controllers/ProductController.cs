@@ -60,4 +60,11 @@ public class ProductController : ControllerBase
 
         return NoContent();
     }
+
+    [HttpGet("in-stock")]
+    public async Task<IActionResult> GetProductsInStock()
+    {
+        var products = await _productService.GetProductsInStockAsync();
+        return Ok(products);
+    }
 }

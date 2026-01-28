@@ -44,4 +44,12 @@ public class ProductService : IProductService
         _products.Remove(product);
         return Task.FromResult(true);
     }
+
+    public Task<List<Product>> GetProductsInStockAsync()
+    {
+        var productsInStock = _products
+            .Where(p => p.Stock > 0)
+            .ToList();
+        return Task.FromResult(productsInStock);
+    }
 }
