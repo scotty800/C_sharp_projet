@@ -1,53 +1,58 @@
 using MyBackendApi.Models;
+using MyBackendApi.Data;
+using Microsoft.EntityFrameworkCore;
 
 public class ProductService : IProductService
 {
-    private static List<Product> _products = new()
+    private readonly AppDbContext _context;
+
+    public ProductService(AppDbContext context)
     {
-        new Product { Id = 1, Name = "Keyboard", Price = 10.00m },
-        new Product { Id = 2, Name = "Mouse", Price = 20.00m },
-    };
+        _context = context;
+    }
 
     public Task<List<Product>> GetAllProductsAsync()
     {
-        return Task.FromResult(_products);
+        return Task.FromResult(_context.Products.ToList());
     }
 
     public Task<Product?> GetProductByIdAsync(int id)
     {
-        var product = _products.FirstOrDefault(p => p.Id == id);
+        var product = _context.Products.FirstOrDefault(p => p.Id == id);
         return Task.FromResult(product);
     }
 
     public Task<Product> CreateAsync(Product product)
     {
-        product.Id = _products.Max(p => p.Id) + 1;
-        _products.Add(product);
+        _context.Products.Add(product);
+        _context.SaveChanges();
         return Task.FromResult(product);
     }
 
     public Task<bool> UpdateAsync(int id, Product product)
     {
-        var existing = _products.FirstOrDefault(p => p.Id == id);
+        var existing = _context.Products.FirstOrDefault(p => p.Id == id);
         if (existing == null) return Task.FromResult(false);
 
         existing.Name = product.Name;
         existing.Price = product.Price;
+        _context.SaveChanges();
         return Task.FromResult(true);
     }
 
     public Task<bool> DeleteAsync(int id)
     {
-        var product = _products.FirstOrDefault(p => p.Id == id);
+        var product = _context.Products.FirstOrDefault(p => p.Id == id);
         if (product == null) return Task.FromResult(false);
 
-        _products.Remove(product);
+        _context.Products.Remove(product);
+        _context.SaveChanges();
         return Task.FromResult(true);
     }
 
     public Task<List<Product>> GetProductsInStockAsync()
     {
-        var productsInStock = _products
+        var productsInStock = _context.Products
             .Where(p => p.Stock > 0)
             .ToList();
         return Task.FromResult(productsInStock);
