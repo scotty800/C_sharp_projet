@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using MyBackendApi.Models;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 [ApiController]
 [Route("api/users")]
@@ -13,6 +15,7 @@ public class UserController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAll()
     {
         var users = await _userService.GetAllUsersAsync();
@@ -60,4 +63,22 @@ public class UserController : ControllerBase
 
         return NoContent();
     }
+
+    [HttpGet("me")]
+    [Authorize]
+    public IActionResult Me()
+    {
+        var email = User.FindFirst(ClaimTypes.Email)?.Value;
+        var username = User.Identity?.Name;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        return Ok(new
+        {
+            username,
+            email,
+            role
+        });
+    }
+    
+
 }
