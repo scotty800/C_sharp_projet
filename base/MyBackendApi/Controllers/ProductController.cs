@@ -24,7 +24,7 @@ public class ProductController : ControllerBase
     {
         var product = await _productService.GetProductByIdAsync(id);
         if (product == null)
-            return NotFound();
+            throw new ProductNotFoundException(id);
 
         return Ok(product);
     }
@@ -32,6 +32,15 @@ public class ProductController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] Product product)
     {
+        if (product.Stock < 0 || product.Price < 0 || string.IsNullOrWhiteSpace(product.Name))
+        {
+            return BadRequest(new
+            {
+                error = "Invalid product data.",
+                details = "stock and price must be >= 0, name cannot be empty."
+            });
+        }
+
         var createdProduct = await _productService.CreateAsync(product);
 
         return CreatedAtAction(
@@ -44,10 +53,15 @@ public class ProductController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] Product product)
     {
+        if (product.Stock < 0 || product.Price < 0 || string.IsNullOrWhiteSpace(product.Name))
+        {
+            return BadRequest("Invalid product data.");
+        }
+
         var updated = await _productService.UpdateAsync(id, product);
         if (!updated)
-            return NotFound();
-
+            throw new ProductNotFoundException(id);
+            
         return NoContent();
     }
 
@@ -56,7 +70,7 @@ public class ProductController : ControllerBase
     {
         var deleted = await _productService.DeleteAsync(id);
         if (!deleted)
-            return NotFound();
+            throw new ProductNotFoundException(id);
 
         return NoContent();
     }

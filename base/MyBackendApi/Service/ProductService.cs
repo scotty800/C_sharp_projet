@@ -36,7 +36,8 @@ public class ProductService : IProductService
 
         existing.Name = product.Name;
         existing.Price = product.Price;
-        _context.SaveChanges();
+        existing.Stock = product.Stock;
+        _context.SaveChangesAsync();
         return Task.FromResult(true);
     }
 
