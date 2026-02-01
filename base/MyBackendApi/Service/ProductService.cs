@@ -58,4 +58,40 @@ public class ProductService : IProductService
             .ToList();
         return Task.FromResult(productsInStock);
     }
+
+    public async Task<IEnumerable<Product>> GetPagedAsync(
+    int page,
+    int pageSize,
+    decimal? minPrice,
+    decimal? maxPrice,
+    string? sortBy)
+    
+    {
+        var query = _context.Products.AsQueryable();
+        
+        if (minPrice.HasValue)
+            query = query.Where(p => p.Price >= minPrice.Value);
+        
+        if (maxPrice.HasValue)
+            query = query.Where(p => p.Price <= maxPrice.Value);
+            
+        query = sortBy switch
+        {
+            "name"  => query.OrderBy(p => p.Name),
+            "price" => query.OrderBy(p => (double)p.Price),
+            _       => query.OrderBy(p => p.Id)
+        };
+        
+        return await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new Product
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Price = p.Price
+            })
+            .ToListAsync();
+    }
+
 }

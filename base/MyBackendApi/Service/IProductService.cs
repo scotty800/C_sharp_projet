@@ -8,4 +8,12 @@ public interface IProductService
     Task<bool> UpdateAsync(int id, Product product);
     Task<bool> DeleteAsync(int id);
     Task<List<Product>> GetProductsInStockAsync();
+
+    Task<IEnumerable<Product>> GetPagedAsync(
+        int page,
+        int pageSize,
+        decimal? minPrice,
+        decimal? maxPrice,
+        string? sortBy
+    );
 }

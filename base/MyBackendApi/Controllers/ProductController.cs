@@ -1,15 +1,18 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using MyBackendApi.Data;
 using MyBackendApi.Models;
+
 
 [ApiController]
 [Route("api/products")]
 public class ProductController : ControllerBase
 {
-    private readonly IProductService _productService;
+    private readonly  IProductService  _productService;
 
-    public ProductController(IProductService productService)
+    public ProductController(IProductService  productService)
     {
-        _productService = productService;
+        _productService  = productService;
     }
 
     [HttpGet]
@@ -79,6 +82,25 @@ public class ProductController : ControllerBase
     public async Task<IActionResult> GetProductsInStock()
     {
         var products = await _productService.GetProductsInStockAsync();
+        return Ok(products);
+    }
+
+    [HttpGet("paged")]
+    public async Task<IActionResult> GetPaged(
+        int page = 1, 
+        int pageSize = 10,
+        decimal? minPrice = null,
+        decimal? maxPrice = null,
+        string? sortBy = null)
+    {
+        var products = await _productService.GetPagedAsync(
+            page,
+            pageSize,
+            minPrice,
+            maxPrice,
+            sortBy
+        );
+
         return Ok(products);
     }
 }
