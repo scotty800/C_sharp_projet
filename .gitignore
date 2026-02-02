@@ -20,3 +20,65 @@ obj/
 # Other
 *.exe
 *.dll
+
+# ========================
+# Visual Studio / VS Code
+# ========================
+.vscode/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ========================
+# Build / Bin / Obj
+# ========================
+bin/
+obj/
+out/
+
+# ========================
+# .NET / NuGet
+# ========================
+*.nupkg
+*.snupkg
+*.nuspec
+*.psmdcp
+project.lock.json
+project.fragment.lock.json
+artifacts/
+packages/
+*.dbmdl
+
+# ========================
+# Rider / JetBrains
+# ========================
+.idea/
+
+# ========================
+# Dotnet Entity Framework
+# ========================
+*.db
+*.sqlite
+*.mdf
+*.ldf
+
+# ========================
+# OS Files
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# User secrets (for development)
+# ========================
+secrets.json
+appsettings.Development.json
+
+# ========================
+# Logs
+# ========================
+*.log
+logs/
