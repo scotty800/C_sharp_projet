@@ -9,6 +9,7 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseSqlite("Data Source=ecommerce.db"));
 
 builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IUserServices, UserService>();
 
 // Pour les controllers
 builder.Services.AddControllers();
