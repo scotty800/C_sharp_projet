@@ -82,3 +82,5 @@ appsettings.Development.json
 # ========================
 *.log
 logs/
+
+Migrations

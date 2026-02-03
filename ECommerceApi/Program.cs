@@ -1,24 +1,25 @@
 using ECommerceApi.Data;
-using ECommerceApi.Services;  // Pour IProductService et ProductService
+using ECommerceApi.Services;
 using Microsoft.EntityFrameworkCore;
-
 
 var builder = WebApplication.CreateBuilder(args);
 
-
+// Ajouter les services
 builder.Services.AddDbContext<AppDbContext>(opt => 
     opt.UseSqlite("Data Source=ecommerce.db"));
 
 builder.Services.AddScoped<IProductService, ProductService>();
-//builder.Services.AddScoped<IUserService, UserService>();
-//builder.Services.AddSingleton<AuthService>();
 
+// Pour les controllers
+builder.Services.AddControllers();
+
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Middleware
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -27,6 +28,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseAuthorization();
+
+// **Map les controllers**
+app.MapControllers();
+
 app.Run();
-
-

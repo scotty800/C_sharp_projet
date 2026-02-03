@@ -38,6 +38,10 @@ namespace ECommerceApi.Services
             existing.Name = product.Name;
             existing.Price = product.Price;
             existing.Stock = product.Stock;
+            existing.Size = product.Size;
+            existing.Color = product.Color;
+            existing.Category = product.Category;
+            existing.Description = product.Description;
             
             await _context.SaveChangesAsync();
             return true;
