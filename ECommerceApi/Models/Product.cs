@@ -15,5 +15,14 @@ namespace ECommerceApi.Models
 
         [Range(0, 1000)]
         public int Stock { get; set; }
+
+        [MaxLength(500)]
+        public string? Description { get; set; }
+
+        public string? Size { get; set; }  
+
+        public string? Color { get; set; }
+        
+        public string? Category { get; set; }
     }
 }
