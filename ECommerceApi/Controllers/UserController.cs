@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using ECommerceApi.Models;
 using ECommerceApi.Services;
+using BCrypt.Net;
+using ECommerceApi.DTO;
+using Microsoft.AspNetCore.Authorization;
 
 [ApiController]
 [Route("api/users")]
@@ -14,13 +17,15 @@ public class UserController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GettAllUser()
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetAllUsers()
     {
         var users = await _userService.GetAllUsersAsync();
         return Ok(users);
     }
 
     [HttpGet("{id}")]
+    [Authorize]
     public async Task<IActionResult> GetUserById(int id)
     {
         var user = await _userService.GetUserByIdAsync(id);
@@ -31,11 +36,24 @@ public class UserController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateUser(int id, [FromBody] User user)
+    [Authorize]
+    public async Task<IActionResult> UpdateUser(int id, [FromBody] UpdateUserRequest request)
     {
-        if (string.IsNullOrWhiteSpace(user.Username) || string.IsNullOrWhiteSpace(user.Email) || string.IsNullOrWhiteSpace(user.Password))
+        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Email))
         {
             return BadRequest("Invalid user data");
+        }
+
+        var user = new User
+        {
+            Username = request.Username,
+            Email = request.Email,
+            Role = request.Role
+        };
+
+        if (!string.IsNullOrWhiteSpace(request.Password))
+        {
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
         }
 
         var updatedUser = await _userService.UpdateAsync(id, user);
@@ -46,6 +64,7 @@ public class UserController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> DeleteUser(int id)
     {
         var deletedUser = await _userService.DeleteAsync(id);

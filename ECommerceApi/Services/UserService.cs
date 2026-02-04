@@ -23,6 +23,11 @@ namespace ECommerceApi.Services
             return await _context.Users.FirstOrDefaultAsync(p => p.Id == id);
         }
 
+        public async Task<User?> GetByEmailAsync(string email)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+        }
+
         public async Task<User> CreateUserAsync(User user)
         {
             _context.Users.Add(user);
@@ -37,8 +42,12 @@ namespace ECommerceApi.Services
 
             existing.Username = user.Username;
             existing.Email = user.Email;
-            existing.Password = user.Password;
             existing.Role = user.Role;
+
+            if (!string.IsNullOrWhiteSpace(user.PasswordHash))
+            {
+                existing.PasswordHash = user.PasswordHash;
+            }
 
             await _context.SaveChangesAsync();
             return true;
