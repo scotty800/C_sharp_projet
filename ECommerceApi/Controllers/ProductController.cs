@@ -25,7 +25,7 @@ public class ProductController : ControllerBase
     {
         var product = await _productService.GetProductByIdAsync(id);
         if (product == null)
-            return NotFound();
+            throw new ProductErrorException("Produit introuvable");
 
         return Ok(product);
     }
@@ -55,7 +55,7 @@ public class ProductController : ControllerBase
 
         var updated = await _productService.UpdateAsync(id, product);
         if (!updated)
-            return NotFound("Product not found");
+            throw new ProductErrorException("Produit introuvable");
 
         return NoContent();
     }
@@ -65,7 +65,7 @@ public class ProductController : ControllerBase
     {
         var deleted = await _productService.DeleteAsync(id);
         if (!deleted)
-            return NotFound("Product not found");
+            throw new ProductErrorException("Produit introuvable");
 
         return NoContent();
     }
@@ -75,5 +75,25 @@ public class ProductController : ControllerBase
     {
         var stock = await _productService.GetProductsInStockAsync();
         return Ok(stock);
+    }
+
+    [HttpGet("paged")]
+    public async Task<IActionResult> GetProducts(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
+        [FromQuery] string? sortBy = null
+    )
+    {
+        var result = await _productService.GetPagedAsync(
+            page,
+            pageSize,
+            minPrice,
+            maxPrice,
+            sortBy
+        );
+
+        return Ok(result);
     }
 }

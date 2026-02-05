@@ -1,4 +1,5 @@
 using ECommerceApi.Models;
+using ECommerceApi.DTO;
 
 namespace ECommerceApi.Services
 {
@@ -10,5 +11,13 @@ namespace ECommerceApi.Services
         Task<bool> UpdateAsync(int id, Product product);
         Task<bool> DeleteAsync(int id);
         Task<List<Product>> GetProductsInStockAsync();
+
+        Task<PagedResultDto<Product>> GetPagedAsync(
+            int page,
+            int pageSize,
+            decimal? minPrice,
+            decimal? maxPrice,
+            string? sortBy
+        );
     }
 }

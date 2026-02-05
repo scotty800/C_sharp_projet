@@ -32,6 +32,21 @@ public class ExceptionMiddleware
                 JsonSerializer.Serialize(response)
             );
         }
+        catch(ProductErrorException ex)
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+            context.Response.ContentType = "application/json";
+
+            var response = new
+            {
+                status = context.Response.StatusCode,
+                error = ex.Message
+            };
+
+            await context.Response.WriteAsync(
+                JsonSerializer.Serialize(response)
+            );
+        }
         catch (Exception ex)
         {
             Console.WriteLine($"ERREUR COMPLÈTE: {ex}");
