@@ -168,5 +168,62 @@ namespace ECommerceApi.Services
 
             return true;
         }
+
+        public async Task<PagedResultDto<ShopListDto>> GetShopsPagedAsync(
+            int page,
+            int pageSize,
+            string? search = null)
+        {
+            page = page < 1 ? 1 : page;
+            pageSize = pageSize > 50 ? 50 : pageSize;
+
+            var query = _context.Shops
+                .Include(s => s.Owner)
+                .Where(s => s.IsActive)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var normalizedSearch = search.ToLower();
+
+                query = query.Where(s =>
+                    s.Name.ToLower().Contains(normalizedSearch) ||
+                    (s.Description != null && s.Description.ToLower().Contains(normalizedSearch))
+                );
+            }
+
+            var totalItems = await query.CountAsync();
+            
+            var shops = await query
+                .OrderByDescending(s => s.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(s => new ShopListDto
+                {
+                    Name = s.Name,
+                    Description = s.Description,
+                    Slug = s.Slug,
+
+                    OwnerId = s.OwnerId,
+                    OwnerName = s.Owner != null ? s.Owner.Username : "UnKnown",
+
+                    ThemeColor = s.ThemeColor,
+                    BackgroundColor = s.BackgroundColor,
+                    TextColor = s.TextColor,
+                    
+                    LogoUrl = s.LogoUrl,
+                    BannerUrl = s.BannerUrl
+                })
+                .ToListAsync();
+            
+            return new PagedResultDto<ShopListDto>
+            {
+                Page = page,
+                PageSize = pageSize,
+                TotalItems = totalItems,
+                TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize),
+                Items = shops
+            };
+        }
     }
 }
