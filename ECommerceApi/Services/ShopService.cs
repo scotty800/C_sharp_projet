@@ -2,6 +2,7 @@ using ECommerceApi.Models;
 using ECommerceApi.Data;
 using ECommerceApi.DTO;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Hosting;
 
 namespace ECommerceApi.Services
 {
@@ -16,10 +17,12 @@ namespace ECommerceApi.Services
             _environment = environment;
         }
 
-        public async Task<List<Shop>> GetAllUserShopsAsync(int userId)
+        public async Task<List<Shop>> GetUserShopsAsync(int userId)
         {
             return await _context.Shops
                 .Where(s => s.OwnerId == userId && s.IsActive)
+                .Include(s => s.Products)
+                .Include(s => s.Owner)
                 .ToListAsync();
         }
 
@@ -27,6 +30,7 @@ namespace ECommerceApi.Services
         {
             return await _context.Shops
                 .Include(s => s.Owner)
+                .Include(s => s.Products)
                 .FirstOrDefaultAsync(s => s.Id == id && s.IsActive);
         }
 
@@ -36,15 +40,16 @@ namespace ECommerceApi.Services
 
             return await _context.Shops
                 .Include(s => s.Owner)
+                .Include(s => s.Products)
                 .FirstOrDefaultAsync(s => s.Slug == normalizedSlug && s.IsActive);
         }
 
-        public async Task<Shop> CreateShopAsync(int ownerId, CreateShopRequestDto shop)
+        public async Task<Shop> CreateShopAsync(int ownerId, CreateShopRequestDto shopDto)
         {
-            if (string.IsNullOrWhiteSpace(shop.Slug))
+            if (string.IsNullOrWhiteSpace(shopDto.Slug))
                 throw new Exception("Le slug est obligatoire");
             
-            var normalizedSlug = shop.Slug.ToLower();
+            var normalizedSlug = shopDto.Slug.ToLower();
 
             var existing = await _context.Shops
                 .FirstOrDefaultAsync(s => s.Slug == normalizedSlug);
@@ -60,15 +65,17 @@ namespace ECommerceApi.Services
             
             var newShop = new Shop
             {
-                Name = shop.Name,
-                Description = shop.Description,
+                Name = shopDto.Name,
+                Description = shopDto.Description,
                 Slug = normalizedSlug,
                 OwnerId = ownerId,
-                ThemeColor = shop.ThemeColor,
-                BackgroundColor = shop.BackgroundColor,
-                TextColor = shop.TextColor,
-                Email = shop.Email,
-                Phone = shop.Phone
+                ThemeColor = shopDto.ThemeColor,
+                BackgroundColor = shopDto.BackgroundColor,
+                TextColor = shopDto.TextColor,
+                Email = shopDto.Email,
+                Phone = shopDto.Phone,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
             _context.Shops.Add(newShop);
@@ -83,13 +90,27 @@ namespace ECommerceApi.Services
             if (shop == null || shop.OwnerId != userId || !shop.IsActive)
                 return false;
 
-            shop.Name = shopDto.Name;
-            shop.Description = shopDto.Description;
-            shop.ThemeColor = shopDto.ThemeColor;
-            shop.BackgroundColor = shopDto.BackgroundColor;
-            shop.TextColor = shopDto.TextColor;
-            shop.Email = shopDto.Email;
-            shop.Phone = shopDto.Phone;
+            if (!string.IsNullOrWhiteSpace(shopDto.Name))
+                shop.Name = shopDto.Name;
+            
+            if (shopDto.Description != null)
+                shop.Description = shopDto.Description;
+            
+            if (!string.IsNullOrWhiteSpace(shopDto.ThemeColor))
+                shop.ThemeColor = shopDto.ThemeColor;
+            
+            if (!string.IsNullOrWhiteSpace(shopDto.BackgroundColor))
+                shop.BackgroundColor = shopDto.BackgroundColor;
+            
+            if (!string.IsNullOrWhiteSpace(shopDto.TextColor))
+                shop.TextColor = shopDto.TextColor;
+            
+            if (shopDto.Email != null)
+                shop.Email = shopDto.Email;
+            
+            if (shopDto.Phone != null)
+                shop.Phone = shopDto.Phone;
+
             shop.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -179,6 +200,7 @@ namespace ECommerceApi.Services
 
             var query = _context.Shops
                 .Include(s => s.Owner)
+                .Include(s => s.Products)
                 .Where(s => s.IsActive)
                 .AsQueryable();
 
@@ -200,19 +222,19 @@ namespace ECommerceApi.Services
                 .Take(pageSize)
                 .Select(s => new ShopListDto
                 {
+                    Id = s.Id,
                     Name = s.Name,
-                    Description = s.Description,
+                    Description = s.Description ?? string.Empty,
                     Slug = s.Slug,
-
                     OwnerId = s.OwnerId,
-                    OwnerName = s.Owner != null ? s.Owner.Username : "UnKnown",
-
+                    OwnerUsername = s.Owner != null ? s.Owner.Username : "Unknown", // CORRIGÉ ICI
                     ThemeColor = s.ThemeColor,
                     BackgroundColor = s.BackgroundColor,
                     TextColor = s.TextColor,
-                    
                     LogoUrl = s.LogoUrl,
-                    BannerUrl = s.BannerUrl
+                    BannerUrl = s.BannerUrl,
+                    ProductCount = s.Products.Count,
+                    CreatedAt = s.CreatedAt
                 })
                 .ToListAsync();
             

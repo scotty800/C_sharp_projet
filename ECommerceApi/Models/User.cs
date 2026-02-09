@@ -18,5 +18,7 @@ namespace ECommerceApi.Models
 
         [Required]
         public string Role { get; set; } = "User";
+
+        public ICollection<Shop> Shops { get; set; } = new List<Shop>();
     }
 }

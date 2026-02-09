@@ -10,8 +10,38 @@ namespace ECommerceApi.Data
         {
         }
 
-        public DbSet<Product> Products { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<Product> Products { get; set; }
         public DbSet<Shop> Shops { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+            
+            modelBuilder.Entity<Shop>()
+                .HasMany(s => s.Products)
+                .WithOne(p => p.Shop)
+                .HasForeignKey(p => p.ShopId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<User>()
+                .HasMany(u => u.Shops)
+                .WithOne(s => s.Owner)
+                .HasForeignKey(s => s.OwnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Shop>()
+                .HasIndex(s => s.Slug)
+                .IsUnique();
+
+            modelBuilder.Entity<Shop>()
+                .HasIndex(s => s.Name);
+
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.Name);
+
+            modelBuilder.Entity<Product>()
+                .HasIndex(p => p.ShopId);
+        }
     }
 }

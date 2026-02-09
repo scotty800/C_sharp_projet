@@ -18,6 +18,8 @@ namespace ECommerceApi.DTO
         public string BackgroundColor { get; set; } = "#000000";
         public string TextColor { get; set; } = "#FFFFFF";
 
+        public int ProductCount { get; set; } = 0;
+
         public string? Email { get; set; }
         public string? Phone { get; set; }
     }

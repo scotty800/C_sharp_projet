@@ -5,9 +5,9 @@ namespace ECommerceApi.Services
 {
     public interface IShopService
     {
-        Task<List<Shop>> GetAllUserShopsAsync(int userId);
+        Task<List<Shop>> GetUserShopsAsync(int userId);
         Task<Shop?> GetShopByIdAsync(int id);
-        Task<Shop?> GetShopBySlugAsync(string slug);
+        Task<Shop?> GetShopBySlugAsync(string slug);  // CORRIGÉ : retourne Shop
 
         Task<Shop> CreateShopAsync(int ownerId, CreateShopRequestDto shop);
         Task<bool> UpdateShopAsync(int shopId, int userId, UpdateShopRequestDto shop);
