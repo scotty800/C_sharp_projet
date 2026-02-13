@@ -1,9 +1,10 @@
 using ECommerceApi.DTO;
 using ECommerceApi.Models;
 using ECommerceApi.Data;
-using Microsoft.EntityFrameWorkCore;
+using ECommerceApi.Services; 
+using Microsoft.EntityFrameworkCore;
 
-namespace ECommerceApi.services
+namespace ECommerceApi.Services
 {
     public class CartService : ICartService
     {
@@ -145,7 +146,7 @@ namespace ECommerceApi.services
                 TotalItems = cart.TotalItems,
                 TotalAmount = cart.TotalAmount,
                 CreatedAt = cart.CreatedAt,
-                UpdatedAt = cart.UpadtedAt
+                UpdatedAt = cart.UpdatedAt
             };
         }
 

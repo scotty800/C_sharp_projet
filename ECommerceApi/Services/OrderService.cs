@@ -1,11 +1,12 @@
 using ECommerceApi.Data;
 using ECommerceApi.DTO;
 using ECommerceApi.Models;
+using ECommerceApi.Services; 
 using Microsoft.EntityFrameworkCore;
 
 namespace ECommerceApi.Services
 {
-    public class OrderService
+    public class OrderService : IOrderService
     {
         private readonly AppDbContext _context;
         private readonly ICartService _cartService;
@@ -69,7 +70,7 @@ namespace ECommerceApi.Services
                     CreatedAt = DateTime.UtcNow
                 };
 
-                _context.Oders.Add(order);
+                _context.Orders.Add(order);
                 await _context.SaveChangesAsync();
 
                 foreach (var item in cart.Items)
@@ -79,14 +80,13 @@ namespace ECommerceApi.Services
                     {
                         product.Stock -= item.Quantity;
 
-                        var OrderItem = new OrderItem
+                        var orderItem = new OrderItem
                         {
                             OrderId = order.Id,
-                            productId = item.ProductId,
+                            ProductId = item.ProductId,
                             Quantity = item.Quantity,
                             UnitPrice = item.ProductPrice
                         };
-
                         order.Items.Add(orderItem);
                     }
                 }
@@ -129,7 +129,7 @@ namespace ECommerceApi.Services
                 .Include(o => o.User)
                 .Include(o => o.Items)
                 .ThenInclude(i => i.Product)
-                .FirstOrDefaultAync(o => o.OrderNumber == orderNumber);
+                .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
         }
 
         public async Task<List<Order>> GetUserOrdersAsync(int userId)
@@ -137,7 +137,7 @@ namespace ECommerceApi.Services
             return await _context.Orders
                 .Where(o => o.UserId == userId)
                 .Include(o => o.Items)
-                .ThenInclude(i => i.product)
+                .ThenInclude(i => i.Product)
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync();
         }
@@ -186,7 +186,7 @@ namespace ECommerceApi.Services
             }
 
             if (!string.IsNullOrEmpty(paymentIntentId))
-                order.PaymentIntentId = PaymentIntentId;
+                order.PaymentIntentId = paymentIntentId;
 
             await _context.SaveChangesAsync();
             return true;
@@ -194,7 +194,7 @@ namespace ECommerceApi.Services
 
         public async Task<bool> CancelOrderAsync(int orderId, int userId)
         {
-            var order = await _context.Oders
+            var order = await _context.Orders
                 .Include(o => o.Items)
                 .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
             
@@ -232,7 +232,7 @@ namespace ECommerceApi.Services
         {
             return await _context.OrderItems
                 .Include(oi => oi.Order)
-                .AnyAsync(oi => oi.ProductId == productId &&
+                .AnyAsync(oi => oi.ProductId == productionId &&
                                 oi.Order.UserId == userId &&
                                 oi.Order.Status == OrderStatus.Delivered);
         }

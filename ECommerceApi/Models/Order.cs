@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace ECommerceApi.Models
 {
     public enum OrderStatus
@@ -42,7 +44,7 @@ namespace ECommerceApi.Models
         public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
         public PaymentMethod PaymentMethod { get; set; } = PaymentMethod.CreditCard;
 
-        public string? PaymentIntenId { get; set; }
+        public string? PaymentIntentId { get; set; }
 
         [Required]
         public decimal TotalAmount { get; set; }

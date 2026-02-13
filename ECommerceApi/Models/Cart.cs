@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace ECommerceApi.Models
 {
     public class Cart
@@ -12,7 +14,7 @@ namespace ECommerceApi.Models
 
         public decimal TotalAmount => Items.Sum(item => item.Quantity * item.Product.Price);
 
-        public int TotalItems => Items.sum(item => item.Quantity);
+        public int TotalItems => Items.Sum(item => item.Quantity);
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
@@ -22,18 +24,18 @@ namespace ECommerceApi.Models
     {
         public int Id { get; set; }
 
-        [required]
+        [Required]
         public int CartId { get; set; }
-        public Cart car { get; set; } = null!;
+        public Cart cart { get; set; } = null!;
 
         [Required]
         public int ProductId { get; set; }
         public Product Product { get; set; } = null!;
 
         [Required]
-        [range(1, 100)]
+        [Range(1, 100)]
         public int Quantity { get; set; }
 
-        public DateTime AddeAt { get; set; } = DateTime.UtcNow;
+        public DateTime AddedAt { get; set; } = DateTime.UtcNow;
     }
 }

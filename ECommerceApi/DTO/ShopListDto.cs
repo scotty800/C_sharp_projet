@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace ECommerceApi.DTO
 {
     public class ShopListDto

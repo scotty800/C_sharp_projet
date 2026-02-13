@@ -165,18 +165,6 @@ namespace ECommerceApi.DTO
     // REVIEW DTOs (Avis et Notes)
     // ============================================
     
-    public class CreateReviewDto
-    {
-        [Required]
-        [Range(1, 5)]
-        public int Rating { get; set; }
-        
-        [MaxLength(1000)]
-        public string? Comment { get; set; }
-        
-        [Required]
-        public int ProductId { get; set; }
-    }
     
     public class UpdateReviewDto
     {
@@ -188,29 +176,6 @@ namespace ECommerceApi.DTO
         public string? Comment { get; set; }
     }
     
-    public class ReviewResponseDto
-    {
-        public int Id { get; set; }
-        public int Rating { get; set; }
-        public string? Comment { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public bool IsVerifiedPurchase { get; set; }
-        
-        // Utilisateur
-        public int UserId { get; set; }
-        public string Username { get; set; } = string.Empty;
-        public string? UserAvatar { get; set; }
-        
-        // Produit
-        public int ProductId { get; set; }
-        public string ProductName { get; set; } = string.Empty;
-        public string? ProductImage { get; set; }
-        
-        // Shop
-        public int? ShopId { get; set; }
-        public string? ShopName { get; set; }
-    }
     
     public class ProductRatingDto
     {
@@ -303,5 +268,17 @@ namespace ECommerceApi.DTO
         public int DiscountPercent { get; set; }
         public decimal MinimumOrderAmount { get; set; }
         public DateTime ValidUntil { get; set; }
+    }
+
+    public class CreatePaymentIntentDto
+    {
+        [Required]
+        public int OrderId { get; set; }
+    }
+    
+    public class CreatePaymentIntentResponseDto
+    {
+        public string ClientSecret { get; set; } = string.Empty;
+        public string PaymentIntentId { get; set; } = string.Empty;
     }
 }

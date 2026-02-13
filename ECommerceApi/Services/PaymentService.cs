@@ -1,9 +1,11 @@
 using ECommerceApi.Data;
 using ECommerceApi.DTO;
 using ECommerceApi.Models;
+using ECommerceApi.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Stripe;
 
 public class PaymentService : IPaymentService
 {

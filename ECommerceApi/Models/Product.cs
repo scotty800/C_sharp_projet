@@ -33,6 +33,9 @@ namespace ECommerceApi.Models
         [ForeignKey(nameof(ShopId))]
         public Shop? Shop { get; set; }
 
+        public ICollection<Review> Reviews { get; set; } = new List<Review>();
+        public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
     }

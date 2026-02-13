@@ -1,6 +1,7 @@
 using ECommerceApi.Data;
 using ECommerceApi.DTO;
 using ECommerceApi.Models;
+using ECommerceApi.Services;
 using Microsoft.EntityFrameworkCore;
 
 public class ReviewService : IReviewService
@@ -31,7 +32,7 @@ public class ReviewService : IReviewService
             Rating = reviewDto.Rating,
             Comment = reviewDto.Comment,
             IsVerifiedPurchase  = hasPurchased,
-            CreateAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow
         };
 
         _context.Reviews.Add(review);
@@ -56,7 +57,7 @@ public class ReviewService : IReviewService
             .Where(r => r.ProductId == productId)
             .Include(r => r.User)
             .Include(r => r.Product)
-            .OderByDescending(r => createdAt)
+            .OrderByDescending(r => r.CreatedAt)
             .Select(r => new ReviewResponseDto 
             {
                 Id = r.Id,
@@ -64,13 +65,34 @@ public class ReviewService : IReviewService
                 Comment = r.Comment,
                 CreatedAt = r.CreatedAt,
                 IsVerifiedPurchase = r.IsVerifiedPurchase,
-                UserId, = r.UserId,
+                UserId = r.UserId,
                 Username = r.User.Username,
                 ProductId = r.ProductId,
                 ProductName = r.Product.Name
             })
-            .ToListAync();
+            .ToListAsync();
     }
+
+    public async Task<List<ReviewResponseDto>> GetReviewsByUserAsync(int userId)
+{
+    return await _context.Reviews
+        .Where(r => r.UserId == userId)
+        .Include(r => r.Product)
+        .OrderByDescending(r => r.CreatedAt)
+        .Select(r => new ReviewResponseDto
+        {
+            Id = r.Id,
+            Rating = r.Rating,
+            Comment = r.Comment,
+            CreatedAt = r.CreatedAt,
+            IsVerifiedPurchase = r.IsVerifiedPurchase,
+            UserId = r.UserId,
+            Username = r.User.Username,
+            ProductId = r.ProductId,
+            ProductName = r.Product.Name
+        })
+        .ToListAsync();
+}
 
     public async Task<bool> UpdateReviewAsync(int reviewId, int userId, CreateReviewDto reviewDto)
     {
@@ -112,7 +134,7 @@ public class ReviewService : IReviewService
     public async Task<ProductRatingDto> GetProductRatingAsync(int productId)
     {
         var product = await _context.Products
-            .Include(p => P.Reviews)
+            .Include(p => p.Reviews)
             .FirstOrDefaultAsync(p => p.Id == productId);
 
         if (product == null)

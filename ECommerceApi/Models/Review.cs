@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotation.Schema;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ECommerceApi.Models
 {
@@ -15,11 +15,11 @@ namespace ECommerceApi.Models
         public int UserId { get; set; }
         public User User { get; set; } = null!;
 
-        [required]
+        [Required]
         [Range(1, 5)]
         public int Rating { get; set; }
 
-        [maxLength(1000)]
+        [MaxLength(1000)]
         public string? Comment { get; set; }
 
         public bool IsVerifiedPurchase { get; set; } = false;

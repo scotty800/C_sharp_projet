@@ -1,8 +1,9 @@
 using ECommerceApi.DTO;
 using ECommerceApi.Models;
 using Stripe;
+using System.Threading.Tasks;
 
-namespace ECommerceApi.Services
+namespace ECommerceApi.Services  // ← Vérifie que c'est bien ce namespace
 {
     public interface IPaymentService
     {
