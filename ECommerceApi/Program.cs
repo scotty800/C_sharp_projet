@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // 🔑 Configuration JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured");
-builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection("Stripe"));
+//builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection("Stripe"));
 
 // 🗄 Base de données
 builder.Services.AddDbContext<AppDbContext>(opt =>

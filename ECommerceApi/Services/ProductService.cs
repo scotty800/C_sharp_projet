@@ -191,8 +191,8 @@ namespace ECommerceApi.Services
             query = sortBy switch
             {
                 "name" => query.OrderBy(p => p.Name),
-                "price" => query.OrderBy(p => p.Price),
-                "price_desc" => query.OrderByDescending(p => p.Price),
+                "price" => query.OrderBy(p => (double)p.Price),
+                "price_desc" => query.OrderByDescending(p => (double)p.Price),
                 "newest" => query.OrderByDescending(p => p.CreatedAt),
                 _ => query.OrderBy(p => p.Id)
             };
@@ -273,8 +273,8 @@ namespace ECommerceApi.Services
             query = sortBy switch
             {
                 "name" => query.OrderBy(p => p.Name),
-                "price" => query.OrderBy(p => p.Price),
-                "price_desc" => query.OrderByDescending(p => p.Price),
+                "price" => query.OrderBy(p => (double)p.Price),
+                "price_desc" => query.OrderByDescending(p => (double)p.Price),
                 "newest" => query.OrderByDescending(p => p.CreatedAt),
                 _ => query.OrderByDescending(p => p.CreatedAt)
             };

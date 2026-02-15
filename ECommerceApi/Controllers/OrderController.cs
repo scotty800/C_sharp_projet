@@ -154,15 +154,15 @@ public class OrderController : ControllerBase
     public async Task<IActionResult> GetOrderByNumber(string orderNumber)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var order = await _orderService.GetOrderByNumberAsync(orderNumber);
+        var orderDto = await _orderService.GetOrderByNumberAsync(orderNumber);
 
-        if (order == null)
+        if (orderDto == null)
             return NotFound("Commande non trouvée");
 
-        if (order.UserId != userId && !User.IsInRole("Admin"))
+        if (orderDto.UserId != userId && !User.IsInRole("Admin"))
             return Unauthorized("Vous n'êtes pas autorisé à voir cette commande");
         
-        return Ok(order);
+        return Ok(orderDto);
     }
 
     [HttpPut("{id}/cancel")]
