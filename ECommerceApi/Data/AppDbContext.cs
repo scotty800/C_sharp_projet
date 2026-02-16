@@ -18,6 +18,8 @@ namespace ECommerceApi.Data
         public DbSet<Order> Orders { get; set; }
         public DbSet<CartItem> CartItems { get; set; }
         public DbSet<OrderItem> OrderItems { get; set; }
+        public DbSet<ProductView> ProductViews { get; set; }
+        public DbSet<ShopVisit> ShopVisits { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -65,6 +67,12 @@ namespace ECommerceApi.Data
             modelBuilder.Entity<Cart>()
                 .HasIndex(c => c.UserId)
                 .IsUnique();
+
+            modelBuilder.Entity<ProductView>()
+                .HasIndex(pv => new { pv.ProductId, pv.ViewedAt });
+            
+            modelBuilder.Entity<ShopVisit>()
+                .HasIndex(sv => new { sv.ShopId, sv.VisitedAt });
         }
     }
 }
