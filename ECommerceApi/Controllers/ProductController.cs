@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore; // <-- obligatoire pour Include
+using Microsoft.AspNetCore.Hosting;
+using ECommerceApi.Data;
 using System.Security.Claims;
 using ECommerceApi.Models;
 using ECommerceApi.Services;
@@ -11,11 +14,17 @@ public class ProductController : ControllerBase
 {
     private readonly IProductService _productService;
     private readonly IShopService _shopService;
+    private readonly AppDbContext _context;
+    private readonly IWebHostEnvironment _environment;
 
-    public ProductController(IProductService productService, IShopService shopService)
+    public ProductController(IProductService productService,
+        IShopService shopService, AppDbContext context,
+        IWebHostEnvironment environment)
     {
         _productService = productService;
         _shopService = shopService;
+        _context = context;
+        _environment = environment;
     }
 
     [HttpGet]
@@ -241,6 +250,104 @@ public class ProductController : ControllerBase
         {
             shop = new { shop.Id, shop.Name, shop.Slug, shop.ProductCount },
             products = result
+        });
+    }
+
+    [HttpPost("upload-images")]
+    [Authorize]
+    public async Task<IActionResult> UploadProductImages([FromForm] ProductImageUploadDto images)
+    {
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var result = await _productService.UploadProductImagesAsync(images.ProductId, userId, images);
+
+            return Ok(new
+            {
+                message = "Images uploadées avec succès",
+                productId = images.ProductId
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{productId}/image/{imageNumber}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteProductImage(int productId, int imageNumber)
+    {
+        if (imageNumber < 1 || imageNumber > 3)
+            return BadRequest("Le numéro d'image doit être entre 1 et 3");
+
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+            var product = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == productId);
+
+            if (product == null)
+                return NotFound("Produit non trouvé");
+
+            // Vérifier les permissions
+            if (product.ShopId.HasValue)
+            {
+                if (product.Shop == null || product.Shop.OwnerId != userId)
+                    return Unauthorized("Vous n'êtes pas autorisé");
+            }
+
+            // Supprimer l'image
+            string? imageUrl = null;
+            switch (imageNumber)
+            {
+                case 1: imageUrl = product.ImageUrl1; product.ImageUrl1 = null; break;
+                case 2: imageUrl = product.ImageUrl2; product.ImageUrl2 = null; break;
+                case 3: imageUrl = product.ImageUrl3; product.ImageUrl3 = null; break;
+            }
+
+            if (!string.IsNullOrEmpty(imageUrl))
+            {
+                var filePath = Path.Combine(_environment.WebRootPath, imageUrl.TrimStart('/'));
+                if (System.IO.File.Exists(filePath))
+                    System.IO.File.Delete(filePath);
+            }
+
+            // Mettre à jour ImageUrl
+            product.ImageUrl = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3;
+            product.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = $"Image {imageNumber} supprimée avec succès" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{productId}/images")]
+    public async Task<IActionResult> GetProductImages(int productId)
+    {
+        var product = await _context.Products.FindAsync(productId);
+        if (product == null)
+            return NotFound("Produit non trouvé");
+
+        var images = new List<string>();
+        if (!string.IsNullOrEmpty(product.ImageUrl1)) images.Add(product.ImageUrl1);
+        if (!string.IsNullOrEmpty(product.ImageUrl2)) images.Add(product.ImageUrl2);
+        if (!string.IsNullOrEmpty(product.ImageUrl3)) images.Add(product.ImageUrl3);
+
+        return Ok(new
+        {
+            productId = product.Id,
+            productName = product.Name,
+            mainImage = product.ImageUrl,
+            images = images,
+            count = images.Count
         });
     }
 }

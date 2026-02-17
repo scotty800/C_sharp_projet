@@ -5,7 +5,7 @@ namespace ECommerceApi.DTO
 {
     public class ProductResponseDto
     {
-        public int Id { get; set; }           // <- Ici on a l'Id
+        public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public decimal Price { get; set; }
@@ -15,6 +15,13 @@ namespace ECommerceApi.DTO
         public string? Category { get; set; }
         public int? ShopId { get; set; }
         public string? ShopName { get; set; }
+
+        // ✅ Propriétés d'images
+        public string? ImageUrl { get; set; }
+        public string? ImageUrl1 { get; set; }
+        public string? ImageUrl2 { get; set; }
+        public string? ImageUrl3 { get; set; }
+
         public DateTime CreatedAt { get; set; }
     }
 }

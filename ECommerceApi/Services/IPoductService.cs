@@ -30,5 +30,7 @@ namespace ECommerceApi.Services
             decimal? maxPrice,
             string? sortBy);
         Task<int> GetProductCountByShopAsync(int shopId);
+
+        Task<bool> UploadProductImagesAsync(int productId, int userId, ProductImageUploadDto images);
     }
 }

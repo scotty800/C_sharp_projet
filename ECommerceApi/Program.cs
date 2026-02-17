@@ -18,6 +18,8 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperatio
 builder.Services.AddDbContext<AppDbContext>(opt =>
     opt.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=ecommerce.db"));
 
+builder.Services.AddHttpContextAccessor();
+
 // 🛠 Services DI
 builder.Services.AddScoped<IUserServices, UserService>();
 builder.Services.AddScoped<IProductService, ProductService>();

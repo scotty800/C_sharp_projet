@@ -26,7 +26,5 @@ namespace ECommerceApi.DTO
         public string? Category { get; set; }
 
         public int? ShopId { get; set; }
-        public string? ShopName { get; set; }
-
     }
 }

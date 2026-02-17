@@ -19,6 +19,10 @@ namespace ECommerceApi.Models
 
         public string? ImageUrl { get; set; }
 
+        public string? ImageUrl1 { get; set; }
+        public string? ImageUrl2 { get; set; }
+        public string? ImageUrl3 { get; set; }
+
         [MaxLength(500)]
         public string? Description { get; set; }
 

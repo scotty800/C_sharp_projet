@@ -9,11 +9,16 @@ namespace ECommerceApi.Services
     {
         private readonly AppDbContext _context;
         private readonly IShopService _shopService;
+        private readonly IWebHostEnvironment _environment;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public ProductService(AppDbContext context, IShopService shopService)
+        public ProductService(AppDbContext context, IShopService shopService,
+    IWebHostEnvironment environment, IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
             _shopService = shopService;
+            _environment = environment;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<List<ProductResponseDto>> GetAllProductsAsync()
@@ -31,6 +36,10 @@ namespace ECommerceApi.Services
                     Category = p.Category,
                     ShopId = p.ShopId,
                     ShopName = p.Shop != null ? p.Shop.Name : null,
+                    ImageUrl = p.ImageUrl,
+                    ImageUrl1 = p.ImageUrl1,
+                    ImageUrl2 = p.ImageUrl2,
+                    ImageUrl3 = p.ImageUrl3,
                     CreatedAt = p.CreatedAt
                 })
                 .ToListAsync();
@@ -52,6 +61,10 @@ namespace ECommerceApi.Services
                     Category = p.Category,
                     ShopId = p.ShopId,
                     ShopName = p.Shop != null ? p.Shop.Name : null,
+                    ImageUrl = p.ImageUrl,
+                    ImageUrl1 = p.ImageUrl1,
+                    ImageUrl2 = p.ImageUrl2,
+                    ImageUrl3 = p.ImageUrl3,
                     CreatedAt = p.CreatedAt
                 })
                 .FirstOrDefaultAsync();
@@ -165,6 +178,10 @@ namespace ECommerceApi.Services
                     Category = p.Category,
                     ShopId = p.ShopId,
                     ShopName = p.Shop != null ? p.Shop.Name : null,
+                    ImageUrl = p.ImageUrl,
+                    ImageUrl1 = p.ImageUrl1,
+                    ImageUrl2 = p.ImageUrl2,
+                    ImageUrl3 = p.ImageUrl3,
                     CreatedAt = p.CreatedAt
                 })
                 .ToListAsync();
@@ -212,6 +229,10 @@ namespace ECommerceApi.Services
                     Category = p.Category,
                     ShopId = p.ShopId,
                     ShopName = p.Shop != null ? p.Shop.Name : null,
+                    ImageUrl = p.ImageUrl,
+                    ImageUrl1 = p.ImageUrl1,
+                    ImageUrl2 = p.ImageUrl2,
+                    ImageUrl3 = p.ImageUrl3,
                     CreatedAt = p.CreatedAt
                 })
                 .Skip((page - 1) * pageSize)
@@ -244,6 +265,10 @@ namespace ECommerceApi.Services
                     Category = p.Category,
                     ShopId = p.ShopId,
                     ShopName = p.Shop != null ? p.Shop.Name : null,
+                    ImageUrl = p.ImageUrl,
+                    ImageUrl1 = p.ImageUrl1,
+                    ImageUrl2 = p.ImageUrl2,
+                    ImageUrl3 = p.ImageUrl3,
                     CreatedAt = p.CreatedAt
                 })
                 .ToListAsync();
@@ -294,6 +319,10 @@ namespace ECommerceApi.Services
                     Category = p.Category,
                     ShopId = p.ShopId,
                     ShopName = p.Shop != null ? p.Shop.Name : null,
+                    ImageUrl = p.ImageUrl,
+                    ImageUrl1 = p.ImageUrl1,
+                    ImageUrl2 = p.ImageUrl2,
+                    ImageUrl3 = p.ImageUrl3,
                     CreatedAt = p.CreatedAt
                 })
                 .Skip((page - 1) * pageSize)
@@ -327,5 +356,73 @@ namespace ECommerceApi.Services
                 await _context.SaveChangesAsync();
             }
         }
+
+        public async Task<bool> UploadProductImagesAsync(int productId, int userId, ProductImageUploadDto images)
+        {
+            var product = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == productId);
+
+            if (product == null)
+                throw new Exception("Produit non trouvé");
+
+            if (product.ShopId.HasValue)
+            {
+                if (product.Shop == null || product.Shop.OwnerId != userId)
+                    throw new Exception("Vous n'êtes pas autorisé à modifier ce produit");
+            }
+            else
+            {
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null || user.Role != "Admin")
+                    throw new Exception("Seul un admin peut modifier les produits généraux");
+            }
+
+            if (images.Image1 != null)
+                product.ImageUrl1 = await SaveProductImage(productId, images.Image1, 1);
+
+            if (images.Image2 != null)
+                product.ImageUrl2 = await SaveProductImage(productId, images.Image2, 2);
+
+            if (images.Image3 != null)
+                product.ImageUrl3 = await SaveProductImage(productId, images.Image3, 3);
+
+            product.ImageUrl = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3;
+
+            product.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        private async Task<string> SaveProductImage(int productId, IFormFile file, int imageNumber)
+        {
+            // Validation
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+            var extension = Path.GetExtension(file.FileName).ToLower();
+
+            if (!allowedExtensions.Contains(extension))
+                throw new Exception("Format de fichier non autorisé. Utilisez JPG, PNG, WEBP ou GIF");
+
+            if (file.Length > 5 * 1024 * 1024) // 5MB max
+                throw new Exception("Fichier trop volumineux (max 5MB)");
+
+            var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "products", productId.ToString());
+            Directory.CreateDirectory(uploadsPath);
+
+            var fileName = $"image_{imageNumber}_{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadsPath, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var request = _httpContextAccessor.HttpContext?.Request;
+            var baseUrl = $"{request?.Scheme}://{request?.Host}";
+
+            return $"/uploads/products/{productId}/{fileName}";
+        }
+
     }
 }
