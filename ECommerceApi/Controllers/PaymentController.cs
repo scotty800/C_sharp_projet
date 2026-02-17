@@ -10,7 +10,7 @@ using System.Security.Claims;
 [Authorize]
 public class PaymentController : ControllerBase
 {
-    private readonly IPaymentService _paymentService;   
+    private readonly IPaymentService _paymentService;
     private readonly IOrderService _orderService;
 
     public PaymentController(IPaymentService paymentService, IOrderService orderService)
@@ -31,7 +31,7 @@ public class PaymentController : ControllerBase
 
             if (order == null || order.UserId != userId)
                 return NotFound("Commande non trouvée");
-            
+
             var paymentIntent = await _paymentService.CreatePaymentIntentAsync(
                 order.FinalAmount,
                 order.OrderNumber
@@ -68,12 +68,12 @@ public class PaymentController : ControllerBase
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var order = await _orderService.GetOrderByIdAsync(confirmDto.OrderId);
-            
+
             if (order == null || order.UserId != userId)
                 return NotFound("Commande non trouvée");
-                
+
             var paymentIntent = await _paymentService.ConfirmPaymentAsync(confirmDto.PaymentIntentId);
-            
+
             if (paymentIntent.Status == "succeeded")
             {
                 await _orderService.UpdatePaymentStatusAsync(
@@ -81,12 +81,12 @@ public class PaymentController : ControllerBase
                     PaymentStatus.Paid,
                     confirmDto.PaymentIntentId
                 );
-                    
+
                 await _orderService.UpdateOrderStatusAsync(
                     confirmDto.OrderId,
                     OrderStatus.Processing
                 );
-                
+
                 return Ok(new
                 {
                     message = "Paiement confirmé avec succès",
@@ -111,7 +111,7 @@ public class PaymentController : ControllerBase
     {
         try
         {
-            var order = await _orderService.GetOrderByIdAsync(orderId);  
+            var order = await _orderService.GetOrderByIdAsync(orderId);
             if (order == null)
                 return NotFound("Commande non trouvée");
 
@@ -125,7 +125,7 @@ public class PaymentController : ControllerBase
                 await _orderService.UpdatePaymentStatusAsync(orderId, PaymentStatus.Refunded);
                 await _orderService.UpdateOrderStatusAsync(orderId, OrderStatus.Refunded);
 
-                 return Ok(new { message = "Remboursement effectué avec succès" });
+                return Ok(new { message = "Remboursement effectué avec succès" });
             }
 
             return BadRequest("Échec du remboursement");

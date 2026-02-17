@@ -30,7 +30,7 @@ public class ReviewController : ControllerBase
 
             var review = await _reviewService.CreateReviewAsync(userId, reviewDto);
 
-            return Ok(new 
+            return Ok(new
             {
                 message = "Avis ajouté avec succès",
                 reviewId = review.Id
@@ -38,7 +38,8 @@ public class ReviewController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(new {
+            return BadRequest(new
+            {
                 message = ex.Message
             });
         }
@@ -82,7 +83,7 @@ public class ReviewController : ControllerBase
             return BadRequest(ModelState);
 
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var updated = await _reviewService.UpdateReviewAsync(id, userId, new CreateReviewDto 
+        var updated = await _reviewService.UpdateReviewAsync(id, userId, new CreateReviewDto
         {
             Rating = reviewDto.Rating,
             Comment = reviewDto.Comment,
@@ -92,7 +93,8 @@ public class ReviewController : ControllerBase
         if (!updated)
             return NotFound("Avis non trouvé ou vous n'êtes pas l'auteur");
 
-        return Ok(new {
+        return Ok(new
+        {
             message = "Avis mis à jour avec succès"
         });
     }
@@ -106,8 +108,8 @@ public class ReviewController : ControllerBase
 
         if (!deleted)
             return NotFound("Avis non trouvé ou vous n'êtes pas l'auteur");
-        
-        return Ok(new 
+
+        return Ok(new
         {
             message = "Avis supprimé avec succès"
         });
@@ -124,9 +126,10 @@ public class ReviewController : ControllerBase
     public async Task<IActionResult> GetShopRating(int shopId)
     {
         var average = await _reviewService.GetAverageRatingByShopAsync(shopId);
-        return Ok(new {
+        return Ok(new
+        {
             shopId,
-            averageRating  = average
+            averageRating = average
         });
     }
 }

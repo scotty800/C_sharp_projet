@@ -23,17 +23,17 @@ namespace ECommerceApi.DTO
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public bool IsVerifiedPurchase { get; set; }
-        
+
         // Utilisateur
         public int UserId { get; set; }
         public string Username { get; set; } = string.Empty;
         public string? UserAvatar { get; set; }
-        
+
         // Produit
         public int ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? ProductImage { get; set; }
-        
+
         // Shop
         public int? ShopId { get; set; }
         public string? ShopName { get; set; }

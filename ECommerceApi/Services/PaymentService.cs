@@ -22,7 +22,7 @@ namespace ECommerceApi.Services
         public async Task<PaymentIntent> CreatePaymentIntentAsync(decimal amount, string orderNumber)
         {
             _logger.LogInformation($"💰 SIMULATION: Paiement de {amount}€ pour commande {orderNumber}");
-            
+
             // Simuler un PaymentIntent réussi
             return await Task.FromResult(new PaymentIntent
             {

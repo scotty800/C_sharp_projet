@@ -5,7 +5,7 @@ namespace ECommerceApi.Services
 {
     public interface IOrderService
     {
-        Task<Order> CreateOrderFromCartAsync(int userId, CreateOrderDto  orderDto);
+        Task<Order> CreateOrderFromCartAsync(int userId, CreateOrderDto orderDto);
         Task<Order?> GetOrderByIdAsync(int orderId);
         Task<OrderResponseDto?> GetOrderByNumberAsync(string orderNumber);
         Task<List<Order>> GetUserOrdersAsync(int userId);

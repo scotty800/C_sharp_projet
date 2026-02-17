@@ -22,7 +22,7 @@ namespace ECommerceApi.DTO
         public string? Size { get; set; }
 
         public string? Color { get; set; }
-        
+
         public string? Category { get; set; }
 
         public int? ShopId { get; set; }

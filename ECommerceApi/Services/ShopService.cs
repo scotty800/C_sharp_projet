@@ -48,21 +48,21 @@ namespace ECommerceApi.Services
         {
             if (string.IsNullOrWhiteSpace(shopDto.Slug))
                 throw new Exception("Le slug est obligatoire");
-            
+
             var normalizedSlug = shopDto.Slug.ToLower();
 
             var existing = await _context.Shops
                 .FirstOrDefaultAsync(s => s.Slug == normalizedSlug);
-            
+
             if (existing != null)
                 throw new Exception("Ce slug est déjà utilisé");
 
             var userShopCount = await _context.Shops
                 .CountAsync(s => s.OwnerId == ownerId && s.IsActive);
-            
+
             if (userShopCount >= 3)
                 throw new Exception("Vous ne pouvez pas créer plus de 3 shops");
-            
+
             var newShop = new Shop
             {
                 Name = shopDto.Name,
@@ -92,22 +92,22 @@ namespace ECommerceApi.Services
 
             if (!string.IsNullOrWhiteSpace(shopDto.Name))
                 shop.Name = shopDto.Name;
-            
+
             if (shopDto.Description != null)
                 shop.Description = shopDto.Description;
-            
+
             if (!string.IsNullOrWhiteSpace(shopDto.ThemeColor))
                 shop.ThemeColor = shopDto.ThemeColor;
-            
+
             if (!string.IsNullOrWhiteSpace(shopDto.BackgroundColor))
                 shop.BackgroundColor = shopDto.BackgroundColor;
-            
+
             if (!string.IsNullOrWhiteSpace(shopDto.TextColor))
                 shop.TextColor = shopDto.TextColor;
-            
+
             if (shopDto.Email != null)
                 shop.Email = shopDto.Email;
-            
+
             if (shopDto.Phone != null)
                 shop.Phone = shopDto.Phone;
 
@@ -123,10 +123,10 @@ namespace ECommerceApi.Services
 
             if (shop == null || shop.OwnerId != userId)
                 return false;
-            
+
             shop.IsActive = false;
             shop.UpdatedAt = DateTime.UtcNow;
-            
+
             await _context.SaveChangesAsync();
             return true;
         }
@@ -146,7 +146,7 @@ namespace ECommerceApi.Services
         public async Task<bool> UploadLogoAsync(int shopId, int userId, IFormFile file)
         {
             ValidateImage(file);
-            
+
             var shop = await _context.Shops.FindAsync(shopId);
             if (shop == null || shop.OwnerId != userId)
                 return false;
@@ -159,7 +159,7 @@ namespace ECommerceApi.Services
 
             using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
-            
+
 
             shop.LogoUrl = $"/uploads/shops/{shopId}/{fileName}";
             await _context.SaveChangesAsync();
@@ -215,7 +215,7 @@ namespace ECommerceApi.Services
             }
 
             var totalItems = await query.CountAsync();
-            
+
             var shops = await query
                 .OrderByDescending(s => s.CreatedAt)
                 .Skip((page - 1) * pageSize)
@@ -237,7 +237,7 @@ namespace ECommerceApi.Services
                     CreatedAt = s.CreatedAt
                 })
                 .ToListAsync();
-            
+
             return new PagedResultDto<ShopListDto>
             {
                 Page = page,

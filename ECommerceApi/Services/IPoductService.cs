@@ -23,11 +23,11 @@ namespace ECommerceApi.Services
 
         Task<List<ProductResponseDto>> GetProductsByShopIdAsync(int shopId); // Changé
         Task<PagedResultDto<ProductResponseDto>> GetProductsByShopPagedAsync( // Changé
-            int shopId, 
-            int page, 
-            int pageSize, 
-            decimal? minPrice, 
-            decimal? maxPrice, 
+            int shopId,
+            int page,
+            int pageSize,
+            decimal? minPrice,
+            decimal? maxPrice,
             string? sortBy);
         Task<int> GetProductCountByShopAsync(int shopId);
     }

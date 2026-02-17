@@ -67,34 +67,34 @@ namespace ECommerceApi.Models
         public string BillingCountry { get; set; } = string.Empty;
 
         public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
-        
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
         public DateTime? PaidAt { get; set; }
         public DateTime? ShippedAt { get; set; }
         public DateTime? DeliveredAt { get; set; }
     }
-    
+
     public class OrderItem
     {
         public int Id { get; set; }
-        
+
         [Required]
         public int OrderId { get; set; }
         public Order Order { get; set; } = null!;
-        
+
         [Required]
         public int ProductId { get; set; }
         public Product Product { get; set; } = null!;
-        
+
         [Required]
         public int Quantity { get; set; }
-        
+
         [Required]
         public decimal UnitPrice { get; set; } // Prix au moment de l'achat
-        
+
         public decimal TotalPrice => Quantity * UnitPrice;
-        
+
         // Pour les reviews
         public bool IsReviewed { get; set; } = false;
     }

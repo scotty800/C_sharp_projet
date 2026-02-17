@@ -34,52 +34,52 @@ public class ShopController : ControllerBase
     public async Task<IActionResult> GetMyShops()
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-    
+
         var shops = await _shopService.GetUserShopsAsync(userId); // List<Shop>
-    
+
         var shopDtos = ShopMapper.ToDtoList(shops); // List<ShopResponseDto>
-        
+
         return Ok(shopDtos);
     }
 
 
     [HttpGet("slug/{slug}")]
-public async Task<IActionResult> GetShopBySlug(string slug)
-{
-    var shop = await _shopService.GetShopBySlugAsync(slug);
-    if (shop == null)
-        return NotFound("Shop non trouvé");
-    
-    // Convertir en DTO
-    var dto = new 
+    public async Task<IActionResult> GetShopBySlug(string slug)
     {
-        shop.Id,
-        shop.Name,
-        shop.Description,
-        shop.Slug,
-        shop.OwnerId,
-        shop.Owner?.Username,
-        shop.ThemeColor,
-        shop.BackgroundColor,
-        shop.TextColor,
-        shop.LogoUrl,
-        shop.BannerUrl,
-        shop.Email,
-        shop.Phone,
-        shop.ProductCount,
-        shop.CreatedAt,
-        Products = shop.Products?.Select(p => new 
+        var shop = await _shopService.GetShopBySlugAsync(slug);
+        if (shop == null)
+            return NotFound("Shop non trouvé");
+
+        // Convertir en DTO
+        var dto = new
         {
-            p.Id,
-            p.Name,
-            p.Price,
-            p.Stock,
-            p.Category
-        }).ToList()
-    };
-    
-    return Ok(dto);
-}
+            shop.Id,
+            shop.Name,
+            shop.Description,
+            shop.Slug,
+            shop.OwnerId,
+            shop.Owner?.Username,
+            shop.ThemeColor,
+            shop.BackgroundColor,
+            shop.TextColor,
+            shop.LogoUrl,
+            shop.BannerUrl,
+            shop.Email,
+            shop.Phone,
+            shop.ProductCount,
+            shop.CreatedAt,
+            Products = shop.Products?.Select(p => new
+            {
+                p.Id,
+                p.Name,
+                p.Price,
+                p.Stock,
+                p.Category
+            }).ToList()
+        };
+
+        return Ok(dto);
+    }
 
     // ✅ NOUVEL ENDPOINT : Récupérer les produits d'un shop
     [HttpGet("{id}/products")]
@@ -98,7 +98,7 @@ public async Task<IActionResult> GetShopBySlug(string slug)
         var result = await _productService.GetProductsByShopPagedAsync(
             id, page, pageSize, minPrice, maxPrice, sortBy);
 
-        return Ok(new 
+        return Ok(new
         {
             shop = new { shop.Id, shop.Name, shop.Slug, shop.ProductCount },
             products = result
@@ -111,7 +111,7 @@ public async Task<IActionResult> GetShopBySlug(string slug)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
-        
+
         try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -142,7 +142,7 @@ public async Task<IActionResult> GetShopBySlug(string slug)
 
         if (!updated)
             return NotFound("Shop non trouvé");
-        
+
         return NoContent();
     }
 
@@ -155,7 +155,7 @@ public async Task<IActionResult> GetShopBySlug(string slug)
 
         if (!deleted)
             return NotFound("Shop non trouvé");
-        
+
         return NoContent();
     }
 
@@ -165,14 +165,15 @@ public async Task<IActionResult> GetShopBySlug(string slug)
     {
         if (file == null || file.Length == 0)
             return BadRequest("Fichier invalide");
-        
+
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var uploaded = await _shopService.UploadLogoAsync(id, userId, file);
 
         if (!uploaded)
             return NotFound("Shop non trouvé");
-        
-        return Ok(new {
+
+        return Ok(new
+        {
             message = "Logo uploadé avec succès"
         });
     }
@@ -183,14 +184,15 @@ public async Task<IActionResult> GetShopBySlug(string slug)
     {
         if (file == null || file.Length == 0)
             return BadRequest("Fichier invalide");
-        
+
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var uploaded = await _shopService.UploadBannerAsync(id, userId, file);
 
         if (!uploaded)
             return NotFound("Shop non trouvé");
-        
-        return Ok(new {
+
+        return Ok(new
+        {
             message = "Bannière uploadée avec succès"
         });
     }

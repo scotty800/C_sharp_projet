@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ECommerceApi.Services;
+using ECommerceApi.Data;
 using ECommerceApi.DTO;
 using System.Security.Claims;
+using System.Text;
+using Microsoft.EntityFrameworkCore;
 
 namespace ECommerceApi.Controllers
 {
@@ -14,15 +17,18 @@ namespace ECommerceApi.Controllers
         private readonly IDashboardService _dashboardService;
         private readonly IShopService _shopService;
         private readonly ILogger<DashboardController> _logger;
+        private readonly AppDbContext _context;
 
         public DashboardController(
             IDashboardService dashboardService,
             IShopService shopService,
-            ILogger<DashboardController> logger)
+            ILogger<DashboardController> logger,
+            AppDbContext context)
         {
             _dashboardService = dashboardService;
             _shopService = shopService;
             _logger = logger;
+            _context = context;
         }
 
         [HttpGet("shop/{shopId}")]
@@ -83,7 +89,7 @@ namespace ECommerceApi.Controllers
 
                 csv.AppendLine($"{date},{visits},{orders},{revenue}");
             }
-            
+
             return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"dashboard-shop-{shopId}.csv");
         }
 
@@ -92,32 +98,51 @@ namespace ECommerceApi.Controllers
         {
             var today = DateTime.UtcNow.Date;
             var now = DateTime.UtcNow;
-            var houtAgo = now.AddHours(-1);
+            var hourAgo = now.AddHours(-1);
 
+            // 1. Visites aujourd'hui
             var visitsToday = await _context.ShopVisits
                 .CountAsync(v => v.ShopId == shopId && v.VisitedAt >= today);
 
+            // 2. Visites de la dernière heure
             var visitsLastHour = await _context.ShopVisits
                 .CountAsync(v => v.ShopId == shopId && v.VisitedAt >= hourAgo);
-            
-            var ordersToday  = await _context.Orders
-                .Include(o => o.Items)
-                .Where(o => o.Items.Any(i => i.Product.ShopId == shopId) && o.CreatedAt >= today)
-                .CountAsync();
 
-            var revenueToday = await _context.Orders
-                .Include(o => o.Items)
-                .Where(o => o.Items.Any(i => i.Product.ShopId == shopId) && o.CreatedAt >= today)
-                .SumAsync(o => o.FinalAmount);
-            
+            // 3. Récupérer les IDs des produits du shop
+            var productIds = await _context.Products
+                .Where(p => p.ShopId == shopId)
+                .Select(p => p.Id)
+                .ToListAsync();
+
+            // 4. Récupérer les commandes d'aujourd'hui
+            var orderItemsToday = await _context.OrderItems
+                .Include(oi => oi.Order)
+                .Where(oi => productIds.Contains(oi.ProductId) && oi.Order.CreatedAt >= today)
+                .ToListAsync();
+
+            // 5. Calculer les métriques
+            var ordersCount = orderItemsToday.Select(oi => oi.OrderId).Distinct().Count();
+            var revenueToday = orderItemsToday
+                .GroupBy(oi => oi.OrderId)
+                .Select(g => new
+                {
+                    OrderId = g.Key,
+                    Total = g.First().Order.TotalAmount +
+                            g.First().Order.TaxAmount +
+                            g.First().Order.ShippingCost -
+                            g.First().Order.DiscountAmount
+                })
+                .Sum(x => x.Total);
+
             return Ok(new
             {
                 timestamp = now,
                 visitsToday,
                 visitsLastHour,
-                ordersToday,
+                ordersToday = ordersCount,
                 revenueToday,
-                averageOrderValue = ordersToday > 0 ? revenueToday / ordersToday : 0
+                averageOrderValue = ordersCount > 0 ? revenueToday / ordersCount : 0
             });
+        }
     }
 }

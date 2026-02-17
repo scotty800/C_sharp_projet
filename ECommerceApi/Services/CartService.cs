@@ -1,7 +1,7 @@
 using ECommerceApi.DTO;
 using ECommerceApi.Models;
 using ECommerceApi.Data;
-using ECommerceApi.Services; 
+using ECommerceApi.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace ECommerceApi.Services
@@ -23,7 +23,7 @@ namespace ECommerceApi.Services
                 .Include(c => c.Items)
                 .ThenInclude(i => i.Product)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
-            
+
             if (cart == null)
             {
                 cart = new Cart
@@ -45,10 +45,10 @@ namespace ECommerceApi.Services
 
             if (product == null)
                 throw new Exception("Produit non trouvé");
-            
+
             if (product.Stock < cartDto.Quantity)
                 throw new Exception($"Stock insuffisant. Disponible: {product.Stock}");
-            
+
             var cart = await GetOrCreateCartAsync(userId);
 
             var existingItem = cart.Items.FirstOrDefault(i => i.ProductId == cartDto.ProductId);
@@ -84,7 +84,7 @@ namespace ECommerceApi.Services
 
             if (item == null)
                 return false;
-            
+
             var product = await _productService.GetProductByIdAsync(item.ProductId);
             if (product == null || cartDto.Quantity > product.Stock)
                 return false;
@@ -103,7 +103,7 @@ namespace ECommerceApi.Services
 
             if (item == null)
                 return false;
-            
+
             cart.Items.Remove(item);
             cart.UpdatedAt = DateTime.UtcNow;
 

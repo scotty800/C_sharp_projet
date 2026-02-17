@@ -8,7 +8,7 @@ namespace ECommerceApi.Models
 
         [Required]
         public int ProductId { get; set; }
-        public Product Product { get; set; }
+        public Product? Product { get; set; }
 
         public int? UserId { get; set; }
         public User? User { get; set; }
@@ -19,6 +19,6 @@ namespace ECommerceApi.Models
         public string? IpAddress { get; set; }
 
         [MaxLength(500)]
-        public string? UserArgent { get; set; }
+        public string? UserAgent { get; set; }
     }
 }

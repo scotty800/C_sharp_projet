@@ -12,20 +12,20 @@ namespace ECommerceApi.Models
         public string Name { get; set; } = string.Empty;
 
         [Range(0.01, 1000)]
-        public decimal Price { get; set; } 
+        public decimal Price { get; set; }
 
         [Range(0, 1000)]
         public int Stock { get; set; }
 
-        public string? ImageUrl { get; set; } 
+        public string? ImageUrl { get; set; }
 
         [MaxLength(500)]
         public string? Description { get; set; }
 
-        public string? Size { get; set; }  
+        public string? Size { get; set; }
 
         public string? Color { get; set; }
-        
+
         public string? Category { get; set; }
 
         public int? ShopId { get; set; }

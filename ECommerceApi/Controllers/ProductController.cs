@@ -59,10 +59,10 @@ public class ProductController : ControllerBase
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var shop = await _shopService.GetShopByIdAsync(productDto.ShopId.Value);
-            
+
             if (shop == null)
                 return NotFound("Shop non trouvé");
-            
+
             if (shop.OwnerId != userId)
                 return Unauthorized("Vous n'êtes pas le propriétaire de ce shop");
         }
@@ -94,7 +94,7 @@ public class ProductController : ControllerBase
     [HttpPost("shop/{shopId}")]
     [Authorize]
     public async Task<IActionResult> CreateProductForShop(
-        int shopId, 
+        int shopId,
         [FromBody] CreateProductDto productDto)
     {
         if (!ModelState.IsValid)
@@ -149,13 +149,13 @@ public class ProductController : ControllerBase
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var shopId = product.ShopId ?? existingProduct.ShopId;
-            
+
             if (shopId.HasValue)
             {
                 var shop = await _shopService.GetShopByIdAsync(shopId.Value);
                 if (shop == null)
                     return NotFound("Shop non trouvé");
-                
+
                 if (shop.OwnerId != userId)
                     return Unauthorized("Vous n'êtes pas le propriétaire de ce shop");
             }
@@ -180,10 +180,10 @@ public class ProductController : ControllerBase
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var shop = await _shopService.GetShopByIdAsync(existingProduct.ShopId.Value);
-            
+
             if (shop == null)
                 return NotFound("Shop non trouvé");
-            
+
             if (shop.OwnerId != userId)
                 return Unauthorized("Vous n'êtes pas le propriétaire de ce shop");
         }
@@ -237,7 +237,7 @@ public class ProductController : ControllerBase
         var result = await _productService.GetProductsByShopPagedAsync(
             shopId, page, pageSize, minPrice, maxPrice, sortBy);
 
-        return Ok(new 
+        return Ok(new
         {
             shop = new { shop.Id, shop.Name, shop.Slug, shop.ProductCount },
             products = result

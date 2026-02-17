@@ -70,7 +70,7 @@ public class UserController : ControllerBase
         var deletedUser = await _userService.DeleteAsync(id);
         if (!deletedUser)
             return NotFound("Utilisateur non trouvé");
-        
+
         return NoContent();
     }
 }

@@ -32,7 +32,7 @@ public class ExceptionMiddleware
                 JsonSerializer.Serialize(response)
             );
         }
-        catch(ProductErrorException ex)
+        catch (ProductErrorException ex)
         {
             context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             context.Response.ContentType = "application/json";

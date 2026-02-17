@@ -24,7 +24,7 @@ namespace ECommerceApi.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-            
+
             modelBuilder.Entity<Shop>()
                 .HasMany(s => s.Products)
                 .WithOne(p => p.Shop)
@@ -49,28 +49,28 @@ namespace ECommerceApi.Data
 
             modelBuilder.Entity<Product>()
                 .HasIndex(p => p.ShopId);
-            
+
             modelBuilder.Entity<Review>()
                 .HasIndex(r => new { r.UserId, r.ProductId })
                 .IsUnique();
-            
+
             modelBuilder.Entity<Order>()
                 .HasOne(o => o.User)
                 .WithMany(u => u.Orders)
                 .HasForeignKey(o => o.UserId);
-                
+
             modelBuilder.Entity<OrderItem>()
                 .HasOne(oi => oi.Product)
                 .WithMany(p => p.OrderItems)
-                .HasForeignKey(oi => oi.ProductId);    
-            
+                .HasForeignKey(oi => oi.ProductId);
+
             modelBuilder.Entity<Cart>()
                 .HasIndex(c => c.UserId)
                 .IsUnique();
 
             modelBuilder.Entity<ProductView>()
                 .HasIndex(pv => new { pv.ProductId, pv.ViewedAt });
-            
+
             modelBuilder.Entity<ShopVisit>()
                 .HasIndex(sv => new { sv.ShopId, sv.VisitedAt });
         }

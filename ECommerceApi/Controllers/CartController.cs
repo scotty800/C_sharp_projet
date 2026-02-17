@@ -31,20 +31,20 @@ public class CartController : ControllerBase
         var count = await _cartService.GetCartItemCountAsync(userId);
         return Ok(new { count });
     }
-    
+
     [HttpPost("add")]
     public async Task<IActionResult> AddToCart([FromBody] AddToCartDto cartDto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
-        
+
         try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
             var item = await _cartService.AddToCartAsync(userId, cartDto);
 
-            return Ok(new 
+            return Ok(new
             {
                 message = "Produit ajouté au panier",
                 itemId = item.Id
@@ -64,13 +64,13 @@ public class CartController : ControllerBase
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
-        
+
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var updated =  await _cartService.UpdateCartItemAsync(userId, itemId, cartDto);
+        var updated = await _cartService.UpdateCartItemAsync(userId, itemId, cartDto);
 
         if (!updated)
             return NotFound("Article non trouvé dans votre panier");
-        
+
         return Ok(new { message = "Quantité mise à jour" });
     }
 
@@ -82,7 +82,7 @@ public class CartController : ControllerBase
 
         if (!removed)
             return NotFound("Article non trouvé dans votre panier");
-        
+
         return Ok(new { message = "Article retiré du panier" });
     }
 

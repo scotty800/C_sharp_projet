@@ -1,5 +1,6 @@
 using ECommerceApi.Data;
 using ECommerceApi.Services;
+using ECommerceApi.Middlewares;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -25,6 +26,7 @@ builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<ICartService, CartService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<AuthService>();
 
 // 🔐 Authentification JWT
@@ -73,6 +75,7 @@ if (app.Environment.IsDevelopment())
 
 // Middleware custom pour les exceptions
 app.UseMiddleware<ExceptionMiddleware>();
+app.UseMiddleware<TrackingMiddleware>();
 
 // HTTPS, Auth
 app.UseHttpsRedirection();

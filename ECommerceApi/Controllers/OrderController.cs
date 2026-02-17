@@ -12,10 +12,10 @@ public class OrderController : ControllerBase
     private readonly IOrderService _orderService;
     private readonly ICartService _cartService;
 
-    public OrderController (IOrderService orderService, ICartService cartService)
+    public OrderController(IOrderService orderService, ICartService cartService)
     {
         _orderService = orderService;
-        _cartService = cartService;  
+        _cartService = cartService;
     }
 
     [HttpPost]
@@ -24,7 +24,7 @@ public class OrderController : ControllerBase
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
-        
+
         try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -44,7 +44,7 @@ public class OrderController : ControllerBase
                 paymentIntentId = order.PaymentIntentId
             });
         }
-        catch (Exception  ex)
+        catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
         }
@@ -59,26 +59,26 @@ public class OrderController : ControllerBase
 
         var orderDtos = orders.Select(o => new OrderResponseDto
         {
-                Id = o.Id,
-                OrderNumber = o.OrderNumber,
-                UserId = o.UserId,
-                Username = o.User?.Username ?? "",
-                Status = o.Status,
-                PaymentStatus = o.PaymentStatus,
-                PaymentMethod = o.PaymentMethod,
-                TotalAmount = o.TotalAmount,
-                FinalAmount = o.FinalAmount,
-                CreatedAt = o.CreatedAt,
-                Items = o.Items.Select(i => new OrderItemDto
-                {
-                    Id = i.Id,
-                    ProductId = i.ProductId,
-                    ProductName = i.Product?.Name ?? "",
-                    Quantity = i.Quantity,
-                    UnitPrice = i.UnitPrice,
-                    TotalPrice = i.TotalPrice,
-                    IsReviewed = i.IsReviewed
-                }).ToList()
+            Id = o.Id,
+            OrderNumber = o.OrderNumber,
+            UserId = o.UserId,
+            Username = o.User?.Username ?? "",
+            Status = o.Status,
+            PaymentStatus = o.PaymentStatus,
+            PaymentMethod = o.PaymentMethod,
+            TotalAmount = o.TotalAmount,
+            FinalAmount = o.FinalAmount,
+            CreatedAt = o.CreatedAt,
+            Items = o.Items.Select(i => new OrderItemDto
+            {
+                Id = i.Id,
+                ProductId = i.ProductId,
+                ProductName = i.Product?.Name ?? "",
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice,
+                TotalPrice = i.TotalPrice,
+                IsReviewed = i.IsReviewed
+            }).ToList()
         }).ToList();
 
         return Ok(orderDtos);
@@ -89,16 +89,16 @@ public class OrderController : ControllerBase
     public async Task<IActionResult> GetOrderById(int id)  // ← paramètre "id"
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        
+
         // ✅ CORRIGÉ : utilise "id" au lieu de "orderId"
         var order = await _orderService.GetOrderByIdAsync(id);
 
         if (order == null)
             return NotFound("Commande non trouvée");
-        
+
         if (order.UserId != userId)
             return Unauthorized("Vous n'êtes pas autorisé à voir cette commande");
-        
+
         var orderDto = new OrderResponseDto
         {
             Id = order.Id,
@@ -122,10 +122,10 @@ public class OrderController : ControllerBase
             BillingCity = order.BillingCity,
             BillingPostalCode = order.BillingPostalCode,
             BillingCountry = order.BillingCountry,
-            
+
             // ✅ CORRIGÉ : majuscule P (comme dans le DTO)
             PaymentIntentId = order.PaymentIntentId,
-            
+
             TrackingNumber = order.TrackingNumber,
             CreatedAt = order.CreatedAt,
             PaidAt = order.PaidAt,
@@ -161,7 +161,7 @@ public class OrderController : ControllerBase
 
         if (orderDto.UserId != userId && !User.IsInRole("Admin"))
             return Unauthorized("Vous n'êtes pas autorisé à voir cette commande");
-        
+
         return Ok(orderDto);
     }
 
@@ -180,7 +180,7 @@ public class OrderController : ControllerBase
 
     [HttpGet("shop/{shopId}")]
     [Authorize]
-    public async Task<IActionResult>  GetShopOrders(int shopId)
+    public async Task<IActionResult> GetShopOrders(int shopId)
     {
         var orders = await _orderService.GetShopOrdersAsync(shopId);
 
@@ -203,7 +203,7 @@ public class OrderController : ControllerBase
 
         if (!updated)
             return NotFound("Commande non trouvée");
-        
+
         return Ok(new
         {
             message = $"Statut mis à jour: {statusDto.Status}"  // ✅ CORRIGÉ : "Statut" au lieu de "Staut"

@@ -36,7 +36,7 @@ public class AuthController : ControllerBase
         };
 
         var createdUser = await _userService.CreateUserAsync(user);
-        
+
 
         var token = _authService.GenerateJwtToken(
             createdUser.Id,
