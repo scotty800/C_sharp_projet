@@ -1,0 +1,74 @@
+.home-page {
+  min-height: 100vh;
+  background: var(--light);
+}
+
+.home-content {
+  margin-top: -60px;
+  position: relative;
+  z-index: 10;
+}
+
+.home-section {
+  margin-bottom: var(--space-12);
+}
+
+.home-section:first-of-type {
+  margin-top: 0;
+}
+
+/* Loading Skeletons */
+.home-loading {
+  padding: var(--space-8) var(--space-4);
+}
+
+.loading-row {
+  margin-bottom: var(--space-12);
+}
+
+.loading-title {
+  width: 200px;
+  height: 32px;
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+.loading-items {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: hidden;
+}
+
+.loading-card {
+  flex: 0 0 auto;
+  width: 280px;
+  height: 380px;
+  border-radius: var(--radius-lg);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .home-content {
+    margin-top: -40px;
+  }
+  
+  .home-section {
+    margin-bottom: var(--space-8);
+  }
+  
+  .loading-card {
+    width: 240px;
+    height: 340px;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-content {
+    margin-top: -20px;
+  }
+  
+  .loading-card {
+    width: 200px;
+    height: 300px;
+  }
+}
