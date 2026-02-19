@@ -1,72 +1,100 @@
-
 import React, { createContext, useState, useEffect } from 'react';
 import { authApi } from '../api/auth';
 
+export const AuthContext = createContext();
+
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-    useEffect(() => {
-        checkUser();
-    }, []);
+  useEffect(() => {
+    checkUser();
+  }, []);
 
-    const checkUser = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            if (token) {
-                const userData = await authApi.getCurrentUser();
-                setUser(userData);
-            }
-        } catch (err) {
-            console.error('Auth check failed:', err);
-            localStorage.removeItem('token');
-        } finally {
-            setLoading(false);
-        }
-    };
+  const checkUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-    const login = async (email, password) => {
-        try {
-            setError(null);
-            const response = await authApi.login({ email, password });
-            localStorage.setItem('token', response.token);
-            setUser(response.user);
-            return response;
-        } catch (err) {
-            setError(err.message);
-            throw err;
-        }
-    };
+      // ✅ Vérifier que le token est valide
+      const userData = await authApi.getCurrentUser();
+      setUser(userData);
+      
+    } catch (err) {
+      console.error('Auth check failed:', err);
+      // ✅ En cas d'erreur, supprimer le token invalide
+      localStorage.removeItem('token');
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const register = async (userData) => {
-        try {
-            setError(null);
-            const response = await authApi.register(userData);
-            localStorage.setItem('token', response.token);
-            setUser(response.user);
-            return response;
-        } catch (err) {
-            setError(err.message);
-            throw err;
-        }
-    };
+  const login = async (email, password) => {
+    try {
+      setError(null);
+      const response = await authApi.login({ email, password });
+      
+      // ✅ Vérifier que la réponse contient un token
+      if (response?.token) {
+        localStorage.setItem('token', response.token);
+        setUser(response.user);
+        return response;
+      } else {
+        throw new Error('Token non reçu');
+      }
+    } catch (err) {
+      setError(err.message || 'Erreur de connexion');
+      throw err;
+    }
+  };
 
-    const value = {
-        user,
-        loading,
-        error,
-        login,
-        register,
-        logout,
-        isAuthenticated: !!user,
-        isAdmin: user?.role === 'Admin',
-        isVendor: user?.role === 'Vendor' || user?.role === 'Admin'
-    };
+  const register = async (userData) => {
+    try {
+      setError(null);
+      const response = await authApi.register(userData);
+      
+      // ✅ Vérifier que la réponse contient un token
+      if (response?.token) {
+        localStorage.setItem('token', response.token);
+        setUser(response.user);
+        return response;
+      } else {
+        throw new Error('Token non reçu');
+      }
+    } catch (err) {
+      setError(err.message || "Erreur d'inscription");
+      throw err;
+    }
+  };
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    )
-}
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    // ✅ Optionnel : appeler l'API de déconnexion si nécessaire
+    // authApi.logout();
+  };
+
+  const value = {
+    user,
+    loading,
+    error,
+    login,
+    register,
+    logout,
+    isAuthenticated: !!user,
+    isAdmin: user?.role === 'Admin',
+    isVendor: user?.role === 'Vendor' || user?.role === 'Admin'
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
