@@ -14,75 +14,111 @@ const ShopDetail = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  // États
   const [shop, setShop] = useState(null);
-  const [products, setProducts] = useState([]); // ✅ Toujours un tableau
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('products');
   const [productPage, setProductPage] = useState(1);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const [totalProducts, setTotalProducts] = useState(0);
 
-  // URL de base pour les images
   const imageBaseUrl = 'http://127.0.0.1:5019';
 
   useEffect(() => {
+    const fetchShopData = async () => {
+      if (!slug) {
+        setError('Slug manquant');
+        setLoading(false);
+        return;
+      }
+
+      const reservedSlugs = ['my-shops', 'create', 'edit', 'dashboard', 'admin'];
+      if (reservedSlugs.includes(slug)) {
+        setError('Page non trouvée');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('🔍 Fetching shop with slug:', slug);
+        const shopData = await shopsApi.getShopBySlug(slug);
+        
+        console.log('✅ Shop data received:', shopData);
+        setShop(shopData);
+        
+        // Une fois le shop chargé, on charge les produits
+        if (shopData?.id) {
+          await fetchProducts(shopData.id, 1, true);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching shop:', error);
+        if (error.response?.status === 404) {
+          setError(`La boutique "${slug}" n'existe pas`);
+        } else {
+          setError('Impossible de charger la boutique');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchShopData();
   }, [slug]);
 
-  useEffect(() => {
-    if (shop?.id) {
-      fetchProducts();
-    }
-  }, [shop, productPage]);
-
-  const fetchShopData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const shopData = await shopsApi.getShopBySlug(slug);
-      setShop(shopData);
-    } catch (error) {
-      console.error('Error fetching shop:', error);
-      setError('Impossible de charger la boutique');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProducts = async () => {
-    if (!shop?.id) return;
+  // ✅ Fonction pour charger les produits (corrigée)
+  const fetchProducts = async (shopId, page = 1, reset = false) => {
+    if (!shopId) return;
     
     try {
       setLoadingProducts(true);
-      const response = await productsApi.getProductsByShop(shop.id, {
-        page: productPage,
+      console.log(`📦 Fetching products for shop ${shopId}, page ${page}`);
+      
+      const response = await productsApi.getProductsByShop(shopId, {
+        page: page,
         pageSize: 12
       });
 
-      // ✅ Gestion robuste des différents formats de réponse
+      console.log('✅ Products response:', response);
+
+      // ✅ Gestion du format de réponse de ton API
       let productsData = [];
-      
-      if (response?.data) {
-        productsData = response.data;
-      } else if (Array.isArray(response)) {
-        productsData = response;
-      } else if (response?.items) {
-        productsData = response.items;
-      } else if (response?.products) {
+      let total = 0;
+
+      // Format: { products: { items: [...], totalItems: X, ... } }
+      if (response?.products?.items && Array.isArray(response.products.items)) {
+        productsData = response.products.items;
+        total = response.products.totalItems || 0;
+        setHasMoreProducts(productsData.length === 12 && page < response.products.totalPages);
+      }
+      // Format: { products: [...] } (tableau direct)
+      else if (response?.products && Array.isArray(response.products)) {
         productsData = response.products;
+        total = response.products.length;
+        setHasMoreProducts(false);
+      }
+      // Format: { data: [...] }
+      else if (response?.data && Array.isArray(response.data)) {
+        productsData = response.data;
+        total = response.data.length;
+        setHasMoreProducts(false);
+      }
+      // Format: tableau direct
+      else if (Array.isArray(response)) {
+        productsData = response;
+        total = response.length;
+        setHasMoreProducts(false);
       }
 
-      // ✅ S'assurer que productsData est un tableau
-      if (!Array.isArray(productsData)) {
-        console.warn('Products data is not an array:', productsData);
-        productsData = [];
-      }
+      console.log(`📦 ${productsData.length} produits chargés sur ${total} total`);
 
-      // ✅ Mettre à jour l'état
-      if (productPage === 1) {
+      if (reset) {
         setProducts(productsData);
+        setTotalProducts(total);
       } else {
         setProducts(prev => {
           const prevArray = Array.isArray(prev) ? prev : [];
@@ -90,20 +126,35 @@ const ShopDetail = () => {
         });
       }
 
-      setHasMoreProducts(productsData.length === 12);
+      setProductPage(reset ? 2 : page + 1);
       
     } catch (error) {
       console.error('Error fetching products:', error);
-      // ✅ En cas d'erreur, garder un tableau vide
-      setProducts([]);
+      if (reset) {
+        setProducts([]);
+        setTotalProducts(0);
+      }
     } finally {
       setLoadingProducts(false);
     }
   };
 
+  // Charger plus de produits
   const loadMoreProducts = () => {
-    setProductPage(prev => prev + 1);
+    if (shop?.id) {
+      fetchProducts(shop.id, productPage, false);
+    }
   };
+
+  // Rafraîchir la liste des produits
+  const refreshProducts = () => {
+    if (shop?.id) {
+      console.log('🔄 Refreshing products list');
+      fetchProducts(shop.id, 1, true);
+    }
+  };
+
+  const isOwner = user && shop && user.id === shop.ownerId;
 
   const handleEditShop = () => {
     navigate(`/edit-shop/${shop.id}`);
@@ -113,9 +164,6 @@ const ShopDetail = () => {
     navigate(`/dashboard/products/new?shop=${shop.id}`);
   };
 
-  const isOwner = user && shop && user.id === shop.ownerId;
-
-  // Fonction pour formater l'URL de l'image
   const getImageUrl = (path) => {
     if (!path) return '/default-shop-banner.jpg';
     if (path.startsWith('http')) return path;
@@ -134,11 +182,16 @@ const ShopDetail = () => {
   if (error) {
     return (
       <div className="shop-error">
-        <h2>Erreur</h2>
+        <h2>😕 Oups !</h2>
         <p>{error}</p>
-        <Link to="/shops">
-          <Button>Retour aux boutiques</Button>
-        </Link>
+        <div className="shop-error-actions">
+          <Link to="/shops">
+            <Button>Voir toutes les boutiques</Button>
+          </Link>
+          <Button variant="outline" onClick={() => navigate(-1)}>
+            Retour
+          </Button>
+        </div>
       </div>
     );
   }
@@ -204,7 +257,7 @@ const ShopDetail = () => {
               
               <div className="shop-stats">
                 <div className="stat">
-                  <span className="stat-value">{shop.productCount || 0}</span>
+                  <span className="stat-value">{totalProducts || shop.productCount || 0}</span>
                   <span className="stat-label">Produits</span>
                 </div>
                 <div className="stat">
@@ -227,6 +280,9 @@ const ShopDetail = () => {
                   <Button variant="outline" size="sm" onClick={handleAddProduct}>
                     Ajouter un produit
                   </Button>
+                  <Button variant="outline" size="sm" onClick={refreshProducts}>
+                    🔄 Rafraîchir
+                  </Button>
                 </div>
               )}
             </div>
@@ -242,7 +298,7 @@ const ShopDetail = () => {
               className={`tab ${activeTab === 'products' ? 'active' : ''}`}
               onClick={() => setActiveTab('products')}
             >
-              Produits ({shop.productCount || 0})
+              Produits ({products.length || 0})
             </button>
             <button
               className={`tab ${activeTab === 'about' ? 'active' : ''}`}
@@ -265,7 +321,6 @@ const ShopDetail = () => {
         <div className="container">
           {activeTab === 'products' && (
             <div className="products-section">
-              {/* ✅ Vérification robuste pour products */}
               {(!products || !Array.isArray(products) || products.length === 0) && !loadingProducts ? (
                 <div className="no-products">
                   <p>Aucun produit dans cette boutique pour le moment.</p>
@@ -278,7 +333,6 @@ const ShopDetail = () => {
               ) : (
                 <>
                   <div className="products-grid">
-                    {/* ✅ Vérification que products est un tableau avant map */}
                     {Array.isArray(products) && products.map(product => (
                       <ProductCard key={product.id} product={product} />
                     ))}
@@ -318,25 +372,6 @@ const ShopDetail = () => {
                 <div className="shop-meta">
                   <p>🕐 Membre depuis {shop.createdAt ? new Date(shop.createdAt).toLocaleDateString() : 'N/A'}</p>
                   <p>🏷️ Catégorie: {shop.category || 'Non spécifiée'}</p>
-                </div>
-
-                {/* Aperçu des couleurs personnalisées */}
-                <div className="shop-colors-preview">
-                  <h4>Personnalisation</h4>
-                  <div className="color-demo">
-                    <div className="color-item">
-                      <span className="color-label">Couleur thème</span>
-                      <div className="color-box" style={{ backgroundColor: shop.themeColor || '#2563eb' }} />
-                    </div>
-                    <div className="color-item">
-                      <span className="color-label">Fond</span>
-                      <div className="color-box" style={{ backgroundColor: shop.backgroundColor || '#ffffff', border: '1px solid #ccc' }} />
-                    </div>
-                    <div className="color-item">
-                      <span className="color-label">Texte</span>
-                      <div className="color-box" style={{ backgroundColor: shop.textColor || '#000000' }} />
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

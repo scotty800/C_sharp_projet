@@ -33,24 +33,41 @@ public class ShopController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetMyShops()
     {
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var shops = await _shopService.GetUserShopsAsync(userId);
 
-        var shops = await _shopService.GetUserShopsAsync(userId); // List<Shop>
+            var shopDtos = shops.Select(s => new
+            {
+                s.Id,
+                s.Name,
+                s.Slug,
+                s.Description,
+                s.LogoUrl,
+                s.BannerUrl,
+                s.ProductCount,
+                s.ThemeColor,
+                s.BackgroundColor,
+                s.TextColor,
+                s.CreatedAt
+            });
 
-        var shopDtos = ShopMapper.ToDtoList(shops); // List<ShopResponseDto>
-
-        return Ok(shopDtos);
+            return Ok(shopDtos);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
-
-    [HttpGet("slug/{slug}")]
-    public async Task<IActionResult> GetShopBySlug(string slug)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetShopById(int id)
     {
-        var shop = await _shopService.GetShopBySlugAsync(slug);
+        var shop = await _shopService.GetShopByIdAsync(id);
         if (shop == null)
-            return NotFound("Shop non trouvé");
+            return NotFound(new { message = "Shop non trouvé" });
 
-        // Convertir en DTO
         var dto = new
         {
             shop.Id,
@@ -58,7 +75,7 @@ public class ShopController : ControllerBase
             shop.Description,
             shop.Slug,
             shop.OwnerId,
-            shop.Owner?.Username,
+            Username = shop.Owner?.Username,
             shop.ThemeColor,
             shop.BackgroundColor,
             shop.TextColor,
@@ -74,14 +91,62 @@ public class ShopController : ControllerBase
                 p.Name,
                 p.Price,
                 p.Stock,
+                p.ImageUrl,
                 p.Category
             }).ToList()
         };
-
         return Ok(dto);
     }
 
-    // ✅ NOUVEL ENDPOINT : Récupérer les produits d'un shop
+    [HttpGet("slug/{slug}")]
+    public async Task<IActionResult> GetShopBySlug(string slug)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(slug))
+                return BadRequest(new { message = "Slug is required" });
+
+            var shop = await _shopService.GetShopBySlugAsync(slug);
+
+            if (shop == null)
+                return NotFound(new { message = $"Shop with slug '{slug}' not found" });
+
+            var dto = new
+            {
+                shop.Id,
+                shop.Name,
+                shop.Description,
+                shop.Slug,
+                shop.OwnerId,
+                Username = shop.Owner?.Username,
+                shop.ThemeColor,
+                shop.BackgroundColor,
+                shop.TextColor,
+                shop.LogoUrl,
+                shop.BannerUrl,
+                shop.Email,
+                shop.Phone,
+                shop.ProductCount,
+                shop.CreatedAt,
+                Products = shop.Products?.Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    p.Price,
+                    p.Stock,
+                    p.ImageUrl,
+                    p.Category
+                }).ToList()
+            };
+
+            return Ok(dto);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("{id}/products")]
     public async Task<IActionResult> GetShopProducts(
         int id,
@@ -93,7 +158,7 @@ public class ShopController : ControllerBase
     {
         var shop = await _shopService.GetShopByIdAsync(id);
         if (shop == null)
-            return NotFound("Shop non trouvé");
+            return NotFound(new { message = "Shop non trouvé" });
 
         var result = await _productService.GetProductsByShopPagedAsync(
             id, page, pageSize, minPrice, maxPrice, sortBy);
@@ -115,14 +180,22 @@ public class ShopController : ControllerBase
         try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
             var shop = await _shopService.CreateShopAsync(userId, shopDto);
 
-            return CreatedAtAction(
-                nameof(GetShopBySlug),
-                new { slug = shop.Slug },
-                shop
-            );
+            return Ok(new
+            {
+                message = "Boutique créée avec succès",
+                shop = new
+                {
+                    shop.Id,
+                    shop.Name,
+                    shop.Slug,
+                    shop.Description,
+                    shop.LogoUrl,
+                    shop.BannerUrl,
+                    shop.ProductCount
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -137,26 +210,40 @@ public class ShopController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var updated = await _shopService.UpdateShopAsync(id, userId, shopDto);
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var updated = await _shopService.UpdateShopAsync(id, userId, shopDto);
 
-        if (!updated)
-            return NotFound("Shop non trouvé");
+            if (!updated)
+                return NotFound(new { message = "Shop non trouvé" });
 
-        return NoContent();
+            return Ok(new { message = "Boutique mise à jour avec succès" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpDelete("{id}")]
     [Authorize]
     public async Task<IActionResult> DeleteShop(int id)
     {
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var deleted = await _shopService.DeleteShopAsync(id, userId);
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var deleted = await _shopService.DeleteShopAsync(id, userId);
 
-        if (!deleted)
-            return NotFound("Shop non trouvé");
+            if (!deleted)
+                return NotFound(new { message = "Shop non trouvé" });
 
-        return NoContent();
+            return Ok(new { message = "Boutique supprimée avec succès" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("{id}/logo")]
@@ -164,18 +251,25 @@ public class ShopController : ControllerBase
     public async Task<IActionResult> UploadLogo(int id, [FromForm] IFormFile file)
     {
         if (file == null || file.Length == 0)
-            return BadRequest("Fichier invalide");
+            return BadRequest(new { message = "Fichier invalide" });
 
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var uploaded = await _shopService.UploadLogoAsync(id, userId, file);
-
-        if (!uploaded)
-            return NotFound("Shop non trouvé");
-
-        return Ok(new
+        try
         {
-            message = "Logo uploadé avec succès"
-        });
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var uploaded = await _shopService.UploadLogoAsync(id, userId, file);
+
+            if (!uploaded)
+                return NotFound(new { message = "Shop non trouvé" });
+
+            return Ok(new
+            {
+                message = "Logo uploadé avec succès"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("{id}/banner")]
@@ -183,17 +277,24 @@ public class ShopController : ControllerBase
     public async Task<IActionResult> UploadBanner(int id, [FromForm] IFormFile file)
     {
         if (file == null || file.Length == 0)
-            return BadRequest("Fichier invalide");
+            return BadRequest(new { message = "Fichier invalide" });
 
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        var uploaded = await _shopService.UploadBannerAsync(id, userId, file);
-
-        if (!uploaded)
-            return NotFound("Shop non trouvé");
-
-        return Ok(new
+        try
         {
-            message = "Bannière uploadée avec succès"
-        });
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var uploaded = await _shopService.UploadBannerAsync(id, userId, file);
+
+            if (!uploaded)
+                return NotFound(new { message = "Shop non trouvé" });
+
+            return Ok(new
+            {
+                message = "Bannière uploadée avec succès"
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

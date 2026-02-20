@@ -4,20 +4,9 @@ export const shopsApi = {
   getShops: async (params) => {
     try {
       const response = await api.get('/shops', { params });
-      // ✅ Retourner response.data directement pour simplifier
       return response.data;
     } catch (error) {
       console.error('Error in getShops:', error);
-      throw error;
-    }
-  },
-
-  getShopBySlug: async (slug) => {
-    try {
-      const response = await api.get(`/shops/slug/${slug}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error in getShopBySlug:', error);
       throw error;
     }
   },
@@ -28,6 +17,18 @@ export const shopsApi = {
       return response.data;
     } catch (error) {
       console.error('Error in getShopById:', error);
+      throw error;
+    }
+  },
+
+  getShopBySlug: async (slug) => {
+    try {
+      console.log('🔍 API call: getShopBySlug', slug);
+      const response = await api.get(`/shops/slug/${slug}`);
+      console.log('✅ API response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error in getShopBySlug:', error.response?.data || error.message);
       throw error;
     }
   },
@@ -62,13 +63,25 @@ export const shopsApi = {
     }
   },
 
+  deleteShop: async (id) => {
+    try {
+      const response = await api.delete(`/shops/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error in deleteShop:', error);
+      throw error;
+    }
+  },
+
   uploadLogo: async (id, file) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
       
       const response = await api.post(`/shops/${id}/logo`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data'
+        }
       });
       return response.data;
     } catch (error) {
@@ -83,11 +96,23 @@ export const shopsApi = {
       formData.append('file', file);
       
       const response = await api.post(`/shops/${id}/banner`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 
+          'Content-Type': 'multipart/form-data'
+        }
       });
       return response.data;
     } catch (error) {
       console.error('Error in uploadBanner:', error);
+      throw error;
+    }
+  },
+
+  getShopProducts: async (shopId, params) => {
+    try {
+      const response = await api.get(`/shops/${shopId}/products`, { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error in getShopProducts:', error);
       throw error;
     }
   }

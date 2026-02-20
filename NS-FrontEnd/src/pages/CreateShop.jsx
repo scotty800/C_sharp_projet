@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
+import Spinner from '../components/common/Spinner';
 import { shopsApi } from '../api/shops';
 import './CreateShop.css';
 
@@ -14,6 +15,7 @@ const CreateShop = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -34,12 +36,8 @@ const CreateShop = () => {
   const [bannerPreview, setBannerPreview] = useState('');
 
   const categories = [
-    'Mode',
-    'Beauté',
-    'Sports',
-    'Sneakers',
-    'Accessoire',
-    'Vintage'
+    'Mode', 'Électronique', 'Maison', 'Beauté', 
+    'Sports', 'Livres', 'Artisanat', 'Vintage', 'Art', 'Alimentation'
   ];
 
   const generateSlug = (name) => {
@@ -119,23 +117,39 @@ const CreateShop = () => {
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
-      // Créer la boutique
-      const shop = await shopsApi.createShop(formData);
+      // 1. Créer la boutique
+      const response = await shopsApi.createShop(formData);
+      
+      // 2. Récupérer l'ID de la boutique créée
+      const createdShop = response.shop || response;
+      const shopId = createdShop.id;
 
-      // Upload logo si présent
+      if (!shopId) {
+        throw new Error('Impossible de récupérer l\'ID de la boutique');
+      }
+
+      // 3. Uploader le logo si présent
       if (logo) {
-        await shopsApi.uploadLogo(shop.id, logo);
+        await shopsApi.uploadLogo(shopId, logo);
       }
 
-      // Upload banner si présente
+      // 4. Uploader la bannière si présente
       if (banner) {
-        await shopsApi.uploadBanner(shop.id, banner);
+        await shopsApi.uploadBanner(shopId, banner);
       }
 
-      navigate(`/shop/${shop.slug}`);
+      setSuccess('Boutique créée avec succès ! Redirection...');
+
+      // 5. Rediriger vers la page de la boutique
+      setTimeout(() => {
+        navigate(`/shops/${createdShop.slug}`);
+      }, 2000);
+
     } catch (err) {
+      console.error('Error creating shop:', err);
       setError(err.message || 'Erreur lors de la création de la boutique');
     } finally {
       setLoading(false);
@@ -170,10 +184,18 @@ const CreateShop = () => {
           </div>
         </div>
 
+        {/* Messages */}
         {error && (
           <div className="creation-error">
             <span>⚠️</span>
             {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="creation-success">
+            <span>✓</span>
+            {success}
           </div>
         )}
 
@@ -193,7 +215,7 @@ const CreateShop = () => {
             <div className="form-group">
               <label>URL personnalisée</label>
               <div className="slug-preview">
-                <span className="slug-domain">votresite.com/shop/</span>
+                <span className="slug-domain">/shops/</span>
                 <input
                   type="text"
                   value={formData.slug}
@@ -203,7 +225,7 @@ const CreateShop = () => {
                 />
               </div>
               <small className="slug-hint">
-                L'URL sera : /shop/{formData.slug || 'ma-boutique'}
+                L'URL sera : /shops/{formData.slug || 'ma-boutique'}
               </small>
             </div>
 
@@ -231,6 +253,7 @@ const CreateShop = () => {
                 rows="5"
                 className="description-textarea"
                 required
+                maxLength="500"
               />
               <small className="char-count">
                 {formData.description.length}/500
@@ -314,6 +337,7 @@ const CreateShop = () => {
                     <div className="preview-container">
                       <img src={logoPreview} alt="Logo preview" />
                       <button 
+                        type="button"
                         className="remove-image"
                         onClick={() => {
                           setLogo(null);
@@ -335,7 +359,7 @@ const CreateShop = () => {
                       <label htmlFor="logo-upload" className="upload-label">
                         <span className="upload-icon">📸</span>
                         <span>Cliquez pour uploader un logo</span>
-                        <small>PNG, JPG ou SVG (max. 2MB)</small>
+                        <small>PNG, JPG (max. 2MB)</small>
                       </label>
                     </>
                   )}
@@ -349,6 +373,7 @@ const CreateShop = () => {
                     <div className="preview-container">
                       <img src={bannerPreview} alt="Banner preview" />
                       <button 
+                        type="button"
                         className="remove-image"
                         onClick={() => {
                           setBanner(null);
@@ -387,22 +412,21 @@ const CreateShop = () => {
         {/* Navigation Buttons */}
         <div className="creation-actions">
           {step > 1 && (
-            <Button variant="outline" onClick={handlePreviousStep}>
+            <Button variant="outline" onClick={handlePreviousStep} disabled={loading}>
               Retour
             </Button>
           )}
           
           {step < 3 ? (
-            <Button onClick={handleNextStep}>
+            <Button onClick={handleNextStep} disabled={loading}>
               Continuer
             </Button>
           ) : (
             <Button 
               onClick={handleSubmit}
               disabled={loading}
-              loading={loading}
             >
-              {loading ? 'Création...' : 'Créer ma boutique'}
+              {loading ? <Spinner size="sm" /> : 'Créer ma boutique'}
             </Button>
           )}
         </div>

@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
-using ECommerceApi.Models;
-using ECommerceApi.Services;
-using BCrypt.Net;
-using ECommerceApi.DTO;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using ECommerceApi.Services;
+using ECommerceApi.DTO;
+using ECommerceApi.Models;  // ← AJOUTE CETTE LIGNE
+using System.Security.Claims;
 
 [ApiController]
 [Route("api/users")]
@@ -14,6 +14,29 @@ public class UserController : ControllerBase
     public UserController(IUserServices userService)
     {
         _userService = userService;
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> GetCurrentUser()
+    {
+        var nameIdentifier = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                            ?? User.FindFirst("sub")?.Value;
+
+        if (string.IsNullOrEmpty(nameIdentifier))
+        {
+            return BadRequest(new { message = "ID introuvable dans le token" });
+        }
+
+        if (!int.TryParse(nameIdentifier, out int userId))
+        {
+            return BadRequest(new { message = "Format d'ID invalide dans le token" });
+        }
+
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        return Ok(new { user.Id, user.Username, user.Email, user.Role });
     }
 
     [HttpGet]
@@ -44,7 +67,7 @@ public class UserController : ControllerBase
             return BadRequest("Invalid user data");
         }
 
-        var user = new User
+        var user = new User  // ← Maintenant User est trouvé
         {
             Username = request.Username,
             Email = request.Email,

@@ -23,6 +23,7 @@ namespace ECommerceApi.Services
                 .Where(s => s.OwnerId == userId && s.IsActive)
                 .Include(s => s.Products)
                 .Include(s => s.Owner)
+                .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
         }
 
@@ -36,7 +37,11 @@ namespace ECommerceApi.Services
 
         public async Task<Shop?> GetShopBySlugAsync(string slug)
         {
-            var normalizedSlug = slug.ToLower();
+            if (string.IsNullOrWhiteSpace(slug))
+                return null;
+
+            // ✅ Normaliser le slug pour la recherche
+            var normalizedSlug = slug.ToLower().Trim();
 
             return await _context.Shops
                 .Include(s => s.Owner)
@@ -49,8 +54,18 @@ namespace ECommerceApi.Services
             if (string.IsNullOrWhiteSpace(shopDto.Slug))
                 throw new Exception("Le slug est obligatoire");
 
-            var normalizedSlug = shopDto.Slug.ToLower();
+            // ✅ Normaliser le slug
+            var normalizedSlug = shopDto.Slug.ToLower()
+                .Replace(" ", "-")
+                .Replace("'", "-")
+                .Replace("\"", "")
+                .Replace("é", "e")
+                .Replace("è", "e")
+                .Replace("ê", "e")
+                .Replace("à", "a")
+                .Replace("ç", "c");
 
+            // ✅ Vérifier l'unicité
             var existing = await _context.Shops
                 .FirstOrDefaultAsync(s => s.Slug == normalizedSlug);
 
@@ -69,13 +84,15 @@ namespace ECommerceApi.Services
                 Description = shopDto.Description,
                 Slug = normalizedSlug,
                 OwnerId = ownerId,
-                ThemeColor = shopDto.ThemeColor,
-                BackgroundColor = shopDto.BackgroundColor,
-                TextColor = shopDto.TextColor,
+                ThemeColor = shopDto.ThemeColor ?? "#2563eb",
+                BackgroundColor = shopDto.BackgroundColor ?? "#ffffff",
+                TextColor = shopDto.TextColor ?? "#000000",
                 Email = shopDto.Email,
                 Phone = shopDto.Phone,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
+                IsActive = true,
+                ProductCount = 0
             };
 
             _context.Shops.Add(newShop);
@@ -133,61 +150,92 @@ namespace ECommerceApi.Services
 
         private void ValidateImage(IFormFile file)
         {
-            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
             var extension = Path.GetExtension(file.FileName).ToLower();
 
             if (!allowedExtensions.Contains(extension))
                 throw new Exception("Format de fichier non autorisé");
 
-            if (file.Length > 2_000_000)
-                throw new Exception("Fichier trop volumineux (2MB max)");
+            if (file.Length > 5_000_000)
+                throw new Exception("Fichier trop volumineux (5MB max)");
         }
 
         public async Task<bool> UploadLogoAsync(int shopId, int userId, IFormFile file)
         {
-            ValidateImage(file);
+            try
+            {
+                ValidateImage(file);
 
-            var shop = await _context.Shops.FindAsync(shopId);
-            if (shop == null || shop.OwnerId != userId)
+                var shop = await _context.Shops.FindAsync(shopId);
+                if (shop == null || shop.OwnerId != userId)
+                    return false;
+
+                var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "shops", shopId.ToString());
+                Directory.CreateDirectory(uploadsPath);
+
+                // Supprimer l'ancien logo
+                if (!string.IsNullOrEmpty(shop.LogoUrl))
+                {
+                    var oldFilePath = Path.Combine(_environment.WebRootPath, shop.LogoUrl.TrimStart('/'));
+                    if (System.IO.File.Exists(oldFilePath))
+                        System.IO.File.Delete(oldFilePath);
+                }
+
+                var fileName = $"logo_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                var filePath = Path.Combine(uploadsPath, fileName);
+
+                using var stream = new FileStream(filePath, FileMode.Create);
+                await file.CopyToAsync(stream);
+
+                shop.LogoUrl = $"/uploads/shops/{shopId}/{fileName}";
+                shop.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                return true;
+            }
+            catch
+            {
                 return false;
-
-            var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "shops", shopId.ToString());
-            Directory.CreateDirectory(uploadsPath);
-
-            var fileName = $"logo_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-            var filePath = Path.Combine(uploadsPath, fileName);
-
-            using var stream = new FileStream(filePath, FileMode.Create);
-            await file.CopyToAsync(stream);
-
-
-            shop.LogoUrl = $"/uploads/shops/{shopId}/{fileName}";
-            await _context.SaveChangesAsync();
-
-            return true;
+            }
         }
 
         public async Task<bool> UploadBannerAsync(int shopId, int userId, IFormFile file)
         {
-            ValidateImage(file);
+            try
+            {
+                ValidateImage(file);
 
-            var shop = await _context.Shops.FindAsync(shopId);
-            if (shop == null || shop.OwnerId != userId)
+                var shop = await _context.Shops.FindAsync(shopId);
+                if (shop == null || shop.OwnerId != userId)
+                    return false;
+
+                var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "shops", shopId.ToString());
+                Directory.CreateDirectory(uploadsPath);
+
+                // Supprimer l'ancienne bannière
+                if (!string.IsNullOrEmpty(shop.BannerUrl))
+                {
+                    var oldFilePath = Path.Combine(_environment.WebRootPath, shop.BannerUrl.TrimStart('/'));
+                    if (System.IO.File.Exists(oldFilePath))
+                        System.IO.File.Delete(oldFilePath);
+                }
+
+                var fileName = $"banner_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                var filePath = Path.Combine(uploadsPath, fileName);
+
+                using var stream = new FileStream(filePath, FileMode.Create);
+                await file.CopyToAsync(stream);
+
+                shop.BannerUrl = $"/uploads/shops/{shopId}/{fileName}";
+                shop.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                return true;
+            }
+            catch
+            {
                 return false;
-
-            var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "shops", shopId.ToString());
-            Directory.CreateDirectory(uploadsPath);
-
-            var fileName = $"banner_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-            var filePath = Path.Combine(uploadsPath, fileName);
-
-            using var stream = new FileStream(filePath, FileMode.Create);
-            await file.CopyToAsync(stream);
-
-            shop.BannerUrl = $"/uploads/shops/{shopId}/{fileName}";
-            await _context.SaveChangesAsync();
-
-            return true;
+            }
         }
 
         public async Task<PagedResultDto<ShopListDto>> GetShopsPagedAsync(
@@ -207,7 +255,6 @@ namespace ECommerceApi.Services
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var normalizedSearch = search.ToLower();
-
                 query = query.Where(s =>
                     s.Name.ToLower().Contains(normalizedSearch) ||
                     (s.Description != null && s.Description.ToLower().Contains(normalizedSearch))
@@ -227,7 +274,7 @@ namespace ECommerceApi.Services
                     Description = s.Description ?? string.Empty,
                     Slug = s.Slug,
                     OwnerId = s.OwnerId,
-                    OwnerUsername = s.Owner != null ? s.Owner.Username : "Unknown", // CORRIGÉ ICI
+                    OwnerUsername = s.Owner != null ? s.Owner.Username : "Unknown",
                     ThemeColor = s.ThemeColor,
                     BackgroundColor = s.BackgroundColor,
                     TextColor = s.TextColor,

@@ -1,14 +1,13 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5019/api';
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true // Important pour CORS
+  withCredentials: true
 });
 
 // Intercepteur pour ajouter le token
@@ -17,49 +16,45 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token');
     
     if (token) {
-      // ✅ Vérifier le format du token (Bearer)
       config.headers.Authorization = `Bearer ${token}`;
-      
-      // ✅ Log pour debug (à retirer en production)
-      console.log('Request with token:', config.url);
+      console.log(`🚀 Request: ${config.method.toUpperCase()} ${config.url} with token`);
+    } else {
+      console.log(`🔓 Request without token: ${config.method.toUpperCase()} ${config.url}`);
     }
     
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Intercepteur pour gérer les erreurs de réponse
+// Intercepteur pour gérer les erreurs
 api.interceptors.response.use(
   (response) => {
-    // ✅ Retourner directement response.data pour simplifier
+    console.log(`✅ Response: ${response.config.url}`, response.status);
     return response;
   },
   (error) => {
-    // ✅ Gestion centralisée des erreurs
     if (error.response) {
-      // La requête a été faite et le serveur a répondu avec un code d'erreur
-      console.error('API Error Response:', {
+      console.error('❌ API Error:', {
         status: error.response.status,
         data: error.response.data,
-        url: error.config?.url
+        url: error.config?.url,
+        method: error.config?.method
       });
 
-      // ✅ Si token invalide (401) ou bad request (400) sur /users/me
+      // Si token invalide (401) ou bad request (400) sur /users/me
       if (error.response.status === 401 || 
           (error.response.status === 400 && error.config?.url?.includes('/users/me'))) {
+        console.log('🔐 Token invalide, suppression...');
         localStorage.removeItem('token');
-        // Optionnel: rediriger vers login
+        
+        // Optionnel: rediriger vers login si nécessaire
         // window.location.href = '/login';
       }
     } else if (error.request) {
-      // La requête a été faite mais pas de réponse
-      console.error('API No Response:', error.request);
+      console.error('❌ No response:', error.request);
     } else {
-      // Erreur lors de la configuration de la requête
-      console.error('API Request Error:', error.message);
+      console.error('❌ Request error:', error.message);
     }
     
     return Promise.reject(error);

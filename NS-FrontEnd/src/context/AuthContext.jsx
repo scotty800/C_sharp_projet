@@ -9,38 +9,37 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    checkUser();
-  }, []);
-
-  const checkUser = async () => {
-    try {
+    const loadUser = async () => {
       const token = localStorage.getItem('token');
       
       if (!token) {
+        console.log('🔓 No token found');
         setLoading(false);
         return;
       }
 
-      // ✅ Vérifier que le token est valide
-      const userData = await authApi.getCurrentUser();
-      setUser(userData);
-      
-    } catch (err) {
-      console.error('Auth check failed:', err);
-      // ✅ En cas d'erreur, supprimer le token invalide
-      localStorage.removeItem('token');
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        console.log('🔑 Token found, validating...');
+        const userData = await authApi.getCurrentUser();
+        console.log('✅ User validated:', userData);
+        setUser(userData);
+      } catch (err) {
+        console.error('❌ Token validation failed:', err);
+        localStorage.removeItem('token');
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUser();
+  }, []);
 
   const login = async (email, password) => {
     try {
       setError(null);
       const response = await authApi.login({ email, password });
       
-      // ✅ Vérifier que la réponse contient un token
       if (response?.token) {
         localStorage.setItem('token', response.token);
         setUser(response.user);
@@ -59,7 +58,6 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       const response = await authApi.register(userData);
       
-      // ✅ Vérifier que la réponse contient un token
       if (response?.token) {
         localStorage.setItem('token', response.token);
         setUser(response.user);
@@ -76,8 +74,6 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    // ✅ Optionnel : appeler l'API de déconnexion si nécessaire
-    // authApi.logout();
   };
 
   const value = {
@@ -88,8 +84,8 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     isAuthenticated: !!user,
-    isAdmin: user?.role === 'Admin',
-    isVendor: user?.role === 'Vendor' || user?.role === 'Admin'
+    isAdmin: user?.role === 'Admin'
+    // ✅ Plus de isVendor - on utilise ownerId côté backend
   };
 
   return (

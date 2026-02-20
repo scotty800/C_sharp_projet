@@ -1,11 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
-import MobileNav from './components/layout/MobileNav'; // ✅ Ajouté
+import MobileNav from './components/layout/MobileNav';
 
 // Pages
 import Home from './pages/Home';
@@ -16,25 +16,25 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import OrderConfirmation from './pages/OrderConfirmation';
 import Orders from './pages/Orders';
-import OrderDetail from './pages/OrderDetail'; // ✅ À créer
+import OrderDetail from './pages/OrderDetail';
 import Profile from './pages/Profile';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import CreateShop from './pages/CreateShop';
 import Dashboard from './pages/Dashboard';
-
 import CategoryPage from './pages/CategoryPage';
 import SearchResults from './pages/SearchResults';
-import NotFound from './pages/NotFound'; // ✅ Ajouté
+import NotFound from './pages/NotFound';
 
-// Vendor Pages (à créer)
+// Vendor Pages
 import ShopDashboard from './pages/vendor/ShopDashboard';
 import EditShop from './pages/EditShop';
 import CreateProduct from './pages/vendor/CreateProduct';
 import EditProduct from './pages/vendor/EditProduct';
 import VendorOrders from './pages/vendor/VendorOrders';
+import MyShops from './pages/MyShops';
 
-// Admin Pages (à créer)
+// Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminShops from './pages/admin/AdminShops';
@@ -50,24 +50,38 @@ function App() {
         <CartProvider>
           <div className="app">
             <Header />
-            <MobileNav /> {/* ✅ Navigation mobile */}
+            <MobileNav />
             
             <main className="main-content">
               <Routes>
                 {/* ========== PUBLIC ROUTES ========== */}
                 <Route path="/" element={<Home />} />
                 <Route path="/shops" element={<ShopList />} />
-                <Route path="/shop/:slug" element={<ShopDetail />} />
                 <Route path="/product/:id" element={<ProductDetail />} />
                 <Route path="/cart" element={<Cart />} />
                 <Route path="/category/:category" element={<CategoryPage />} />
                 <Route path="/search" element={<SearchResults />} />
                 
+                {/* ========== ROUTES SPÉCIFIQUES ========== */}
+                <Route path="/shops/my-shops" element={
+                  <ProtectedRoute>
+                    <MyShops />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/shops/create" element={
+                  <ProtectedRoute>
+                    <CreateShop />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/shops/:slug" element={<ShopDetail />} />
+                
                 {/* ========== AUTH ROUTES ========== */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 
-                {/* ========== PROTECTED ROUTES (Utilisateur connecté) ========== */}
+                {/* ========== PROTECTED ROUTES ========== */}
                 <Route path="/checkout" element={
                   <ProtectedRoute>
                     <Checkout />
@@ -104,15 +118,15 @@ function App() {
                   </ProtectedRoute>
                 } />
                 
-                {/* ========== VENDOR ROUTES (Propriétaire de boutique) ========== */}
+                {/* ========== VENDOR ROUTES (protégées mais sans requireVendor) ========== */}
                 <Route path="/dashboard" element={
-                  <ProtectedRoute requireVendor>
+                  <ProtectedRoute>
                     <Dashboard />
                   </ProtectedRoute>
                 } />
                 
                 <Route path="/dashboard/shops/:id" element={
-                  <ProtectedRoute requireVendor>
+                  <ProtectedRoute>
                     <ShopDashboard />
                   </ProtectedRoute>
                 } />
@@ -120,23 +134,23 @@ function App() {
                 <Route path="/edit-shop/:id" element={
                   <ProtectedRoute>
                     <EditShop />
-                    </ProtectedRoute>
-                  } />
+                  </ProtectedRoute>
+                } />
                 
                 <Route path="/dashboard/products/new" element={
-                  <ProtectedRoute requireVendor>
+                  <ProtectedRoute>
                     <CreateProduct />
                   </ProtectedRoute>
                 } />
                 
                 <Route path="/dashboard/products/:id/edit" element={
-                  <ProtectedRoute requireVendor>
+                  <ProtectedRoute>
                     <EditProduct />
                   </ProtectedRoute>
                 } />
                 
                 <Route path="/dashboard/orders" element={
-                  <ProtectedRoute requireVendor>
+                  <ProtectedRoute>
                     <VendorOrders />
                   </ProtectedRoute>
                 } />

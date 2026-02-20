@@ -103,8 +103,8 @@ public class ProductController : ControllerBase
     [HttpPost("shop/{shopId}")]
     [Authorize]
     public async Task<IActionResult> CreateProductForShop(
-        int shopId,
-        [FromBody] CreateProductDto productDto)
+    int shopId,
+    [FromBody] CreateProductDto productDto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -114,7 +114,6 @@ public class ProductController : ControllerBase
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var createdProduct = await _productService.CreateForShopAsync(shopId, productDto, userId);
 
-            // Convertir en DTO
             var responseDto = new ProductResponseDto
             {
                 Id = createdProduct.Id,
@@ -137,7 +136,17 @@ public class ProductController : ControllerBase
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = ex.Message });
+            // ✅ Log l'erreur complète
+            Console.WriteLine($"❌ Erreur création produit: {ex.Message}");
+            if (ex.InnerException != null)
+                Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+
+            return StatusCode(500, new
+            {
+                message = "Erreur lors de la création du produit",
+                error = ex.Message,
+                innerError = ex.InnerException?.Message
+            });
         }
     }
 

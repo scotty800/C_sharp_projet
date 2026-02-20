@@ -1,33 +1,25 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import Spinner from '../common/Spinner';
 
-const ProtectedRoute = ({ 
-  children, 
-  requireVendor = false, 
-  requireAdmin = false 
-}) => {
-  const { isAuthenticated, isVendor, isAdmin, loading } = useAuth();
+const ProtectedRoute = ({ children, requireAdmin = false }) => {
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
     return (
       <div className="auth-loading">
-        <div className="loading-spinner" />
+        <Spinner size="xl" />
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    // Redirect to login but save the location they tried to access
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
   if (requireAdmin && !isAdmin) {
-    return <Navigate to="/" replace />;
-  }
-
-  if (requireVendor && !isVendor) {
     return <Navigate to="/" replace />;
   }
 
