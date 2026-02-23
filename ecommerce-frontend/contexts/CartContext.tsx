@@ -70,12 +70,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       await api.put(`/cart/item/${itemId}`, { quantity });
       
-      // Mettre à jour localement
+      // ✅ CORRECTION : Utiliser CartItem pour le type du paramètre
       setCart((prev: Cart | null) => {
         if (!prev) return null;
         return {
           ...prev,
-          items: prev.items.map((item: Cart | null) =>
+          items: prev.items.map((item: CartItem) => // ← Type CartItem, pas Cart
             item.id === itemId ? { ...item, quantity } : item
           ),
         };
@@ -93,12 +93,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(true);
       await api.delete(`/cart/item/${itemId}`);
       
-      // Mettre à jour localement
-      setCart((prev: Cart |  null) => {
+      // ✅ CORRECTION : Utiliser CartItem pour le type du paramètre
+      setCart((prev: Cart | null) => {
         if (!prev) return null;
         return {
           ...prev,
-          items: prev.items.filter((item: Cart | null) => item.id !== itemId),
+          items: prev.items.filter((item: CartItem) => item.id !== itemId), // ← Type CartItem
         };
       });
     } catch (error) {
@@ -113,7 +113,11 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       await api.delete('/cart/clear');
-      setCart({ ...cart!, items: [] });
+      // ✅ CORRECTION : Vérifier que cart existe
+      setCart((prev: Cart | null) => {
+        if (!prev) return null;
+        return { ...prev, items: [] };
+      });
     } catch (error) {
       console.error('Erreur lors du vidage du panier:', error);
       throw error;

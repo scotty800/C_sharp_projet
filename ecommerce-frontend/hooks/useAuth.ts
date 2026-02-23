@@ -10,3 +10,12 @@ export const useAuth = () => {
   }
   return context;
 };
+
+export const canManageShop = (userId: number | undefined, shopOwnerId: number | undefined): boolean => {
+  if (!userId || !shopOwnerId) return false;
+  return userId === shopOwnerId;
+};
+
+export const isAdmin = (role?: string): boolean => {
+  return role === 'Admin';
+};

@@ -13,6 +13,8 @@ interface AuthContextType {
   register: (userData: RegisterData) => Promise<void>;
   logout: () => void;
   updateUser: (userData: Partial<User>) => void;
+  isShopOwner: (shopOwnerId: number) => boolean;
+  isAdmin: boolean;
 }
 
 interface RegisterData {
@@ -29,6 +31,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+
+  const isAdmin = user?.role === 'Admin';
+
 
   // Charger l'utilisateur au démarrage
   useEffect(() => {
@@ -109,6 +114,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser((prev: User | null) => prev ? { ...prev, ...userData } : null);
   };
 
+  // Vérifier si l'utilisateur actuel est propriétaire d'une boutique
+  const isShopOwner = (shopOwnerId: number): boolean => {
+    return user?.id === shopOwnerId;
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -118,6 +128,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       register,
       logout,
       updateUser,
+      isShopOwner,
+      isAdmin,
     }}>
       {children}
     </AuthContext.Provider>
