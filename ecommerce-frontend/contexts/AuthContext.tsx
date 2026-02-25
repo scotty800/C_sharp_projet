@@ -3,25 +3,22 @@
 import { createContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/services/api/axios';
-import { User } from '@/types/user';
+import toast from 'react-hot-toast';
+
+interface User {
+  id: number;
+  username: string;
+  email: string;
+  role: string;
+}
 
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: RegisterData) => Promise<void>;
+  register: (userData: any) => Promise<void>;
   logout: () => void;
-  updateUser: (userData: Partial<User>) => void;
-  isShopOwner: (shopOwnerId: number) => boolean;
-  isAdmin: boolean;
-}
-
-interface RegisterData {
-  username: string;
-  email: string;
-  password: string;
-  role?: string;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,36 +29,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  const isAdmin = user?.role === 'Admin';
-
-
-  // Charger l'utilisateur au démarrage
   useEffect(() => {
-    const initAuth = async () => {
-      const storedToken = localStorage.getItem('token');
-      
-      if (storedToken) {
-        setToken(storedToken);
-        await fetchUser(storedToken);
-      } else {
-        setIsLoading(false);
-      }
-    };
-
-    initAuth();
+    const token = localStorage.getItem('token');
+    if (token) {
+      setToken(token);
+      fetchUser(token);
+    } else {
+      setIsLoading(false);
+    }
   }, []);
 
-  const fetchUser = async (authToken: string) => {
+  const fetchUser = async (token: string) => {
     try {
-      const { data } = await api.get('/users/me', {
-        headers: { Authorization: `Bearer ${authToken}` }
-      });
+      const { data } = await api.get('/users/me');
       setUser(data);
     } catch (error) {
-      console.error('Erreur lors du chargement de l\'utilisateur:', error);
       localStorage.removeItem('token');
-      setToken(null);
-      setUser(null);
     } finally {
       setIsLoading(false);
     }
@@ -76,16 +59,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setToken(data.token);
       setUser(data.user);
       
+      toast.success('Connexion réussie !');
       router.push('/');
-    } catch (error) {
-      console.error('Erreur de connexion:', error);
+    } catch (error: any) {
+      const message = error.response?.data?.message || 'Email ou mot de passe incorrect';
+      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (userData: RegisterData) => {
+  const register = async (userData: any) => {
     try {
       setIsLoading(true);
       const { data } = await api.post('/auth/register', userData);
@@ -94,9 +79,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setToken(data.token);
       setUser(data.user);
       
+      toast.success('Inscription réussie !');
       router.push('/');
-    } catch (error) {
-      console.error('Erreur d\'inscription:', error);
+    } catch (error: any) {
+      const message = error.response?.data?.message || "Erreur lors de l'inscription";
+      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -107,30 +94,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('token');
     setToken(null);
     setUser(null);
+    toast.success('Déconnexion réussie');
     router.push('/');
   };
 
-  const updateUser = (userData: Partial<User>) => {
-    setUser((prev: User | null) => prev ? { ...prev, ...userData } : null);
-  };
-
-  // Vérifier si l'utilisateur actuel est propriétaire d'une boutique
-  const isShopOwner = (shopOwnerId: number): boolean => {
-    return user?.id === shopOwnerId;
-  };
-
   return (
-    <AuthContext.Provider value={{
-      user,
-      token,
-      isLoading,
-      login,
-      register,
-      logout,
-      updateUser,
-      isShopOwner,
-      isAdmin,
-    }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,6 +3,7 @@ import {
   Shop, 
   ShopResponse, 
   CreateShopRequest, 
+  CreateShopResponse,  // ← Ajoute ce type
   UpdateShopRequest,
   ShopListResponse,
   PaginationParams 
@@ -34,8 +35,8 @@ export const shopService = {
   },
 
   // Créer une boutique
-  async createShop(data: CreateShopRequest): Promise<ShopResponse> {
-    const response = await api.post<ShopResponse>('/shops', data);
+  async createShop(data: CreateShopRequest): Promise<CreateShopResponse> {
+    const response = await api.post<CreateShopResponse>('/shops', data);
     return response.data;
   },
 

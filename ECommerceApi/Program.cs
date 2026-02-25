@@ -31,6 +31,7 @@ builder.Services.AddCors(options =>
                 "http://localhost:5173",     // Frontend Vite (port par défaut)
                 "http://127.0.0.1:5173",     // Alternative
                 "http://localhost:3000",      // Si tu utilises React Create App
+                "http://127.0.0.1:3000",
                 "http://localhost:8080"       // Au cas où
                 )
                 .AllowAnyHeader()

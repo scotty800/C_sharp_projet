@@ -14,7 +14,7 @@ interface ShopProductsProps {
 }
 
 const ShopProducts = ({ 
-  products, 
+  products = [], // ← Valeur par défaut
   totalCount, 
   loading = false,
   onPageChange,
@@ -50,7 +50,8 @@ const ShopProducts = ({
     );
   }
 
-  if (!products.length) {
+  // ✅ Vérification avant d'utiliser .length
+  if (!products || products.length === 0) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500 text-lg">Aucun produit trouvé</p>
@@ -63,11 +64,10 @@ const ShopProducts = ({
       {/* En-tête avec filtres et tri */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <p className="text-gray-600">
-          <span className="font-semibold">{totalCount}</span> produits
+          <span className="font-semibold">{totalCount || 0}</span> produits
         </p>
 
         <div className="flex items-center gap-4">
-          {/* Bouton filtres mobile */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="lg:hidden flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
@@ -76,7 +76,6 @@ const ShopProducts = ({
             Filtres
           </button>
 
-          {/* Sélecteur de tri */}
           <select
             value={sortBy}
             onChange={(e) => handleSortChange(e.target.value)}
@@ -89,7 +88,6 @@ const ShopProducts = ({
             ))}
           </select>
 
-          {/* Boutons d'affichage */}
           <div className="hidden sm:flex border rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}

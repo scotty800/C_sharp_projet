@@ -22,6 +22,19 @@ export interface Shop {
   products?: Product[];
 }
 
+export interface CreateShopResponse {
+  message: string;
+  shop: {
+    id: number;
+    name: string;
+    slug: string;
+    description: string;
+    logoUrl: string | null;
+    bannerUrl: string | null;
+    productCount: number;
+  };
+}
+
 export interface ShopResponse {
   id: number;
   name: string;
@@ -41,6 +54,7 @@ export interface ShopResponse {
 export interface CreateShopRequest {
   name: string;
   description: string;
+  slug: string;
   themeColor?: string;
   backgroundColor?: string;
   textColor?: string;

@@ -5,9 +5,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
-import { FiShoppingCart, FiUser, FiMenu, FiSearch } from 'react-icons/fi';
+import { FiShoppingCart, FiUser, FiMenu, FiSearch, FiPlusCircle } from 'react-icons/fi';
 import MobileMenu from './MobileMenu';
-import Navbar from './Navbar'; // ← IMPORTANT: Ajouter cette ligne
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -74,8 +73,34 @@ const Header = () => {
               </div>
             </form>
 
-            {/* Navigation Icons - Desktop */}
-            <div className="hidden md:flex items-center space-x-6">
+            {/* Navigation - Desktop */}
+            <nav className="hidden md:flex items-center space-x-6">
+              <Link
+                href="/shops"
+                className="text-white hover:text-primary transition-colors"
+              >
+                Boutiques
+              </Link>
+              
+              <Link
+                href="/categories"
+                className="text-white hover:text-primary transition-colors"
+              >
+                Catégories
+              </Link>
+
+              {/* Bouton Créer une boutique - visible si connecté */}
+              {user && (
+                <Link
+                  href="/shop/create"
+                  className="flex items-center gap-1 bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded-lg transition-colors text-sm"
+                >
+                  <FiPlusCircle size={16} />
+                  <span>Créer une boutique</span>
+                </Link>
+              )}
+
+              {/* Cart */}
               <Link
                 href="/cart"
                 className="relative text-white hover:text-primary transition-colors"
@@ -88,6 +113,7 @@ const Header = () => {
                 )}
               </Link>
 
+              {/* User Menu */}
               {user ? (
                 <div className="relative group">
                   <button className="flex items-center space-x-2 text-white hover:text-primary transition-colors">
@@ -117,14 +143,6 @@ const Header = () => {
                       >
                         Mes boutiques
                       </Link>
-                      {user.role === 'Admin' && (
-                        <Link
-                          href="/dashboard/admin"
-                          className="block px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
-                        >
-                          Dashboard Admin
-                        </Link>
-                      )}
                       <hr className="my-2 border-white/10" />
                       <button
                         onClick={logout}
@@ -151,7 +169,7 @@ const Header = () => {
                   </Link>
                 </div>
               )}
-            </div>
+            </nav>
 
             {/* Mobile Menu Button */}
             <button
@@ -164,11 +182,6 @@ const Header = () => {
         </div>
       </header>
 
-      {/* Navbar - Barre de navigation secondaire */}
-      <div className="fixed top-[72px] left-0 right-0 z-40 hidden md:block">
-        <Navbar />
-      </div>
-
       <MobileMenu
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
@@ -177,8 +190,7 @@ const Header = () => {
         itemCount={itemCount}
       />
 
-      {/* Spacer ajusté pour le header + navbar */}
-      <div className="h-[120px]" /> {/* 72px (header) + 48px (navbar) */}
+      <div className="h-16" />
     </>
   );
 };

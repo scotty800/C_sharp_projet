@@ -2,52 +2,22 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { FiChevronRight } from 'react-icons/fi';
 
 interface Category {
   id: string;
   name: string;
-  image: string;
   count: number;
+  color: string;
+  image: string; // Changé pour correspondre aux fichiers SVG
 }
 
 const categories: Category[] = [
-  {
-    id: 'mode',
-    name: 'Mode',
-    image: '/images/categories/mode.jpg',
-    count: 1234,
-  },
-  {
-    id: 'electronique',
-    name: 'Électronique',
-    image: '/images/categories/electronique.jpg',
-    count: 856,
-  },
-  {
-    id: 'maison',
-    name: 'Maison',
-    image: '/images/categories/maison.jpg',
-    count: 2341,
-  },
-  {
-    id: 'sport',
-    name: 'Sport',
-    image: '/images/categories/sport.jpg',
-    count: 567,
-  },
-  {
-    id: 'beaute',
-    name: 'Beauté',
-    image: '/images/categories/beaute.jpg',
-    count: 432,
-  },
-  {
-    id: 'jeux',
-    name: 'Jeux',
-    image: '/images/categories/jeux.jpg',
-    count: 789,
-  },
+  { id: 'mode', name: 'Mode', count: 1234, color: 'bg-pink-500', image: '/images/categories/mode.svg' },
+  { id: 'electronique', name: 'Électronique', count: 856, color: 'bg-blue-500', image: '/images/categories/electronique.svg' },
+  { id: 'maison', name: 'Maison', count: 2341, color: 'bg-green-500', image: '/images/categories/maison.svg' },
+  { id: 'sport', name: 'Sport', count: 567, color: 'bg-orange-500', image: '/images/categories/sport.svg' },
+  { id: 'beaute', name: 'Beauté', count: 432, color: 'bg-purple-500', image: '/images/categories/beaute.svg' },
+  { id: 'jeux', name: 'Jeux', count: 789, color: 'bg-red-500', image: '/images/categories/jeux.svg' },
 ];
 
 const CategoryRow = () => {
