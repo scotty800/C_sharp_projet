@@ -13,9 +13,10 @@ import toast from 'react-hot-toast';
 interface ProductCardProps {
   product: Product;
   layout?: 'grid' | 'list';
+  themeColor?: string;
 }
 
-const ProductCard = ({ product, layout = 'grid' }: ProductCardProps) => {
+const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: ProductCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -58,7 +59,6 @@ const ProductCard = ({ product, layout = 'grid' }: ProductCardProps) => {
         onMouseLeave={() => setIsHovered(false)}
       >
         <div className="flex flex-col md:flex-row">
-          {/* Image */}
           <div className="relative md:w-48 h-48 flex-shrink-0">
             <Image
               src={product.imageUrl || '/images/product-placeholder.jpg'}
@@ -75,11 +75,10 @@ const ProductCard = ({ product, layout = 'grid' }: ProductCardProps) => {
             )}
           </div>
 
-          {/* Infos */}
           <div className="flex-1 p-4">
             <div className="flex justify-between items-start mb-2">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 hover:text-primary transition-colors">
+                <h3 className="text-lg font-semibold text-gray-900 hover:underline" style={{ textDecorationColor: themeColor }}>
                   {product.name}
                 </h3>
                 <p className="text-sm text-gray-500">{product.category}</p>
@@ -98,7 +97,7 @@ const ProductCard = ({ product, layout = 'grid' }: ProductCardProps) => {
 
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-2xl font-bold text-primary">
+                <span className="text-2xl font-bold" style={{ color: themeColor }}>
                   {formatPrice(product.price)}
                 </span>
                 {product.stock > 0 && (
@@ -111,11 +110,16 @@ const ProductCard = ({ product, layout = 'grid' }: ProductCardProps) => {
               <button
                 onClick={handleAddToCart}
                 disabled={product.stock <= 0 || isAddingToCart}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  product.stock > 0
-                    ? 'bg-primary hover:bg-primary-dark text-white'
-                    : 'bg-gray-300 cursor-not-allowed text-gray-500'
-                }`}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-white"
+                style={{ 
+                  backgroundColor: product.stock > 0 ? themeColor : '#9ca3af',
+                }}
+                onMouseEnter={(e) => {
+                  if (product.stock > 0) e.currentTarget.style.backgroundColor = `${themeColor}CC`;
+                }}
+                onMouseLeave={(e) => {
+                  if (product.stock > 0) e.currentTarget.style.backgroundColor = themeColor;
+                }}
               >
                 <FiShoppingCart />
                 <span>{isAddingToCart ? '...' : 'Ajouter'}</span>
@@ -127,11 +131,10 @@ const ProductCard = ({ product, layout = 'grid' }: ProductCardProps) => {
     );
   }
 
-  // Layout grid (par défaut)
   return (
     <Link
       href={`/product/${product.id}`}
-      className="product-card group"
+      className="product-card group bg-white"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -143,56 +146,71 @@ const ProductCard = ({ product, layout = 'grid' }: ProductCardProps) => {
           className="object-cover transition-transform duration-300 group-hover:scale-110"
         />
         
-        {/* Overlay au hover */}
         <div className={`absolute inset-0 bg-black/40 transition-opacity duration-300 flex items-center justify-center gap-3 ${
           isHovered ? 'opacity-100' : 'opacity-0'
         }`}>
           <button
             onClick={handleAddToCart}
             disabled={product.stock <= 0}
-            className="bg-white hover:bg-primary text-gray-900 hover:text-white p-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Ajouter au panier"
+            className="bg-white p-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ color: '#000' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = themeColor;
+              e.currentTarget.style.color = '#fff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#fff';
+              e.currentTarget.style.color = '#000';
+            }}
           >
             <FiShoppingCart size={20} />
           </button>
           <button
             onClick={handleToggleFavorite}
-            className="bg-white hover:bg-primary text-gray-900 hover:text-white p-3 rounded-full transition-colors"
-            title="Ajouter aux favoris"
+            className="bg-white p-3 rounded-full transition-colors"
+            style={{ color: '#000' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = themeColor;
+              e.currentTarget.style.color = '#fff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#fff';
+              e.currentTarget.style.color = '#000';
+            }}
           >
             <FiHeart fill={isFavorite ? 'currentColor' : 'none'} />
           </button>
           <Link
             href={`/product/${product.id}`}
-            className="bg-white hover:bg-primary text-gray-900 hover:text-white p-3 rounded-full transition-colors"
-            title="Voir détails"
+            className="bg-white p-3 rounded-full transition-colors"
+            style={{ color: '#000' }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = themeColor;
+              e.currentTarget.style.color = '#fff';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#fff';
+              e.currentTarget.style.color = '#000';
+            }}
           >
             <FiEye size={20} />
           </Link>
         </div>
 
-        {/* Badge stock */}
         {product.stock <= 0 && (
           <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded">
             Rupture
           </div>
         )}
-
-        {/* Badge promotion (exemple) */}
-        {product.price < 50 && (
-          <div className="absolute top-2 right-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded">
-            -20%
-          </div>
-        )}
       </div>
 
       <div className="p-4">
-        <h3 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2 group-hover:text-primary transition-colors">
+        <h3 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2 group-hover:underline" style={{ textDecorationColor: themeColor }}>
           {product.name}
         </h3>
         
         <div className="flex items-center justify-between">
-          <span className="text-lg font-bold text-primary">
+          <span className="text-lg font-bold" style={{ color: themeColor }}>
             {formatPrice(product.price)}
           </span>
           {product.shop && (

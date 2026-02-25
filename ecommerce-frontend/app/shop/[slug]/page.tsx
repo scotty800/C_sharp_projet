@@ -39,24 +39,19 @@ export default function ShopPage() {
         console.log('Boutique trouvée:', shopData);
         setShop(shopData);
 
-        // Récupérer les produits de la boutique
         const productsData = await productService.getProductsByShop(shopData.id, {
           pageSize: 12
         });
         
-        console.log('Produits reçus:', productsData);
-        
-        // ✅ Vérification de sécurité
         if (productsData && productsData.products && productsData.products.data) {
           setProducts(productsData.products.data);
         } else {
-          console.warn('Structure de produits inattendue:', productsData);
           setProducts([]);
         }
       } catch (err: any) {
         console.error('Erreur complète:', err);
         setError(err.response?.data?.message || 'Boutique non trouvée');
-        setProducts([]); // ← Important : initialiser à un tableau vide
+        setProducts([]);
       } finally {
         setLoading(false);
       }
@@ -90,23 +85,41 @@ export default function ShopPage() {
 
   const isOwner = user?.id === shop.ownerId;
 
+  // Styles de page basés sur les couleurs de la boutique
+  const pageStyle = {
+    backgroundColor: shop.backgroundColor || '#f3f4f6',
+    color: shop.textColor || '#000000',
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div 
+      className="min-h-screen"
+      style={pageStyle}
+    >
       <ShopHeader shop={shop} isOwner={isOwner} />
       
       <div className="container mx-auto px-4 pb-12">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3">
-            {/* ✅ Passage de produits même vide, mais jamais undefined */}
-            <ShopProducts products={products || []} totalCount={shop.productCount} />
+            <ShopProducts 
+              products={products || []} 
+              totalCount={shop.productCount} 
+              themeColor={shop.themeColor}
+            />
           </div>
           <div className="lg:col-span-1">
-            <ShopSidebar shop={shop} />
+            <ShopSidebar 
+              shop={shop} 
+              themeColor={shop.themeColor}
+            />
           </div>
         </div>
 
         <div className="mt-8">
-          <ShopInfo shop={shop} />
+          <ShopInfo 
+            shop={shop} 
+            themeColor={shop.themeColor}
+          />
         </div>
       </div>
     </div>

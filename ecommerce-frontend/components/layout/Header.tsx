@@ -91,15 +91,21 @@ const Header = () => {
 
               {/* Bouton Créer une boutique - visible si connecté */}
               {user && (
-                <Link
-                  href="/shop/create"
-                  className="flex items-center gap-1 bg-primary hover:bg-primary-dark text-white px-3 py-1 rounded-lg transition-colors text-sm"
-                >
-                  <FiPlusCircle size={16} />
-                  <span>Créer une boutique</span>
-                </Link>
-              )}
-
+  <>
+    <Link
+      href="/shop/create"
+      className="block px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+    >
+      Créer une boutique
+    </Link>
+    <Link
+      href="/shop/my-shops"
+      className="block px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+    >
+      Mes boutiques
+    </Link>
+  </>
+)}
               {/* Cart */}
               <Link
                 href="/cart"

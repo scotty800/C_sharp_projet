@@ -9,14 +9,16 @@ interface ShopProductsProps {
   products: Product[];
   totalCount: number;
   loading?: boolean;
+  themeColor?: string;
   onPageChange?: (page: number) => void;
   onSortChange?: (sort: string) => void;
 }
 
 const ShopProducts = ({ 
-  products = [], // ← Valeur par défaut
+  products = [],
   totalCount, 
   loading = false,
+  themeColor = '#e50914',
   onPageChange,
   onSortChange 
 }: ShopProductsProps) => {
@@ -50,7 +52,6 @@ const ShopProducts = ({
     );
   }
 
-  // ✅ Vérification avant d'utiliser .length
   if (!products || products.length === 0) {
     return (
       <div className="text-center py-12">
@@ -63,23 +64,34 @@ const ShopProducts = ({
     <div>
       {/* En-tête avec filtres et tri */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <p className="text-gray-600">
+        <p className="opacity-75">
           <span className="font-semibold">{totalCount || 0}</span> produits
         </p>
 
         <div className="flex items-center gap-4">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="lg:hidden flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
+            className="lg:hidden flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-black/5 transition-colors"
+            style={{ borderColor: themeColor }}
           >
-            <FiFilter />
+            <FiFilter style={{ color: themeColor }} />
             Filtres
           </button>
 
           <select
             value={sortBy}
             onChange={(e) => handleSortChange(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className="px-4 py-2 border rounded-lg focus:outline-none"
+            style={{ 
+              borderColor: themeColor,
+            }}
+            onFocus={(e) => {
+              e.target.style.boxShadow = `0 0 0 2px ${themeColor}40`;
+              e.target.style.outline = 'none';
+            }}
+            onBlur={(e) => {
+              e.target.style.boxShadow = 'none';
+            }}
           >
             {sortOptions.map(option => (
               <option key={option.value} value={option.value}>
@@ -91,13 +103,21 @@ const ShopProducts = ({
           <div className="hidden sm:flex border rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}
+              className="p-2 transition-colors"
+              style={{ 
+                backgroundColor: viewMode === 'grid' ? themeColor : 'transparent',
+                color: viewMode === 'grid' ? 'white' : 'inherit'
+              }}
             >
               <FiGrid size={20} />
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}
+              className="p-2 transition-colors"
+              style={{ 
+                backgroundColor: viewMode === 'list' ? themeColor : 'transparent',
+                color: viewMode === 'list' ? 'white' : 'inherit'
+              }}
             >
               <FiList size={20} />
             </button>
@@ -116,18 +136,10 @@ const ShopProducts = ({
             key={product.id} 
             product={product} 
             layout={viewMode}
+            themeColor={themeColor}
           />
         ))}
       </div>
-
-      {/* Pagination (à implémenter) */}
-      {totalCount > 12 && (
-        <div className="flex justify-center mt-8">
-          <nav className="flex gap-2">
-            {/* Boutons de pagination */}
-          </nav>
-        </div>
-      )}
     </div>
   );
 };
