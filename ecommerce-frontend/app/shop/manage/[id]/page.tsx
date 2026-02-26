@@ -8,37 +8,17 @@ import { shopService } from '@/services/api/shops';
 import { productService } from '@/services/api/products';
 import { Shop } from '@/types/shop';
 import { Product } from '@/types/product';
-import { FiUpload, FiSave, FiPlus, FiTrash2, FiEdit, FiImage } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiImage, FiArrowLeft, FiPackage, FiTrash2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-export default function ManageShopPage() {
+export default function ManageShopProductsPage() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
   const [shop, setShop] = useState<Shop | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'info' | 'products' | 'appearance'>('info');
-
-  // États pour les formulaires
-  const [shopForm, setShopForm] = useState({
-    name: '',
-    description: '',
-    email: '',
-    phone: '',
-  });
-
-  const [appearance, setAppearance] = useState({
-    themeColor: '#e50914',
-    backgroundColor: '#ffffff',
-    textColor: '#000000',
-  });
-
-  // États pour les uploads
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [bannerFile, setBannerFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -51,7 +31,6 @@ export default function ManageShopPage() {
         setLoading(true);
         const shopData = await shopService.getShopById(Number(id));
         
-        // Vérifier que l'utilisateur est bien le propriétaire
         if (shopData.ownerId !== user.id) {
           toast.error('Vous n\'êtes pas le propriétaire de cette boutique');
           router.push('/');
@@ -59,26 +38,45 @@ export default function ManageShopPage() {
         }
 
         setShop(shopData);
-        setShopForm({
-          name: shopData.name,
-          description: shopData.description || '',
-          email: shopData.email || '',
-          phone: shopData.phone || '',
-        });
-        setAppearance({
-          themeColor: shopData.themeColor || '#e50914',
-          backgroundColor: shopData.backgroundColor || '#ffffff',
-          textColor: shopData.textColor || '#000000',
-        });
-
+        
         // Récupérer les produits
-        const productsData = await productService.getProductsByShop(shopData.id, {
+        console.log('📦 Récupération des produits pour shopId:', shopData.id);
+        const response = await productService.getProductsByShop(shopData.id, {
           pageSize: 50
         });
-        setProducts(productsData.products.data || []);
+        
+        console.log('📦 Réponse complète:', JSON.stringify(response, null, 2));
+        
+        // EXTRAIRE LES PRODUITS DE products.items
+        let extractedProducts: Product[] = [];
+        
+        // @ts-ignore
+        const data = response as any;
+        
+        // La bonne structure est data.products.items
+        if (data.products?.items && Array.isArray(data.products.items)) {
+          console.log('✅ Structure trouvée: data.products.items');
+          extractedProducts = data.products.items;
+        } 
+        // Autres possibilités au cas où
+        else if (data.products?.data && Array.isArray(data.products.data)) {
+          extractedProducts = data.products.data;
+        } else if (data.items && Array.isArray(data.items)) {
+          extractedProducts = data.items;
+        } else if (Array.isArray(data)) {
+          extractedProducts = data;
+        } else {
+          console.log('❌ Aucune structure de tableau trouvée');
+          extractedProducts = [];
+        }
+        
+        console.log('📦 Produits extraits:', extractedProducts.length);
+        setProducts(extractedProducts);
+        
       } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Erreur:', error);
         toast.error('Impossible de charger la boutique');
+        setProducts([]);
       } finally {
         setLoading(false);
       }
@@ -89,78 +87,29 @@ export default function ManageShopPage() {
     }
   }, [id, user, router]);
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const handleDeleteProduct = async (productId: number, productName: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer "${productName}" ?`)) {
+      return;
     }
-  };
 
-  const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setBannerFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setBannerPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleUploadLogo = async () => {
-    if (!logoFile) return;
-    
     try {
-      await shopService.uploadLogo(Number(id), logoFile);
-      toast.success('Logo mis à jour');
-      setLogoFile(null);
-      setLogoPreview(null);
-      // Recharger la boutique
-      const shopData = await shopService.getShopById(Number(id));
-      setShop(shopData);
+      setDeletingId(productId);
+      await productService.deleteProduct(productId);
+      setProducts(prevProducts => prevProducts.filter(p => p.id !== productId));
+      toast.success('Produit supprimé avec succès');
     } catch (error) {
-      toast.error('Erreur lors de l\'upload');
+      console.error('Erreur suppression:', error);
+      toast.error('Erreur lors de la suppression');
+    } finally {
+      setDeletingId(null);
     }
   };
 
-  const handleUploadBanner = async () => {
-    if (!bannerFile) return;
-    
-    try {
-      await shopService.uploadBanner(Number(id), bannerFile);
-      toast.success('Bannière mise à jour');
-      setBannerFile(null);
-      setBannerPreview(null);
-      const shopData = await shopService.getShopById(Number(id));
-      setShop(shopData);
-    } catch (error) {
-      toast.error('Erreur lors de l\'upload');
-    }
-  };
-
-  const handleUpdateShop = async () => {
-    try {
-      await shopService.updateShop(Number(id), {
-        name: shopForm.name,
-        description: shopForm.description,
-        email: shopForm.email || undefined,
-        phone: shopForm.phone || undefined,
-        themeColor: appearance.themeColor,
-        backgroundColor: appearance.backgroundColor,
-        textColor: appearance.textColor,
-      });
-      toast.success('Boutique mise à jour');
-      const shopData = await shopService.getShopById(Number(id));
-      setShop(shopData);
-    } catch (error) {
-      toast.error('Erreur lors de la mise à jour');
-    }
+  const getImageUrl = (url: string | null | undefined) => {
+    if (!url) return '/images/product-placeholder.jpg';
+    if (url.startsWith('http')) return url;
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://127.0.0.1:5019';
+    return `${baseUrl}${url}`;
   };
 
   if (loading) {
@@ -181,274 +130,106 @@ export default function ManageShopPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-8">Gérer ma boutique : {shop.name}</h1>
+      <div className="container mx-auto px-4 max-w-6xl">
+        {/* Bouton retour */}
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-gray-600 hover:text-primary mb-4 transition-colors"
+        >
+          <FiArrowLeft />
+          Retour
+        </button>
 
-        {/* Onglets */}
-        <div className="flex border-b mb-8">
+        {/* En-tête */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold">Gérer les produits</h1>
+            <p className="text-gray-600 mt-1">Boutique : {shop.name}</p>
+          </div>
+          
           <button
-            onClick={() => setActiveTab('info')}
-            className={`px-6 py-3 font-medium ${activeTab === 'info' ? 'text-primary border-b-2 border-primary' : 'text-gray-600'}`}
+            onClick={() => router.push(`/shop/customize/${shop.id}`)}
+            className="text-primary hover:text-primary-dark text-sm"
           >
-            Informations
-          </button>
-          <button
-            onClick={() => setActiveTab('appearance')}
-            className={`px-6 py-3 font-medium ${activeTab === 'appearance' ? 'text-primary border-b-2 border-primary' : 'text-gray-600'}`}
-          >
-            Apparence
-          </button>
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`px-6 py-3 font-medium ${activeTab === 'products' ? 'text-primary border-b-2 border-primary' : 'text-gray-600'}`}
-          >
-            Produits ({products.length})
+            Personnaliser la boutique →
           </button>
         </div>
 
-        {activeTab === 'info' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-semibold mb-6">Informations de la boutique</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nom</label>
-                <input
-                  type="text"
-                  value={shopForm.name}
-                  onChange={(e) => setShopForm({...shopForm, name: e.target.value})}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={shopForm.description}
-                  onChange={(e) => setShopForm({...shopForm, description: e.target.value})}
-                  rows={4}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email de contact</label>
-                <input
-                  type="email"
-                  value={shopForm.email}
-                  onChange={(e) => setShopForm({...shopForm, email: e.target.value})}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Téléphone</label>
-                <input
-                  type="tel"
-                  value={shopForm.phone}
-                  onChange={(e) => setShopForm({...shopForm, phone: e.target.value})}
-                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              <button
-                onClick={handleUpdateShop}
-                className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg transition-colors"
-              >
-                <FiSave />
-                Enregistrer les modifications
-              </button>
-            </div>
+        {/* Section Produits */}
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">
+              Produits ({products.length})
+            </h2>
+            <button
+              onClick={() => router.push(`/product/create?shopId=${shop.id}`)}
+              className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              <FiPlus />
+              Ajouter un produit
+            </button>
           </div>
-        )}
 
-        {activeTab === 'appearance' && (
-          <div className="space-y-6">
-            {/* Logo */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Logo</h2>
-              <div className="flex items-start gap-6">
-                <div className="relative w-32 h-32 rounded-lg overflow-hidden border">
-                  {(logoPreview || shop.logoUrl) ? (
-                    <Image
-                      src={logoPreview || shop.logoUrl || ''}
-                      alt="Logo"
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                      <FiImage className="text-gray-400" size={32} />
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    id="logo"
-                    accept="image/*"
-                    onChange={handleLogoChange}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="logo"
-                    className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg cursor-pointer transition-colors"
-                  >
-                    <FiUpload />
-                    Choisir un fichier
-                  </label>
-                  {logoFile && (
-                    <button
-                      onClick={handleUploadLogo}
-                      className="ml-4 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors"
-                    >
-                      Uploader
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Bannière */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Bannière</h2>
-              <div className="space-y-4">
-                <div className="relative w-full h-48 rounded-lg overflow-hidden border">
-                  {(bannerPreview || shop.bannerUrl) ? (
-                    <Image
-                      src={bannerPreview || shop.bannerUrl || ''}
-                      alt="Bannière"
-                      fill
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                      <FiImage className="text-gray-400" size={48} />
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    id="banner"
-                    accept="image/*"
-                    onChange={handleBannerChange}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="banner"
-                    className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg cursor-pointer transition-colors"
-                  >
-                    <FiUpload />
-                    Choisir un fichier
-                  </label>
-                  {bannerFile && (
-                    <button
-                      onClick={handleUploadBanner}
-                      className="ml-4 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors"
-                    >
-                      Uploader
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Couleurs */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Couleurs</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Couleur principale</label>
-                  <input
-                    type="color"
-                    value={appearance.themeColor}
-                    onChange={(e) => setAppearance({...appearance, themeColor: e.target.value})}
-                    className="w-full h-10 border rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Couleur de fond</label>
-                  <input
-                    type="color"
-                    value={appearance.backgroundColor}
-                    onChange={(e) => setAppearance({...appearance, backgroundColor: e.target.value})}
-                    className="w-full h-10 border rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Couleur du texte</label>
-                  <input
-                    type="color"
-                    value={appearance.textColor}
-                    onChange={(e) => setAppearance({...appearance, textColor: e.target.value})}
-                    className="w-full h-10 border rounded"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleUpdateShop}
-                className="mt-4 flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg transition-colors"
-              >
-                <FiSave />
-                Appliquer les couleurs
-              </button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'products' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Produits</h2>
+          {products.length === 0 ? (
+            <div className="text-center py-16">
+              <FiPackage className="mx-auto text-gray-300 mb-4" size={64} />
+              <h3 className="text-xl font-medium text-gray-700 mb-2">Aucun produit</h3>
+              <p className="text-gray-500 mb-6">
+                Commencez par ajouter votre premier produit à la boutique.
+              </p>
               <button
                 onClick={() => router.push(`/product/create?shopId=${shop.id}`)}
-                className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-lg transition-colors"
               >
                 <FiPlus />
                 Ajouter un produit
               </button>
             </div>
-
-            {products.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500">Aucun produit dans cette boutique</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {products.map((product) => (
-                  <div key={product.id} className="border rounded-lg p-4 flex gap-4">
-                    <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
-                      {product.imageUrl ? (
-                        <Image
-                          src={product.imageUrl}
-                          alt={product.name}
-                          fill
-                          className="object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                          <FiImage className="text-gray-400" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold">{product.name}</h3>
-                      <p className="text-sm text-gray-600">{product.price} €</p>
-                      <p className="text-sm text-gray-600">Stock: {product.stock}</p>
-                    </div>
-                    <button
-                      onClick={() => router.push(`/product/edit/${product.id}`)}
-                      className="text-gray-400 hover:text-primary"
-                    >
-                      <FiEdit size={18} />
-                    </button>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {products.map((product) => (
+                <div key={product.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="relative w-full h-40 rounded-lg overflow-hidden mb-3 bg-gray-100">
+                    <Image
+                      src={getImageUrl(product.imageUrl)}
+                      alt={product.name}
+                      fill
+                      className="object-cover"
+                    />
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                  
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg truncate">{product.name}</h3>
+                      <p className="text-sm text-gray-500 truncate">{product.category}</p>
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="text-lg font-bold text-primary">{product.price} €</span>
+                        <span className="text-sm text-gray-500">Stock: {product.stock}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => router.push(`/product/edit/${product.id}`)}
+                        className="text-gray-400 hover:text-primary transition-colors"
+                        title="Modifier"
+                      >
+                        <FiEdit size={20} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProduct(product.id, product.name)}
+                        disabled={deletingId === product.id}
+                        className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                        title="Supprimer"
+                      >
+                        <FiTrash2 size={20} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

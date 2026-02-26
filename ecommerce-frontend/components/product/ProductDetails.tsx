@@ -7,6 +7,7 @@ import { Product } from '@/types/product';
 import { formatPrice } from '@/services/utils/formatters';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
+import { getProductImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
 import ProductImages from './ProductImages';
 import AddToCartButton from './AddToCartButton';

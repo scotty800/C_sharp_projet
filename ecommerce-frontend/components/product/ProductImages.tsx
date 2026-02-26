@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Product } from '@/types/product';
 import { FiChevronLeft, FiChevronRight, FiMaximize2 } from 'react-icons/fi';
+import { getImageUrl } from '@/utils/imageUtils';
 
 interface ProductImagesProps {
   product: Product;
@@ -12,6 +13,7 @@ interface ProductImagesProps {
 const ProductImages = ({ product }: ProductImagesProps) => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [imageErrors, setImageErrors] = useState<boolean[]>([false, false, false, false]);
 
   const images = [
     product.imageUrl,
@@ -20,8 +22,13 @@ const ProductImages = ({ product }: ProductImagesProps) => {
     product.imageUrl3,
   ].filter(Boolean) as string[];
 
-  const defaultImage = '/images/product-placeholder.jpg';
-  const displayImages = images.length > 0 ? images : [defaultImage];
+  const displayImages = images.length > 0 ? images : ['/images/product-placeholder.svg'];
+
+  const handleImageError = (index: number) => {
+    const newErrors = [...imageErrors];
+    newErrors[index] = true;
+    setImageErrors(newErrors);
+  };
 
   const handlePrevious = () => {
     setSelectedImage((prev) => (prev === 0 ? displayImages.length - 1 : prev - 1));
@@ -36,14 +43,15 @@ const ProductImages = ({ product }: ProductImagesProps) => {
       {/* Image principale */}
       <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
         <Image
-          src={displayImages[selectedImage]}
+          src={imageErrors[selectedImage] ? '/images/product-placeholder.svg' : getImageUrl(displayImages[selectedImage])}
           alt={product.name}
           fill
           className="object-cover"
           priority
+          onError={() => handleImageError(selectedImage)}
+          unoptimized
         />
 
-        {/* Navigation flèches */}
         {displayImages.length > 1 && (
           <>
             <button
@@ -61,7 +69,6 @@ const ProductImages = ({ product }: ProductImagesProps) => {
           </>
         )}
 
-        {/* Bouton plein écran */}
         <button
           onClick={() => setIsFullscreen(true)}
           className="absolute bottom-4 right-4 bg-white/80 hover:bg-white text-gray-800 p-2 rounded-full transition-colors"
@@ -69,7 +76,6 @@ const ProductImages = ({ product }: ProductImagesProps) => {
           <FiMaximize2 size={20} />
         </button>
 
-        {/* Compteur d'images */}
         {displayImages.length > 1 && (
           <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
             {selectedImage + 1} / {displayImages.length}
@@ -91,10 +97,12 @@ const ProductImages = ({ product }: ProductImagesProps) => {
               }`}
             >
               <Image
-                src={image}
+                src={imageErrors[index] ? '/images/product-placeholder.svg' : getImageUrl(image)}
                 alt={`${product.name} - ${index + 1}`}
                 fill
                 className="object-cover"
+                onError={() => handleImageError(index)}
+                unoptimized
               />
             </button>
           ))}
@@ -113,10 +121,11 @@ const ProductImages = ({ product }: ProductImagesProps) => {
           
           <div className="relative w-full max-w-5xl h-[80vh] mx-4">
             <Image
-              src={displayImages[selectedImage]}
+              src={imageErrors[selectedImage] ? '/images/product-placeholder.svg' : getImageUrl(displayImages[selectedImage])}
               alt={product.name}
               fill
               className="object-contain"
+              unoptimized
             />
           </div>
 

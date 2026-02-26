@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { FiStar, FiThumbsUp, FiFlag } from 'react-icons/fi';
 import { Review } from '@/types/review';
 import { formatDate } from '@/services/utils/formatters';
-import Image from 'next/image';
 
 interface ProductReviewsProps {
   productId: number;
@@ -13,20 +12,23 @@ interface ProductReviewsProps {
   totalReviews: number;
 }
 
-const ProductReviews = ({ productId, reviews, averageRating, totalReviews }: ProductReviewsProps) => {
+const ProductReviews = ({ productId, reviews = [], averageRating, totalReviews }: ProductReviewsProps) => {
   const [filter, setFilter] = useState<number | null>(null);
 
+  // S'assurer que reviews est un tableau
+  const safeReviews = Array.isArray(reviews) ? reviews : [];
+
   const ratingDistribution = {
-    5: reviews.filter(r => r.rating === 5).length,
-    4: reviews.filter(r => r.rating === 4).length,
-    3: reviews.filter(r => r.rating === 3).length,
-    2: reviews.filter(r => r.rating === 2).length,
-    1: reviews.filter(r => r.rating === 1).length,
+    5: safeReviews.filter(r => r?.rating === 5).length,
+    4: safeReviews.filter(r => r?.rating === 4).length,
+    3: safeReviews.filter(r => r?.rating === 3).length,
+    2: safeReviews.filter(r => r?.rating === 2).length,
+    1: safeReviews.filter(r => r?.rating === 1).length,
   };
 
   const filteredReviews = filter
-    ? reviews.filter(r => r.rating === filter)
-    : reviews;
+    ? safeReviews.filter(r => r?.rating === filter)
+    : safeReviews;
 
   const getPercentage = (count: number) => {
     return totalReviews > 0 ? (count / totalReviews) * 100 : 0;
@@ -82,45 +84,47 @@ const ProductReviews = ({ productId, reviews, averageRating, totalReviews }: Pro
 
       {/* Liste des avis */}
       <div className="space-y-6">
-        {filteredReviews.map((review) => (
-          <div key={review.id} className="border-t pt-6 first:border-t-0 first:pt-0">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                {/* Avatar utilisateur */}
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  {review.user?.username?.charAt(0).toUpperCase()}
+        {filteredReviews.length === 0 ? (
+          <p className="text-center text-gray-500 py-8">Aucun avis pour le moment</p>
+        ) : (
+          filteredReviews.map((review) => (
+            <div key={review.id} className="border-t pt-6 first:border-t-0 first:pt-0">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    {review.user?.username?.charAt(0).toUpperCase() || 'A'}
+                  </div>
+                  <div>
+                    <p className="font-semibold">{review.user?.username || 'Anonyme'}</p>
+                    <p className="text-sm text-gray-500">{formatDate(review.createdAt)}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold">{review.user?.username}</p>
-                  <p className="text-sm text-gray-500">{formatDate(review.createdAt)}</p>
+                <div className="flex items-center gap-1 text-yellow-400">
+                  {[...Array(5)].map((_, i) => (
+                    <FiStar
+                      key={i}
+                      fill={i < review.rating ? 'currentColor' : 'none'}
+                      size={16}
+                    />
+                  ))}
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-yellow-400">
-                {[...Array(5)].map((_, i) => (
-                  <FiStar
-                    key={i}
-                    fill={i < review.rating ? 'currentColor' : 'none'}
-                    size={16}
-                  />
-                ))}
+
+              <p className="text-gray-700 mb-4">{review.comment}</p>
+
+              <div className="flex items-center gap-4 text-sm">
+                <button className="flex items-center gap-1 text-gray-500 hover:text-primary transition-colors">
+                  <FiThumbsUp size={16} />
+                  <span>Utile (0)</span>
+                </button>
+                <button className="flex items-center gap-1 text-gray-500 hover:text-primary transition-colors">
+                  <FiFlag size={16} />
+                  <span>Signaler</span>
+                </button>
               </div>
             </div>
-
-            <p className="text-gray-700 mb-4">{review.comment}</p>
-
-            {/* Actions sur l'avis */}
-            <div className="flex items-center gap-4 text-sm">
-              <button className="flex items-center gap-1 text-gray-500 hover:text-primary transition-colors">
-                <FiThumbsUp size={16} />
-                <span>Utile (0)</span>
-              </button>
-              <button className="flex items-center gap-1 text-gray-500 hover:text-primary transition-colors">
-                <FiFlag size={16} />
-                <span>Signaler</span>
-              </button>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Bouton pour écrire un avis */}

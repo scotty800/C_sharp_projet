@@ -33,23 +33,82 @@ export default function ShopPage() {
 
       try {
         setLoading(true);
-        console.log('Récupération de la boutique avec slug:', slug);
+        console.log('🔍 Récupération de la boutique avec slug:', slug);
         
+        // 1. Récupérer la boutique
         const shopData = await shopService.getShopBySlug(slug);
-        console.log('Boutique trouvée:', shopData);
+        console.log('🏪 Boutique trouvée:', shopData);
         setShop(shopData);
 
+        // 2. Récupérer les produits de la boutique
+        console.log('📦 Récupération des produits pour shopId:', shopData.id);
         const productsData = await productService.getProductsByShop(shopData.id, {
-          pageSize: 12
+          pageSize: 50
         });
         
-        if (productsData && productsData.products && productsData.products.data) {
-          setProducts(productsData.products.data);
-        } else {
-          setProducts([]);
+        console.log('📦 Réponse produits COMPLÈTE:', productsData);
+        
+        // 3. Analyser la structure en détail avec "as any" pour éviter les erreurs TypeScript
+        const data: any = productsData;
+        
+        console.log('📦 Type de productsData:', typeof data);
+        console.log('📦 Est un tableau?', Array.isArray(data));
+        if (!Array.isArray(data)) {
+          console.log('📦 Clés de productsData:', Object.keys(data));
         }
+        
+        // 4. Tentative d'extraction des produits
+        let extractedProducts: Product[] = [];
+        
+        // Cas 1: Si productsData est directement un tableau
+        if (Array.isArray(data)) {
+          console.log('✅ Cas 1: productsData est un tableau direct');
+          extractedProducts = data;
+        }
+        // Cas 2: Si data.products est un tableau
+        else if (data.products && Array.isArray(data.products)) {
+          console.log('✅ Cas 2: data.products est un tableau');
+          extractedProducts = data.products;
+        }
+        // Cas 3: Si data.data est un tableau
+        else if (data.data && Array.isArray(data.data)) {
+          console.log('✅ Cas 3: data.data est un tableau');
+          extractedProducts = data.data;
+        }
+        // Cas 4: Si data.products?.data est un tableau
+        else if (data.products?.data && Array.isArray(data.products.data)) {
+          console.log('✅ Cas 4: data.products.data est un tableau');
+          extractedProducts = data.products.data;
+        }
+        // Cas 5: Si data.products?.items est un tableau
+        else if (data.products?.items && Array.isArray(data.products.items)) {
+          console.log('✅ Cas 5: data.products.items est un tableau');
+          extractedProducts = data.products.items;
+        }
+        // Cas 6: Si data.results est un tableau
+        else if (data.results && Array.isArray(data.results)) {
+          console.log('✅ Cas 6: data.results est un tableau');
+          extractedProducts = data.results;
+        }
+        // Cas 7: Si data.items est un tableau
+        else if (data.items && Array.isArray(data.items)) {
+          console.log('✅ Cas 7: data.items est un tableau');
+          extractedProducts = data.items;
+        }
+        else {
+          console.warn('⚠️ Aucune structure de tableau reconnue');
+          console.log('📦 Structure complète:', JSON.stringify(data, null, 2));
+        }
+        
+        console.log('📦 Produits extraits:', extractedProducts.length);
+        if (extractedProducts.length > 0) {
+          console.log('📦 Premier produit:', extractedProducts[0]);
+        }
+        
+        setProducts(extractedProducts);
+        
       } catch (err: any) {
-        console.error('Erreur complète:', err);
+        console.error('❌ Erreur complète:', err);
         setError(err.response?.data?.message || 'Boutique non trouvée');
         setProducts([]);
       } finally {
@@ -85,7 +144,6 @@ export default function ShopPage() {
 
   const isOwner = user?.id === shop.ownerId;
 
-  // Styles de page basés sur les couleurs de la boutique
   const pageStyle = {
     backgroundColor: shop.backgroundColor || '#f3f4f6',
     color: shop.textColor || '#000000',
@@ -102,7 +160,7 @@ export default function ShopPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           <div className="lg:col-span-3">
             <ShopProducts 
-              products={products || []} 
+              products={products} 
               totalCount={shop.productCount} 
               themeColor={shop.themeColor}
             />

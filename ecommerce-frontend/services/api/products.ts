@@ -30,7 +30,9 @@ export const productService = {
     shop: { id: number; name: string; slug: string; productCount: number };
     products: ProductListResponse;
   }> {
+    console.log('📦 Appel API getProductsByShop pour shopId:', shopId, 'params:', params);
     const response = await api.get(`/products/shop/${shopId}`, { params });
+    console.log('📦 Réponse API getProductsByShop:', response.data);
     return response.data;
   },
 

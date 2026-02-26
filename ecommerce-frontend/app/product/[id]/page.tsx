@@ -23,24 +23,59 @@ export default function ProductPage() {
         setLoading(true);
         const productId = Number(id);
 
-        // Récupérer le produit
+        // 1. Récupérer le produit
         const productData = await productService.getProductById(productId);
+        console.log('Produit:', productData);
         setProduct(productData);
 
-        // Récupérer les avis
-        const reviewsData = await reviewService.getReviewsByProduct(productId);
-        setReviews(reviewsData);
+        // 2. Récupérer les avis
+        try {
+          const reviewsData = await reviewService.getReviewsByProduct(productId);
+          console.log('Avis reçus:', reviewsData);
+          setReviews(Array.isArray(reviewsData) ? reviewsData : []);
+        } catch (error) {
+          console.error('Erreur chargement avis:', error);
+          setReviews([]);
+        }
 
-        // Récupérer la note moyenne
-        const ratingData = await reviewService.getProductRating(productId);
-        setAverageRating(ratingData.average);
+        // 3. Récupérer la note moyenne
+        try {
+          const ratingData = await reviewService.getProductRating(productId);
+          setAverageRating(ratingData?.average || 0);
+        } catch (error) {
+          console.error('Erreur chargement note:', error);
+          setAverageRating(0);
+        }
 
-        // Récupérer produits similaires (par catégorie)
-        const relatedData = await productService.getProducts({
-          category: productData.category,
-          pageSize: 4,
-        });
-        setRelatedProducts(relatedData.data.filter(p => p.id !== productId));
+        // 4. Récupérer produits similaires (par catégorie)
+        try {
+          const relatedData = await productService.getProducts({
+            category: productData.category,
+            pageSize: 4,
+          });
+          console.log('Produits similaires reçus:', relatedData);
+          
+          // Extraire les produits selon la structure
+          let related: Product[] = [];
+          const data: any = relatedData;
+          
+          if (Array.isArray(data)) {
+            related = data;
+          } else if (data.data && Array.isArray(data.data)) {
+            related = data.data;
+          } else if (data.items && Array.isArray(data.items)) {
+            related = data.items;
+          } else if (data.products && data.products.data && Array.isArray(data.products.data)) {
+            related = data.products.data;
+          }
+          
+          // Filtrer pour enlever le produit actuel
+          setRelatedProducts(related.filter(p => p.id !== productId));
+        } catch (error) {
+          console.error('Erreur chargement produits similaires:', error);
+          setRelatedProducts([]);
+        }
+
       } catch (error) {
         console.error('Erreur lors du chargement du produit:', error);
       } finally {

@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 import { shopService } from '@/services/api/shops';
 import { Shop } from '@/types/shop';
+import { getImageUrl } from '@/utils/imageUtils';
 import { 
   FiUpload, 
   FiSave, 
@@ -118,7 +119,6 @@ export default function CustomizeShopPage() {
     try {
       setSaving(true);
 
-      // Sauvegarder les informations de base
       await shopService.updateShop(Number(id), {
         name: shopForm.name,
         description: shopForm.description,
@@ -129,19 +129,16 @@ export default function CustomizeShopPage() {
         textColor: colors.textColor,
       });
 
-      // Uploader le logo si changé
       if (logoFile) {
         await shopService.uploadLogo(Number(id), logoFile);
       }
 
-      // Uploader la bannière si changée
       if (bannerFile) {
         await shopService.uploadBanner(Number(id), bannerFile);
       }
 
       toast.success('Boutique personnalisée avec succès !');
       
-      // Recharger les données
       const shopData = await shopService.getShopById(Number(id));
       setShop(shopData);
       setLogoFile(null);
@@ -389,10 +386,10 @@ export default function CustomizeShopPage() {
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-semibold mb-4">Logo</h2>
               <div className="flex items-start gap-6">
-                <div className="relative w-32 h-32 rounded-lg overflow-hidden border">
+                <div className="relative w-32 h-32 rounded-lg overflow-hidden border bg-white">
                   {(logoPreview || shop.logoUrl) ? (
                     <Image
-                      src={logoPreview || shop.logoUrl || ''}
+                      src={logoPreview || (shop.logoUrl ? getImageUrl(shop.logoUrl) : '')}
                       alt="Logo"
                       fill
                       className="object-cover"
@@ -417,15 +414,18 @@ export default function CustomizeShopPage() {
                     className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg cursor-pointer transition-colors"
                   >
                     <FiUpload />
-                    Choisir un logo
+                    Choisir un fichier
                   </label>
                   {logoFile && (
-                    <p className="text-sm text-gray-500 mt-2">
-                      Fichier sélectionné : {logoFile.name}
-                    </p>
+                    <button
+                      onClick={() => handleSave()}
+                      className="ml-4 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Uploader
+                    </button>
                   )}
-                  <p className="text-xs text-gray-500 mt-4">
-                    Format recommandé : carré, min 200x200px (JPG, PNG)
+                  <p className="text-xs text-gray-500 mt-2">
+                    Format recommandé : carré, min 200x200px
                   </p>
                 </div>
               </div>
@@ -435,10 +435,10 @@ export default function CustomizeShopPage() {
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h2 className="text-xl font-semibold mb-4">Bannière</h2>
               <div className="space-y-4">
-                <div className="relative w-full h-48 rounded-lg overflow-hidden border">
+                <div className="relative w-full h-48 rounded-lg overflow-hidden border bg-white">
                   {(bannerPreview || shop.bannerUrl) ? (
                     <Image
-                      src={bannerPreview || shop.bannerUrl || ''}
+                      src={bannerPreview || (shop.bannerUrl ? getImageUrl(shop.bannerUrl) : '')}
                       alt="Bannière"
                       fill
                       className="object-cover"
@@ -463,15 +463,18 @@ export default function CustomizeShopPage() {
                     className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg cursor-pointer transition-colors"
                   >
                     <FiUpload />
-                    Choisir une bannière
+                    Choisir un fichier
                   </label>
                   {bannerFile && (
-                    <p className="text-sm text-gray-500 mt-2">
-                      Fichier sélectionné : {bannerFile.name}
-                    </p>
+                    <button
+                      onClick={() => handleSave()}
+                      className="ml-4 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Uploader
+                    </button>
                   )}
-                  <p className="text-xs text-gray-500 mt-4">
-                    Format recommandé : 1200x300px (JPG, PNG)
+                  <p className="text-xs text-gray-500 mt-2">
+                    Format recommandé : 1200x300px
                   </p>
                 </div>
               </div>
@@ -492,7 +495,7 @@ export default function CustomizeShopPage() {
               <div className="relative h-48 w-full bg-gray-200">
                 {(bannerPreview || shop.bannerUrl) ? (
                   <Image
-                    src={bannerPreview || shop.bannerUrl || ''}
+                    src={bannerPreview || (shop.bannerUrl ? getImageUrl(shop.bannerUrl) : '')}
                     alt="Bannière"
                     fill
                     className="object-cover"
@@ -512,7 +515,7 @@ export default function CustomizeShopPage() {
                   <div className="relative w-20 h-20 rounded-lg overflow-hidden border-4 border-white bg-white">
                     {(logoPreview || shop.logoUrl) ? (
                       <Image
-                        src={logoPreview || shop.logoUrl || ''}
+                        src={logoPreview || (shop.logoUrl ? getImageUrl(shop.logoUrl) : '')}
                         alt="Logo"
                         fill
                         className="object-cover"

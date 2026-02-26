@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { shopService } from '@/services/api/shops';
 import { ShopResponse } from '@/types/shop';
-import { FiSettings, FiExternalLink, FiPlus } from 'react-icons/fi';
+import { FiSettings, FiExternalLink, FiPlus, FiPackage } from 'react-icons/fi';
 
 export default function MyShopsPage() {
   const { user } = useAuth();
@@ -61,6 +61,7 @@ export default function MyShopsPage() {
 
         {shops.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow">
+            <FiPackage className="mx-auto text-gray-300 mb-4" size={48} />
             <p className="text-gray-600 mb-4">Vous n'avez pas encore de boutique</p>
             <Link
               href="/shop/create"
@@ -76,7 +77,9 @@ export default function MyShopsPage() {
                 <h2 className="text-xl font-semibold mb-2">{shop.name}</h2>
                 <p className="text-gray-600 mb-4 line-clamp-2">{shop.description}</p>
                 <p className="text-sm text-gray-500 mb-4">{shop.productCount} produits</p>
-                <div className="flex gap-3">
+                
+                <div className="flex flex-wrap gap-3">
+                  {/* Voir la boutique */}
                   <Link
                     href={`/shop/${shop.slug}`}
                     className="flex items-center gap-1 text-primary hover:text-primary-dark"
@@ -84,12 +87,23 @@ export default function MyShopsPage() {
                     <FiExternalLink size={16} />
                     Voir
                   </Link>
+
+                  {/* Personnaliser (couleurs, logo, bannière) */}
                   <Link
                     href={`/shop/customize/${shop.id}`}
-                    className="flex items-center gap-1 text-gray-600 hover:text-primary"
+                    className="flex items-center gap-1 text-purple-600 hover:text-purple-700"
                   >
                     <FiSettings size={16} />
                     Personnaliser
+                  </Link>
+
+                  {/* Gérer les produits (NOUVEAU) */}
+                  <Link
+                    href={`/shop/manage/${shop.id}`}
+                    className="flex items-center gap-1 text-green-600 hover:text-green-700"
+                  >
+                    <FiPackage size={16} />
+                    produits
                   </Link>
                 </div>
               </div>

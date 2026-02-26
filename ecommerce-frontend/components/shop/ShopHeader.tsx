@@ -2,10 +2,11 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState } from 'react';
 import { FiShare2, FiHeart, FiMail, FiPhone, FiMapPin, FiSettings } from 'react-icons/fi';
 import { Shop } from '@/types/shop';
 import { formatNumber } from '@/services/utils/formatters';
-import { useState } from 'react';
+import { getImageUrl } from '@/utils/imageUtils';
 
 interface ShopHeaderProps {
   shop: Shop;
@@ -16,17 +17,9 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
   const [logoError, setLogoError] = useState(false);
   const [bannerError, setBannerError] = useState(false);
 
-  // Construire l'URL complète pour les images
-  const getImageUrl = (url: string | null) => {
-    if (!url) return null;
-    if (url.startsWith('http')) return url;
-    // Si l'URL est relative, utiliser l'API_URL ou localhost
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://127.0.0.1:5019';
-    return `${baseUrl}${url}`;
-  };
-
-  const bannerUrl = getImageUrl(shop.bannerUrl);
-  const logoUrl = getImageUrl(shop.logoUrl);
+  // Utiliser la fonction getImageUrl pour les URLs
+  const bannerUrl = shop.bannerUrl ? getImageUrl(shop.bannerUrl) : null;
+  const logoUrl = shop.logoUrl ? getImageUrl(shop.logoUrl) : null;
 
   return (
     <div className="relative">
@@ -43,7 +36,7 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
             className="object-cover"
             priority
             onError={() => setBannerError(true)}
-            unoptimized // Important pour les images uploadées
+            unoptimized
           />
         ) : (
           <div 
@@ -71,7 +64,7 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
                 fill
                 className="object-cover"
                 onError={() => setLogoError(true)}
-                unoptimized // Important pour les images uploadées
+                unoptimized
               />
             ) : (
               <div 
