@@ -397,9 +397,20 @@ export default function CreateProductPage() {
               </p>
             </div>
 
+            {/* Grille d'upload d'images dynamique */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {[1, 2, 3].map((num) => {
                 const imageKey = `image${num}` as 'image1' | 'image2' | 'image3';
+                const hasImage = !!images[imageKey];
+                
+                // Ne pas afficher les emplacements vides après le premier
+                if (num > 1 && !images.image1 && !images.image2) {
+                  return null;
+                }
+                if (num > 2 && !images.image1 && !images.image2 && !images.image3) {
+                  return null;
+                }
+                
                 return (
                   <div key={num} className="border rounded-lg p-4">
                     <div className="relative aspect-square mb-2 bg-gray-50 rounded-lg overflow-hidden">
@@ -410,6 +421,7 @@ export default function CreateProductPage() {
                             alt={`Image ${num}`}
                             fill
                             className="object-cover"
+                            unoptimized
                           />
                           <button
                             onClick={() => removeImage(imageKey)}
@@ -437,7 +449,7 @@ export default function CreateProductPage() {
                       htmlFor={`image-${num}`}
                       className="block w-full text-center py-2 px-3 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 cursor-pointer transition-colors"
                     >
-                      Choisir un fichier
+                      {hasImage ? 'Changer' : 'Choisir un fichier'}
                     </label>
                   </div>
                 );

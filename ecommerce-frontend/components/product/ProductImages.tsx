@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Product } from '@/types/product';
 import { FiChevronLeft, FiChevronRight, FiMaximize2 } from 'react-icons/fi';
@@ -13,16 +13,29 @@ interface ProductImagesProps {
 const ProductImages = ({ product }: ProductImagesProps) => {
   const [selectedImage, setSelectedImage] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [imageErrors, setImageErrors] = useState<boolean[]>([false, false, false, false]);
+  const [imageErrors, setImageErrors] = useState<boolean[]>([]);
 
+  // Récupérer UNIQUEMENT les images qui existent réellement
   const images = [
     product.imageUrl,
     product.imageUrl1,
     product.imageUrl2,
     product.imageUrl3,
-  ].filter(Boolean) as string[];
+  ].filter((url): url is string => 
+    url !== null && 
+    url !== undefined && 
+    url !== '' && 
+    url !== 'null' && 
+    url !== 'undefined'
+  );
 
+  // Si aucune image, utiliser le placeholder SVG
   const displayImages = images.length > 0 ? images : ['/images/product-placeholder.svg'];
+  
+  // Initialiser le tableau d'erreurs avec la bonne taille
+  useEffect(() => {
+    setImageErrors(new Array(displayImages.length).fill(false));
+  }, [displayImages.length]);
 
   const handleImageError = (index: number) => {
     const newErrors = [...imageErrors];
@@ -37,6 +50,9 @@ const ProductImages = ({ product }: ProductImagesProps) => {
   const handleNext = () => {
     setSelectedImage((prev) => (prev === displayImages.length - 1 ? 0 : prev + 1));
   };
+
+  // Ne pas afficher les miniatures s'il n'y a qu'une seule image
+  const showThumbnails = displayImages.length > 1;
 
   return (
     <>
@@ -83,8 +99,8 @@ const ProductImages = ({ product }: ProductImagesProps) => {
         )}
       </div>
 
-      {/* Miniatures */}
-      {displayImages.length > 1 && (
+      {/* Miniatures - seulement s'il y a plus d'une image */}
+      {showThumbnails && (
         <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
           {displayImages.map((image, index) => (
             <button
@@ -114,7 +130,7 @@ const ProductImages = ({ product }: ProductImagesProps) => {
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center">
           <button
             onClick={() => setIsFullscreen(false)}
-            className="absolute top-4 right-4 text-white hover:text-primary text-4xl"
+            className="absolute top-4 right-4 text-white hover:text-primary text-4xl z-10"
           >
             &times;
           </button>
@@ -133,17 +149,23 @@ const ProductImages = ({ product }: ProductImagesProps) => {
             <>
               <button
                 onClick={handlePrevious}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full transition-colors"
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full transition-colors z-10"
               >
                 <FiChevronLeft size={32} />
               </button>
               <button
                 onClick={handleNext}
-                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/20 hover:bg-white/40 text-white p-3 rounded-full transition-colors z-10"
               >
                 <FiChevronRight size={32} />
               </button>
             </>
+          )}
+
+          {displayImages.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white px-4 py-2 rounded-full text-sm z-10">
+              {selectedImage + 1} / {displayImages.length}
+            </div>
           )}
         </div>
       )}

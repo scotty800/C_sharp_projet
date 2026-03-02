@@ -378,6 +378,7 @@ namespace ECommerceApi.Services
                     throw new Exception("Seul un admin peut modifier les produits généraux");
             }
 
+            // IMPORTANT: On sauvegarde UNIQUEMENT dans les champs dédiés
             if (images.Image1 != null)
                 product.ImageUrl1 = await SaveProductImage(productId, images.Image1, 1);
 
@@ -387,7 +388,9 @@ namespace ECommerceApi.Services
             if (images.Image3 != null)
                 product.ImageUrl3 = await SaveProductImage(productId, images.Image3, 3);
 
-            product.ImageUrl = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3;
+            // NE PAS définir ImageUrl ici pour éviter les doublons !
+            // On laisse ImageUrl null ou on le calcule à la demande
+            // product.ImageUrl = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3;
 
             product.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();

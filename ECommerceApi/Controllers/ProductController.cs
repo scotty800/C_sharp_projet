@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore; // <-- obligatoire pour Include
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Hosting;
 using ECommerceApi.Data;
 using System.Security.Claims;
@@ -30,14 +30,14 @@ public class ProductController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAllAsync()
     {
-        var products = await _productService.GetAllProductsAsync(); // Retourne déjà des DTOs
+        var products = await _productService.GetAllProductsAsync();
         return Ok(products);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var product = await _productService.GetProductByIdAsync(id); // Retourne déjà des DTOs
+        var product = await _productService.GetProductByIdAsync(id);
         if (product == null)
             return NotFound("Produit introuvable");
 
@@ -78,7 +78,6 @@ public class ProductController : ControllerBase
 
         var createdProduct = await _productService.CreateAsync(product);
 
-        // Convertir en DTO pour la réponse
         var responseDto = new ProductResponseDto
         {
             Id = createdProduct.Id,
@@ -136,7 +135,6 @@ public class ProductController : ControllerBase
         }
         catch (Exception ex)
         {
-            // ✅ Log l'erreur complète
             Console.WriteLine($"❌ Erreur création produit: {ex.Message}");
             if (ex.InnerException != null)
                 Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
@@ -301,14 +299,12 @@ public class ProductController : ControllerBase
             if (product == null)
                 return NotFound("Produit non trouvé");
 
-            // Vérifier les permissions
             if (product.ShopId.HasValue)
             {
                 if (product.Shop == null || product.Shop.OwnerId != userId)
                     return Unauthorized("Vous n'êtes pas autorisé");
             }
 
-            // Supprimer l'image
             string? imageUrl = null;
             switch (imageNumber)
             {
@@ -324,7 +320,7 @@ public class ProductController : ControllerBase
                     System.IO.File.Delete(filePath);
             }
 
-            // Mettre à jour ImageUrl
+            // Mettre à jour ImageUrl UNIQUEMENT lors de la suppression
             product.ImageUrl = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3;
             product.UpdatedAt = DateTime.UtcNow;
 
@@ -354,7 +350,7 @@ public class ProductController : ControllerBase
         {
             productId = product.Id,
             productName = product.Name,
-            mainImage = product.ImageUrl,
+            mainImage = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3, // Calculé à la volée
             images = images,
             count = images.Count
         });

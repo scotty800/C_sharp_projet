@@ -51,7 +51,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
     toast.success(isFavorite ? 'Retiré des favoris' : 'Ajouté aux favoris');
   };
 
-  // Utiliser l'utilitaire pour l'URL de l'image
+  // Utiliser le placeholder SVG en cas d'erreur
   const imageUrl = imageError ? '/images/product-placeholder.svg' : getProductImageUrl(product);
 
   if (layout === 'list') {
