@@ -48,14 +48,19 @@ export const productService = {
     return response.data;
   },
 
-  // Mettre à jour un produit
+  // Mettre à jour un produit - UTILISE LA ROUTE POST DE SECOURS
   async updateProduct(id: number, data: UpdateProductDto): Promise<void> {
-    await api.put(`/products/${id}`, data);
+    console.log('📦 Mise à jour produit via POST de secours:', id, data);
+    // Utiliser POST au lieu de PUT pour éviter les problèmes de routage
+    const response = await api.post(`/products/update/${id}`, data);
+    return response.data;
   },
 
   // Supprimer un produit
   async deleteProduct(id: number): Promise<void> {
-    await api.delete(`/products/${id}`);
+    console.log('🗑️ Suppression produit:', id);
+    const response = await api.delete(`/products/${id}`);
+    return response.data;
   },
 
   // Récupérer les produits en stock

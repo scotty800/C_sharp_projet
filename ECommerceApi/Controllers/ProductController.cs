@@ -99,6 +99,56 @@ public class ProductController : ControllerBase
         );
     }
 
+    // ⚠️ IMPORTANT: Cette route DOIT être AVANT "shop/{shopId}" pour éviter les conflits
+    [HttpPost("update/{id}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProductPost(int id, [FromBody] UpdateProductDto productDto)
+    {
+        Console.WriteLine($"🟢🟢🟢 POST /api/products/update/{id} EXÉCUTÉ à {DateTime.Now}");
+        Console.WriteLine($"📦 Données reçues: {System.Text.Json.JsonSerializer.Serialize(productDto)}");
+
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            
+            var existingProduct = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == id);
+                
+            if (existingProduct == null)
+                return NotFound(new { message = "Produit non trouvé" });
+
+            if (existingProduct.ShopId.HasValue)
+            {
+                if (existingProduct.Shop == null || existingProduct.Shop.OwnerId != userId)
+                    return Unauthorized(new { message = "Vous n'êtes pas autorisé à modifier ce produit" });
+            }
+
+            existingProduct.Name = productDto.Name;
+            existingProduct.Description = productDto.Description;
+            existingProduct.Price = productDto.Price;
+            existingProduct.Stock = productDto.Stock;
+            existingProduct.Size = productDto.Size;
+            existingProduct.Color = productDto.Color;
+            existingProduct.Category = productDto.Category;
+            existingProduct.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            var updatedProduct = await _productService.GetProductByIdAsync(id);
+            Console.WriteLine($"✅ Produit {id} mis à jour avec succès (via POST)");
+            return Ok(updatedProduct);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Erreur mise à jour produit: {ex.Message}");
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("shop/{shopId}")]
     [Authorize]
     public async Task<IActionResult> CreateProductForShop(
@@ -150,44 +200,59 @@ public class ProductController : ControllerBase
 
     [HttpPut("{id}")]
     [Authorize]
-    public async Task<IActionResult> UpdateProduct(int id, [FromBody] Product product)
+    public async Task<IActionResult> UpdateProduct(int id, [FromBody] UpdateProductDto productDto)
     {
-        if (product.Stock < 0 || product.Price < 0 || (product.Description?.Length ?? 0) > 500 || string.IsNullOrWhiteSpace(product.Name))
-        {
-            return BadRequest("Données produit invalides");
-        }
+        Console.WriteLine($"🔵🔵🔵 PUT /api/products/{id} EXÉCUTÉ à {DateTime.Now}");
+        Console.WriteLine($"📦 Données reçues: {System.Text.Json.JsonSerializer.Serialize(productDto)}");
 
-        var existingProduct = await _productService.GetProductByIdAsync(id);
-        if (existingProduct == null)
-            return NotFound("Produit non trouvé");
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
-        if (existingProduct.ShopId.HasValue || product.ShopId.HasValue)
+        try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var shopId = product.ShopId ?? existingProduct.ShopId;
+            
+            var existingProduct = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == id);
+                
+            if (existingProduct == null)
+                return NotFound(new { message = "Produit non trouvé" });
 
-            if (shopId.HasValue)
+            if (existingProduct.ShopId.HasValue)
             {
-                var shop = await _shopService.GetShopByIdAsync(shopId.Value);
-                if (shop == null)
-                    return NotFound("Shop non trouvé");
-
-                if (shop.OwnerId != userId)
-                    return Unauthorized("Vous n'êtes pas le propriétaire de ce shop");
+                if (existingProduct.Shop == null || existingProduct.Shop.OwnerId != userId)
+                    return Unauthorized(new { message = "Vous n'êtes pas autorisé à modifier ce produit" });
             }
+
+            existingProduct.Name = productDto.Name;
+            existingProduct.Description = productDto.Description;
+            existingProduct.Price = productDto.Price;
+            existingProduct.Stock = productDto.Stock;
+            existingProduct.Size = productDto.Size;
+            existingProduct.Color = productDto.Color;
+            existingProduct.Category = productDto.Category;
+            existingProduct.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            var updatedProduct = await _productService.GetProductByIdAsync(id);
+            Console.WriteLine($"✅ Produit {id} mis à jour avec succès");
+            return Ok(updatedProduct);
         }
-
-        var updated = await _productService.UpdateAsync(id, product);
-        if (!updated)
-            return NotFound("Produit non trouvé");
-
-        return NoContent();
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Erreur mise à jour produit: {ex.Message}");
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpDelete("{id}")]
     [Authorize]
     public async Task<IActionResult> DeleteProduct(int id)
     {
+        Console.WriteLine($"🔴🔴🔴 DELETE /api/products/{id} EXÉCUTÉ à {DateTime.Now}");
+        
         var existingProduct = await _productService.GetProductByIdAsync(id);
         if (existingProduct == null)
             return NotFound("Produit non trouvé");
@@ -208,6 +273,7 @@ public class ProductController : ControllerBase
         if (!deleted)
             return NotFound("Produit non trouvé");
 
+        Console.WriteLine($"🗑️ Produit {id} supprimé avec succès");
         return NoContent();
     }
 
@@ -320,7 +386,6 @@ public class ProductController : ControllerBase
                     System.IO.File.Delete(filePath);
             }
 
-            // Mettre à jour ImageUrl UNIQUEMENT lors de la suppression
             product.ImageUrl = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3;
             product.UpdatedAt = DateTime.UtcNow;
 
@@ -350,7 +415,7 @@ public class ProductController : ControllerBase
         {
             productId = product.Id,
             productName = product.Name,
-            mainImage = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3, // Calculé à la volée
+            mainImage = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3,
             images = images,
             count = images.Count
         });

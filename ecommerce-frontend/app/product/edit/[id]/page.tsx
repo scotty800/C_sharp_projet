@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { productService } from '@/services/api/products';
 import { Product } from '@/types/product';
-import { FiSave, FiArrowLeft, FiTrash2 } from 'react-icons/fi';
+import { FiSave, FiArrowLeft, FiTrash2, FiImage } from 'react-icons/fi';
+import Image from 'next/image';
 import toast from 'react-hot-toast';
 
 export default function EditProductPage() {
@@ -14,7 +15,10 @@ export default function EditProductPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
+  const [imageError, setImageError] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -25,6 +29,19 @@ export default function EditProductPage() {
     color: '',
   });
 
+  const categories = [
+    'Mode',
+    'Électronique',
+    'Maison',
+    'Sport',
+    'Beauté',
+    'Jeux',
+    'Livres',
+    'Automobile',
+    'Alimentation',
+    'Autre'
+  ];
+
   useEffect(() => {
     if (!user) {
       router.push('/auth/login');
@@ -34,7 +51,11 @@ export default function EditProductPage() {
     const fetchProduct = async () => {
       try {
         setLoading(true);
+        console.log('📦 Chargement du produit ID:', id);
+        
         const data = await productService.getProductById(Number(id));
+        console.log('✅ Produit chargé:', data);
+        
         setProduct(data);
         setFormData({
           name: data.name,
@@ -46,7 +67,7 @@ export default function EditProductPage() {
           color: data.color || '',
         });
       } catch (error) {
-        console.error('Erreur:', error);
+        console.error('❌ Erreur:', error);
         toast.error('Impossible de charger le produit');
       } finally {
         setLoading(false);
@@ -66,41 +87,100 @@ export default function EditProductPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validations
+    if (!formData.name || !formData.price || !formData.stock || !formData.category) {
+      toast.error('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    const price = parseFloat(formData.price);
+    const stock = parseInt(formData.stock);
+
+    if (isNaN(price) || price <= 0) {
+      toast.error('Le prix doit être un nombre positif');
+      return;
+    }
+
+    if (isNaN(stock) || stock < 0) {
+      toast.error('Le stock doit être un nombre valide');
+      return;
+    }
+
     try {
       setSaving(true);
-      await productService.updateProduct(Number(id), {
+      console.log('💾 Mise à jour produit avec données:', {
         name: formData.name,
         description: formData.description,
-        price: parseFloat(formData.price),
-        stock: parseInt(formData.stock),
+        price: price,
+        stock: stock,
         category: formData.category,
         size: formData.size || undefined,
         color: formData.color || undefined,
       });
-      toast.success('Produit mis à jour');
-      router.back();
-    } catch (error) {
-      toast.error('Erreur lors de la mise à jour');
+      
+      // Appeler l'API de mise à jour
+      await productService.updateProduct(Number(id), {
+        name: formData.name,
+        description: formData.description,
+        price: price,
+        stock: stock,
+        category: formData.category,
+        size: formData.size || undefined,
+        color: formData.color || undefined,
+      });
+      
+      toast.success('Produit mis à jour avec succès');
+      
+      // Rediriger vers la page de gestion de la boutique
+      if (product?.shopId) {
+        console.log('➡️ Redirection vers shop/manage/${product.shopId}');
+        router.push(`/shop/manage/${product.shopId}`);
+      } else {
+        console.log('➡️ Redirection vers shop/my-shops');
+        router.push('/shop/my-shops');
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Erreur détaillée:', error);
+      console.error('❌ Réponse:', error.response?.data);
+      toast.error(error.response?.data?.message || 'Erreur lors de la mise à jour');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce produit ? Cette action est irréversible.')) {
       return;
     }
 
     try {
-      setSaving(true);
+      setDeleting(true);
+      console.log('🗑️ Suppression produit:', id);
+      
       await productService.deleteProduct(Number(id));
-      toast.success('Produit supprimé');
-      router.push(`/shop/manage/${product?.shopId}`);
-    } catch (error) {
-      toast.error('Erreur lors de la suppression');
+      
+      toast.success('Produit supprimé avec succès');
+      
+      // Rediriger vers la page de gestion de la boutique
+      if (product?.shopId) {
+        router.push(`/shop/manage/${product.shopId}`);
+      } else {
+        router.push('/shop/my-shops');
+      }
+    } catch (error: any) {
+      console.error('❌ Erreur suppression:', error);
+      toast.error(error.response?.data?.message || 'Erreur lors de la suppression');
     } finally {
-      setSaving(false);
+      setDeleting(false);
     }
+  };
+
+  const getImageUrl = (url: string | null | undefined) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    const baseUrl = 'http://127.0.0.1:5019';
+    return `${baseUrl}${url}`;
   };
 
   if (loading) {
@@ -111,9 +191,20 @@ export default function EditProductPage() {
     );
   }
 
+  if (!product) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-gray-600">Produit non trouvé</p>
+      </div>
+    );
+  }
+
+  const imageUrl = getImageUrl(product.imageUrl);
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4 max-w-2xl">
+      <div className="container mx-auto px-4 max-w-3xl">
+        {/* Header avec boutons */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button
@@ -124,26 +215,187 @@ export default function EditProductPage() {
             </button>
             <h1 className="text-2xl font-bold">Modifier le produit</h1>
           </div>
+          
           <button
             onClick={handleDelete}
-            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors"
+            disabled={deleting || saving}
+            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
           >
             <FiTrash2 />
-            Supprimer
+            {deleting ? 'Suppression...' : 'Supprimer'}
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6 space-y-4">
-          {/* Formulaire de modification */}
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <FiSave className="inline mr-2" />
-            {saving ? 'Sauvegarde...' : 'Enregistrer'}
-          </button>
+        {/* Image du produit */}
+        {imageUrl && (
+          <div className="mb-6 bg-white rounded-lg shadow-lg p-4">
+            <h2 className="text-sm font-medium text-gray-700 mb-3">Image actuelle</h2>
+            <div className="relative w-48 h-48 rounded-lg overflow-hidden border">
+              <Image
+                src={imageError ? '/images/product-placeholder.svg' : imageUrl}
+                alt={product.name}
+                fill
+                className="object-cover"
+                onError={() => setImageError(true)}
+                unoptimized
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Formulaire d'édition */}
+        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6 space-y-6">
+          {/* Nom du produit */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nom du produit *
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Ex: T-shirt en coton"
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows={4}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Description détaillée du produit..."
+            />
+          </div>
+
+          {/* Prix et Stock */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Prix (€) *
+              </label>
+              <input
+                type="number"
+                name="price"
+                value={formData.price}
+                onChange={handleChange}
+                step="0.01"
+                min="0"
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="29.99"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Stock *
+              </label>
+              <input
+                type="number"
+                name="stock"
+                value={formData.stock}
+                onChange={handleChange}
+                min="0"
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="10"
+                required
+              />
+            </div>
+          </div>
+
+          {/* Catégorie */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Catégorie *
+            </label>
+            <select
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              required
+            >
+              <option value="">Sélectionnez une catégorie</option>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Taille et Couleur (optionnels) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Taille (optionnel)
+              </label>
+              <input
+                type="text"
+                name="size"
+                value={formData.size}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Ex: M, XL, 42..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Couleur (optionnel)
+              </label>
+              <input
+                type="text"
+                name="color"
+                value={formData.color}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                placeholder="Ex: Rouge, Bleu..."
+              />
+            </div>
+          </div>
+
+          {/* Boutons de sauvegarde */}
+          <div className="flex gap-3 pt-4">
+            <button
+              type="submit"
+              disabled={saving || deleting}
+              className="flex-1 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+            >
+              <FiSave />
+              {saving ? 'Sauvegarde...' : 'Enregistrer'}
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => router.back()}
+              disabled={saving || deleting}
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+            >
+              Annuler
+            </button>
+          </div>
         </form>
+
+        {/* Lien pour gérer les images */}
+        <div className="mt-6 bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-lg font-semibold mb-4">Images du produit</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Vous pouvez ajouter ou modifier les images de ce produit.
+          </p>
+          <button
+            onClick={() => router.push(`/product/upload-images/${product.id}`)}
+            className="flex items-center gap-2 text-primary hover:text-primary-dark"
+          >
+            <FiImage />
+            Gérer les images
+          </button>
+        </div>
       </div>
     </div>
   );

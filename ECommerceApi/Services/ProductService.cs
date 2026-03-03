@@ -119,27 +119,17 @@ namespace ECommerceApi.Services
             var existing = await _context.Products.FirstOrDefaultAsync(p => p.Id == id);
             if (existing == null) return false;
 
-            var oldShopId = existing.ShopId;
-
+            // Ne mettre à jour que les champs nécessaires, PAS ShopId
             existing.Name = product.Name;
+            existing.Description = product.Description;
             existing.Price = product.Price;
             existing.Stock = product.Stock;
             existing.Size = product.Size;
             existing.Color = product.Color;
             existing.Category = product.Category;
-            existing.Description = product.Description;
-            existing.ShopId = product.ShopId;
             existing.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
-            if (oldShopId != product.ShopId)
-            {
-                if (oldShopId.HasValue)
-                    await UpdateShopProductCount(oldShopId.Value);
-                if (product.ShopId.HasValue)
-                    await UpdateShopProductCount(product.ShopId.Value);
-            }
 
             return true;
         }
@@ -378,7 +368,6 @@ namespace ECommerceApi.Services
                     throw new Exception("Seul un admin peut modifier les produits généraux");
             }
 
-            // IMPORTANT: On sauvegarde UNIQUEMENT dans les champs dédiés
             if (images.Image1 != null)
                 product.ImageUrl1 = await SaveProductImage(productId, images.Image1, 1);
 
@@ -388,10 +377,6 @@ namespace ECommerceApi.Services
             if (images.Image3 != null)
                 product.ImageUrl3 = await SaveProductImage(productId, images.Image3, 3);
 
-            // NE PAS définir ImageUrl ici pour éviter les doublons !
-            // On laisse ImageUrl null ou on le calcule à la demande
-            // product.ImageUrl = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3;
-
             product.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
@@ -400,14 +385,13 @@ namespace ECommerceApi.Services
 
         private async Task<string> SaveProductImage(int productId, IFormFile file, int imageNumber)
         {
-            // Validation
             var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
             var extension = Path.GetExtension(file.FileName).ToLower();
 
             if (!allowedExtensions.Contains(extension))
                 throw new Exception("Format de fichier non autorisé. Utilisez JPG, PNG, WEBP ou GIF");
 
-            if (file.Length > 5 * 1024 * 1024) // 5MB max
+            if (file.Length > 5 * 1024 * 1024)
                 throw new Exception("Fichier trop volumineux (max 5MB)");
 
             var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "products", productId.ToString());
@@ -426,6 +410,5 @@ namespace ECommerceApi.Services
 
             return $"/uploads/products/{productId}/{fileName}";
         }
-
     }
 }
