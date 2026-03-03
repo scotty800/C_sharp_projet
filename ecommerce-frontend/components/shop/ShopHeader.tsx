@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
-import { FiShare2, FiHeart, FiMail, FiPhone, FiMapPin, FiSettings } from 'react-icons/fi';
+import { FiShare2, FiHeart, FiMail, FiPhone, FiMapPin, FiSettings, FiBarChart2 } from 'react-icons/fi';
 import { Shop } from '@/types/shop';
 import { formatNumber } from '@/services/utils/formatters';
 import { getImageUrl } from '@/utils/imageUtils';
@@ -17,7 +17,6 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
   const [logoError, setLogoError] = useState(false);
   const [bannerError, setBannerError] = useState(false);
 
-  // Utiliser la fonction getImageUrl pour les URLs
   const bannerUrl = shop.bannerUrl ? getImageUrl(shop.bannerUrl) : null;
   const logoUrl = shop.logoUrl ? getImageUrl(shop.logoUrl) : null;
 
@@ -45,11 +44,9 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
           />
         )}
         
-        {/* Overlay gradient */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
       </div>
 
-      {/* Informations */}
       <div className="container mx-auto px-4 relative">
         <div className="flex flex-col md:flex-row md:items-end gap-6 -mt-16 md:-mt-20 mb-8">
           {/* Logo */}
@@ -79,12 +76,10 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
             )}
           </div>
 
-          {/* Infos boutique */}
           <div className="flex-1 text-white">
             <h1 className="text-3xl md:text-4xl font-bold mb-2">{shop.name}</h1>
             <p className="text-gray-200 mb-4 max-w-2xl">{shop.description}</p>
             
-            {/* Statistiques */}
             <div className="flex flex-wrap gap-6 text-sm">
               <div>
                 <span className="font-semibold">{formatNumber(shop.productCount)}</span>
@@ -97,26 +92,25 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 mt-4 md:mt-0">
-            <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors">
-              <FiHeart />
-              <span className="hidden sm:inline">Favoris</span>
-            </button>
-            <button className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors">
-              <FiShare2 />
-              <span className="hidden sm:inline">Partager</span>
-            </button>
-            {isOwner && (
+          {/* Actions pour le propriétaire */}
+          {isOwner && (
+            <div className="flex gap-3 mt-4 md:mt-0">
+              <Link
+                href={`/dashboard/seller?shopId=${shop.id}`}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                <FiBarChart2 />
+                <span className="hidden sm:inline">Dashboard</span>
+              </Link>
               <Link
                 href={`/shop/customize/${shop.id}`}
-                className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-lg transition-colors"
+                className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg transition-colors"
               >
                 <FiSettings />
                 <span className="hidden sm:inline">Personnaliser</span>
               </Link>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Informations de contact */}

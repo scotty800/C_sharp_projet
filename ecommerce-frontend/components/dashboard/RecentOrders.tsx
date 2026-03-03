@@ -9,7 +9,7 @@ interface RecentOrdersProps {
   orders: OrderResponseDto[];
 }
 
-const RecentOrders = ({ orders }: RecentOrdersProps) => {
+const RecentOrders = ({ orders = [] }: RecentOrdersProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Delivered':
@@ -37,6 +37,14 @@ const RecentOrders = ({ orders }: RecentOrdersProps) => {
     };
     return statusMap[status] || status;
   };
+
+  if (!orders || orders.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-12 text-center">
+        <p className="text-gray-500">Aucune commande récente</p>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-lg">
@@ -103,22 +111,14 @@ const RecentOrders = ({ orders }: RecentOrdersProps) => {
         </table>
       </div>
 
-      {orders.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">Aucune commande pour le moment</p>
-        </div>
-      )}
-
-      {orders.length > 0 && (
-        <div className="p-6 border-t text-center">
-          <Link
-            href="/dashboard/seller/orders"
-            className="text-primary hover:text-primary-dark font-semibold"
-          >
-            Voir toutes les commandes
-          </Link>
-        </div>
-      )}
+      <div className="p-6 border-t text-center">
+        <Link
+          href="/dashboard/seller/orders"
+          className="text-primary hover:text-primary-dark font-semibold"
+        >
+          Voir toutes les commandes
+        </Link>
+      </div>
     </div>
   );
 };

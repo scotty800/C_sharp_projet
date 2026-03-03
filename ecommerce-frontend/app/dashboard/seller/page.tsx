@@ -19,82 +19,83 @@ import {
 } from 'react-icons/fi';
 import { dashboardService } from '@/services/api/dashboard';
 import { orderService } from '@/services/api/orders';
-import { formatPrice } from '@/services/utils/formatters';
 import { OrderResponseDto } from '@/types/order';
-
-// Interface correspondant au type réel retourné par l'API
-interface DailyStats {
-  date: string;
-  amount?: number; // amount peut être undefined
-}
-
-interface DashboardStats {
-  monthRevenue: number;
-  monthOrders: number;
-  monthVisits: number;
-}
-
-interface DashboardData {
-  dailyRevenue: DailyStats[];
-  topProducts: any[];
-}
+import { formatPrice } from '@/services/utils/formatters';
 
 export default function SellerDashboard() {
   const searchParams = useSearchParams();
   const shopId = Number(searchParams.get('shopId'));
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<any>(null);
   const [recentOrders, setRecentOrders] = useState<OrderResponseDto[]>([]);
   const [topProducts, setTopProducts] = useState<any[]>([]);
-  const [chartData, setChartData] = useState({
-    labels: ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'],
-    values: [1200, 1900, 1500, 2100, 2800, 2400, 3200],
+  
+  // Initialiser avec des données vides, pas des données mockées
+  const [chartData, setChartData] = useState<{
+    labels: string[];
+    values: number[];
+  }>({
+    labels: [],
+    values: [],
   });
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!shopId) return;
+      if (!shopId) {
+        setLoading(false);
+        return;
+      }
 
       try {
         setLoading(true);
         
         // Récupérer les stats du dashboard
-        const dashboardStats = await dashboardService.getDashboardSummary(shopId);
-        setStats(dashboardStats);
+        try {
+          const dashboardStats = await dashboardService.getDashboardSummary(shopId);
+          setStats(dashboardStats || {});
+        } catch (error) {
+          console.error('Erreur chargement stats:', error);
+          setStats({});
+        }
 
         // Récupérer les commandes récentes
-        const orders = await orderService.getShopOrders(shopId);
-        setRecentOrders(orders.slice(0, 5));
+        try {
+          const orders = await orderService.getShopOrders(shopId);
+          setRecentOrders(Array.isArray(orders) ? orders.slice(0, 5) : []);
+        } catch (error) {
+          console.error('Erreur chargement commandes:', error);
+          setRecentOrders([]);
+        }
 
         // Récupérer les produits les plus vendus
-        const products = await dashboardService.getTopProductsByViews(shopId, 5);
-        setTopProducts(products);
+        try {
+          const products = await dashboardService.getTopProductsByViews(shopId, 5);
+          setTopProducts(Array.isArray(products) ? products : []);
+        } catch (error) {
+          console.error('Erreur chargement top produits:', error);
+          setTopProducts([]);
+        }
 
         // Récupérer les données du graphique
-        const dashboard = await dashboardService.getShopDashboard(shopId);
-        
-        // ✅ CORRECTION : Utilisation du type réel DailyStats
-        const labels = dashboard.dailyRevenue.map((d: DailyStats) => {
-          try {
-            const date = new Date(d.date);
-            if (isNaN(date.getTime())) {
-              return 'Date';
+        try {
+          const dashboard = await dashboardService.getShopDashboard(shopId);
+          if (dashboard && dashboard.dailyRevenue && dashboard.dailyRevenue.length > 0) {
+            const validValues = dashboard.dailyRevenue
+              .map(d => d.amount)
+              .filter((amount): amount is number => amount !== undefined && amount !== null);
+            
+            if (validValues.length > 0) {
+              setChartData({
+                labels: dashboard.dailyRevenue.map(d => 
+                  new Date(d.date).toLocaleDateString('fr-FR', { weekday: 'short' })
+                ),
+                values: validValues,
+              });
             }
-            return date.toLocaleDateString('fr-FR', { weekday: 'short' });
-          } catch {
-            return 'Date';
           }
-        });
-
-        // ✅ CORRECTION : Gestion de amount qui peut être undefined
-        const values = dashboard.dailyRevenue.map((d: DailyStats) => 
-          typeof d.amount === 'number' ? d.amount : 0
-        );
-
-        setChartData({
-          labels,
-          values,
-        });
+        } catch (error) {
+          console.error('Erreur chargement graphique:', error);
+        }
       } catch (error) {
         console.error('Erreur chargement dashboard:', error);
       } finally {
@@ -102,12 +103,10 @@ export default function SellerDashboard() {
       }
     };
 
-    if (shopId) {
-      fetchDashboardData();
-    }
+    fetchDashboardData();
   }, [shopId]);
 
-  if (loading || !stats) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -115,41 +114,36 @@ export default function SellerDashboard() {
     );
   }
 
-  // Calcul sécurisé du taux de conversion
-  const conversionRate = stats.monthVisits > 0 
-    ? ((stats.monthOrders / stats.monthVisits) * 100).toFixed(1)
-    : '0.0';
-
-  const statCards = [
+  const statCards = stats ? [
     {
-      title: "Chiffre d'affaires",
+      title: 'Chiffre d\'affaires',
       value: formatPrice(stats.monthRevenue || 0),
       icon: FiDollarSign,
-      trend: { value: 12, isPositive: true },
+      trend: { value: 0, isPositive: true },
       color: 'primary' as const,
     },
     {
       title: 'Commandes',
       value: stats.monthOrders || 0,
       icon: FiShoppingBag,
-      trend: { value: 8, isPositive: true },
+      trend: { value: 0, isPositive: true },
       color: 'green' as const,
     },
     {
       title: 'Visiteurs',
       value: stats.monthVisits || 0,
       icon: FiEye,
-      trend: { value: 5, isPositive: true },
+      trend: { value: 0, isPositive: true },
       color: 'blue' as const,
     },
     {
       title: 'Taux de conversion',
-      value: `${conversionRate}%`,
+      value: `${((stats.monthOrders / (stats.monthVisits || 1)) * 100 || 0).toFixed(1)}%`,
       icon: FiUsers,
-      trend: { value: 2, isPositive: false },
+      trend: { value: 0, isPositive: false },
       color: 'purple' as const,
     },
-  ];
+  ] : [];
 
   return (
     <div className="space-y-8">
@@ -165,19 +159,28 @@ export default function SellerDashboard() {
       <QuickActions shopId={shopId} />
 
       {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((stat, index) => (
-          <StatsCard key={index} {...stat} />
-        ))}
-      </div>
+      {stats ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {statCards.map((stat, index) => (
+            <StatsCard key={index} {...stat} />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12 bg-white rounded-lg shadow">
+          <p className="text-gray-500">Aucune statistique disponible</p>
+        </div>
+      )}
 
       {/* Graphique et produits populaires */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white rounded-lg shadow-lg p-6">
-          <Chart 
-            data={chartData} 
-            title="Évolution des ventes" 
-          />
+          {chartData.values.length > 0 ? (
+            <Chart data={chartData} title="Évolution des ventes" />
+          ) : (
+            <div className="h-80 flex items-center justify-center">
+              <p className="text-gray-500">Aucune donnée de vente disponible</p>
+            </div>
+          )}
         </div>
         <div className="lg:col-span-1">
           <TopProducts products={topProducts} />
@@ -185,7 +188,13 @@ export default function SellerDashboard() {
       </div>
 
       {/* Commandes récentes */}
-      <RecentOrders orders={recentOrders} />
+      {recentOrders && recentOrders.length > 0 ? (
+        <RecentOrders orders={recentOrders} />
+      ) : (
+        <div className="bg-white rounded-lg shadow-lg p-12 text-center">
+          <p className="text-gray-500">Aucune commande récente</p>
+        </div>
+      )}
 
       {/* Liens rapides */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

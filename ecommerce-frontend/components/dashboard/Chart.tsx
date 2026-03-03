@@ -1,26 +1,27 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
+  LineElement,
   Title,
   Tooltip,
   Legend,
   Filler,
   ChartData,
-  ChartOptions,
-  TooltipItem,
-  // Ne pas importer LineElement directement car il est inclus dans PointElement
+  ChartOptions
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 
-// Enregistrement des composants Chart.js
+// IMPORTANT: Enregistrer les composants nécessaires
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  PointElement,  // PointElement inclut déjà LineElement
+  PointElement,
+  LineElement,
   Title,
   Tooltip,
   Legend,
@@ -37,6 +38,15 @@ interface ChartProps {
 }
 
 const Chart = ({ data, title, color = '#e50914' }: ChartProps) => {
+  // Vérifier que les données existent
+  if (!data || !data.labels || !data.values || data.labels.length === 0) {
+    return (
+      <div className="h-80 flex items-center justify-center bg-gray-50 rounded-lg">
+        <p className="text-gray-500">Aucune donnée disponible</p>
+      </div>
+    );
+  }
+
   const chartData: ChartData<'line'> = {
     labels: data.labels,
     datasets: [
@@ -60,15 +70,40 @@ const Chart = ({ data, title, color = '#e50914' }: ChartProps) => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: false },
+      legend: {
+        display: false,
+      },
       title: {
         display: !!title,
-        text: title || '',
+        text: title,
+        font: {
+          size: 16,
+          weight: 'bold',
+        },
+        padding: {
+          bottom: 20,
+        },
       },
       tooltip: {
+        backgroundColor: '#1f2937',
+        titleColor: '#f3f4f6',
+        bodyColor: '#d1d5db',
+        borderColor: '#374151',
+        borderWidth: 1,
+        padding: 12,
         callbacks: {
-          label: (context: TooltipItem<'line'>) => {
-            return `${context.dataset.label || ''}: ${context.parsed.y} €`;
+          label: (context) => {
+            let label = context.dataset.label || '';
+            if (label) {
+              label += ': ';
+            }
+            if (context.parsed.y !== null) {
+              label += new Intl.NumberFormat('fr-FR', {
+                style: 'currency',
+                currency: 'EUR',
+              }).format(context.parsed.y);
+            }
+            return label;
           },
         },
       },
@@ -76,17 +111,29 @@ const Chart = ({ data, title, color = '#e50914' }: ChartProps) => {
     scales: {
       y: {
         beginAtZero: true,
+        grid: {
+          color: '#e5e7eb',
+        },
         ticks: {
-          callback: (value: number | string) => {
-            return `${value} €`;
+          callback: (value) => {
+            return new Intl.NumberFormat('fr-FR', {
+              style: 'currency',
+              currency: 'EUR',
+              minimumFractionDigits: 0,
+            }).format(value as number);
           },
+        },
+      },
+      x: {
+        grid: {
+          display: false,
         },
       },
     },
   };
 
   return (
-    <div className="h-80 w-full">
+    <div className="h-80">
       <Line data={chartData} options={options} />
     </div>
   );
