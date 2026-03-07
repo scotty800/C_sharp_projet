@@ -23,13 +23,16 @@ const StatsCard = ({ title, value, icon: Icon, trend, color = 'primary' }: Stats
     orange: 'bg-orange-500/10 text-orange-600',
   };
 
+  // Déterminer si on doit afficher le trend
+  const shouldShowTrend = trend && trend.value !== 0 && !isNaN(trend.value);
+
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       <div className="flex items-center justify-between mb-4">
         <div className={`p-3 rounded-lg ${colorClasses[color]}`}>
           <Icon size={24} />
         </div>
-        {trend && (
+        {shouldShowTrend && (
           <div className={`flex items-center gap-1 text-sm font-medium ${
             trend.isPositive ? 'text-green-600' : 'text-red-600'
           }`}>
