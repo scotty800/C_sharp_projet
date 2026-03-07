@@ -43,6 +43,9 @@ export interface ShopResponse {
   logoUrl: string | null;
   bannerUrl: string | null;
   productCount: number;
+  themeColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
   ownerId: number;
   username?: string;
   // Ces propriétés peuvent venir de l'API ou être optionnelles
@@ -77,6 +80,7 @@ export interface ShopListResponse {
   totalPages: number;
   currentPage: number;
   totalCount: number;
+  pageSize?: number;
 }
 
 export const isShopOwner = (userId: number | undefined, shop: Shop | ShopResponse | null): boolean => {
