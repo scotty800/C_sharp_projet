@@ -4,13 +4,22 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { shopService } from '@/services/api/shops';
-import { ShopListResponse, ShopResponse } from '@/types/shop';
+import { ShopResponse } from '@/types/shop';
 import { FiSearch, FiArrowRight } from 'react-icons/fi';
 import { getImageUrl } from '@/utils/imageUtils';
 import { useDebounce } from '@/hooks/useDebounce';
 
+// Interface pour la structure réelle de l'API
+interface ShopsApiResponse {
+  items: ShopResponse[];
+  totalPages: number;
+  currentPage: number;
+  totalCount: number;
+  pageSize: number;
+}
+
 export default function ShopsPage() {
-  const [shops, setShops] = useState<ShopListResponse | null>(null);
+  const [shops, setShops] = useState<ShopsApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
@@ -29,41 +38,16 @@ export default function ShopsPage() {
         search: debouncedSearch || undefined,
       });
       
-      console.log('📦 Données brutes:', response);
+      console.log('📦 Données reçues:', response);
       
-      // Utiliser "as any" pour éviter les erreurs TypeScript
+      // La structure est avec 'items' comme le montrent les logs
       const data = response as any;
       
-      // Extraction flexible selon la structure
-      let extractedShops: ShopResponse[] = [];
-      
-      if (data.data && Array.isArray(data.data)) {
-        extractedShops = data.data;
-        console.log('✅ Structure avec data.data, trouvée:', extractedShops.length);
-      } else if (data.items && Array.isArray(data.items)) {
-        extractedShops = data.items;
-        console.log('✅ Structure avec items, trouvée:', extractedShops.length);
-      } else if (Array.isArray(data)) {
-        extractedShops = data;
-        console.log('✅ Structure tableau direct, trouvée:', extractedShops.length);
-      } else if (data.shop && Array.isArray(data.shop)) {
-        extractedShops = data.shop;
-        console.log('✅ Structure avec shop, trouvée:', extractedShops.length);
-      } else if (data.products && Array.isArray(data.products)) {
-        extractedShops = data.products;
-        console.log('✅ Structure avec products, trouvée:', extractedShops.length);
-      } else {
-        console.log('❌ Structure non reconnue:', Object.keys(data));
-      }
-      
-      console.log('🎯 Boutiques extraites:', extractedShops.length);
-      
-      // Recréer l'objet avec la bonne structure
       setShops({
-        data: extractedShops,
+        items: data.items || [],
         totalPages: data.totalPages || 1,
         currentPage: data.currentPage || page,
-        totalCount: data.totalCount || extractedShops.length,
+        totalCount: data.totalCount || 0,
         pageSize: data.pageSize || 12,
       });
       
@@ -87,7 +71,7 @@ export default function ShopsPage() {
     );
   }
 
-  const shopItems = shops?.data || [];
+  const shopItems = shops?.items || [];
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">

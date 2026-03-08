@@ -18,7 +18,8 @@ namespace ECommerceApi.Services
             int pageSize,
             decimal? minPrice,
             decimal? maxPrice,
-            string? sortBy
+            string? sortBy,
+            string? category = null
         );
 
         Task<List<ProductResponseDto>> GetProductsByShopIdAsync(int shopId); // Changé

@@ -1,3 +1,5 @@
+import { PaginationParams } from "./api";
+
 export interface Product {
   id: number;
   name: string;
@@ -68,4 +70,10 @@ export interface ProductImageUploadDto {
   image1?: File;
   image2?: File;
   image3?: File;
+}
+export interface ProductFilterParams extends PaginationParams {
+  minPrice?: number;
+  maxPrice?: number;
+  category?: string;  // ← DÉJÀ PRÉSENT ?
+  inStock?: boolean;
 }

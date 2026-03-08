@@ -13,7 +13,7 @@ namespace ECommerceApi.Services
         private readonly IHttpContextAccessor _httpContextAccessor;
 
         public ProductService(AppDbContext context, IShopService shopService,
-    IWebHostEnvironment environment, IHttpContextAccessor httpContextAccessor)
+            IWebHostEnvironment environment, IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
             _shopService = shopService;
@@ -119,7 +119,6 @@ namespace ECommerceApi.Services
             var existing = await _context.Products.FirstOrDefaultAsync(p => p.Id == id);
             if (existing == null) return false;
 
-            // Ne mettre à jour que les champs nécessaires, PAS ShopId
             existing.Name = product.Name;
             existing.Description = product.Description;
             existing.Price = product.Price;
@@ -182,12 +181,19 @@ namespace ECommerceApi.Services
             int pageSize,
             decimal? minPrice,
             decimal? maxPrice,
-            string? sortBy)
+            string? sortBy,
+            string? category = null)
         {
             page = page < 1 ? 1 : page;
             pageSize = pageSize > 50 ? 50 : pageSize;
 
             var query = _context.Products.AsQueryable();
+
+            // ✅ Filtre par catégorie
+            if (!string.IsNullOrWhiteSpace(category))
+            {
+                query = query.Where(p => p.Category.ToLower() == category.ToLower());
+            }
 
             if (minPrice.HasValue)
                 query = query.Where(p => p.Price >= minPrice.Value);

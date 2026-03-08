@@ -84,10 +84,10 @@ namespace ECommerceApi.Middlewares
                 // ✅ Vérifier les doublons (éviter les rafraîchissements multiples)
                 var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
                 var fiveMinutesAgo = DateTime.UtcNow.AddMinutes(-5);
-                
+
                 // ✅ CORRECTION: Pas d'opérateur null propagating dans l'expression lambda
                 var recentView = await dbContext.ProductViews
-                    .AnyAsync(v => v.ProductId == productId 
+                    .AnyAsync(v => v.ProductId == productId
                         && v.IpAddress == ipAddress
                         && v.ViewedAt >= fiveMinutesAgo);
 
@@ -137,13 +137,13 @@ namespace ECommerceApi.Middlewares
                 {
                     shop = await dbContext.Shops.FindAsync(shopId);
                 }
-                
+
                 // Si ce n'est pas un ID, essayer comme slug
                 if (shop == null)
                 {
                     var slug = segments[3];
                     shop = await dbContext.Shops.FirstOrDefaultAsync(s => s.Slug == slug);
-                    
+
                     if (shop != null)
                         shopId = shop.Id;
                     else
@@ -163,10 +163,10 @@ namespace ECommerceApi.Middlewares
                 // ✅ Éviter les visites multiples d'une même IP en peu de temps
                 var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? string.Empty;
                 var fiveMinutesAgo = DateTime.UtcNow.AddMinutes(-5);
-                
+
                 // ✅ CORRECTION: Pas d'opérateur null propagating dans l'expression lambda
                 var recentVisit = await dbContext.ShopVisits
-                    .AnyAsync(v => v.ShopId == shopId 
+                    .AnyAsync(v => v.ShopId == shopId
                         && v.IpAddress == ipAddress
                         && v.VisitedAt >= fiveMinutesAgo);
 

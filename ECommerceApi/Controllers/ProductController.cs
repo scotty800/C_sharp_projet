@@ -113,11 +113,11 @@ public class ProductController : ControllerBase
         try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            
+
             var existingProduct = await _context.Products
                 .Include(p => p.Shop)
                 .FirstOrDefaultAsync(p => p.Id == id);
-                
+
             if (existingProduct == null)
                 return NotFound(new { message = "Produit non trouvé" });
 
@@ -211,11 +211,11 @@ public class ProductController : ControllerBase
         try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            
+
             var existingProduct = await _context.Products
                 .Include(p => p.Shop)
                 .FirstOrDefaultAsync(p => p.Id == id);
-                
+
             if (existingProduct == null)
                 return NotFound(new { message = "Produit non trouvé" });
 
@@ -252,7 +252,7 @@ public class ProductController : ControllerBase
     public async Task<IActionResult> DeleteProduct(int id)
     {
         Console.WriteLine($"🔴🔴🔴 DELETE /api/products/{id} EXÉCUTÉ à {DateTime.Now}");
-        
+
         var existingProduct = await _productService.GetProductByIdAsync(id);
         if (existingProduct == null)
             return NotFound("Produit non trouvé");
@@ -290,14 +290,16 @@ public class ProductController : ControllerBase
         [FromQuery] int pageSize = 10,
         [FromQuery] decimal? minPrice = null,
         [FromQuery] decimal? maxPrice = null,
-        [FromQuery] string? sortBy = null)
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? category = null)
     {
         var result = await _productService.GetPagedAsync(
             page,
             pageSize,
             minPrice,
             maxPrice,
-            sortBy
+            sortBy,
+            category
         );
 
         return Ok(result);
