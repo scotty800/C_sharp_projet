@@ -1,43 +1,63 @@
 // src/utils/imageUtils.ts
 export const getImageUrl = (url: string | null | undefined): string => {
-  // ✅ Placeholder SVG unique
   const PLACEHOLDER = '/images/product-placeholder.svg';
   
-  // Si pas d'URL, retourner le placeholder SVG
-  if (!url) return PLACEHOLDER;
+  if (!url) {
+    console.log('❌ Pas d\'URL, utilisation du placeholder');
+    return PLACEHOLDER;
+  }
   
-  // Si l'URL est déjà absolue (commence par http)
+  console.log('🔍 URL originale:', url);
+  
   if (url.startsWith('http')) {
+    console.log('✅ URL déjà absolue:', url);
     return url;
   }
   
-  // Nettoyer l'URL
   let cleanUrl = url.trim();
+  console.log('🧹 URL nettoyée:', cleanUrl);
   
-  // Pour les images uploadées (logo, banner, produits)
   if (cleanUrl.startsWith('/uploads')) {
     const baseUrl = 'http://127.0.0.1:5019';
     const finalUrl = `${baseUrl}${cleanUrl}`;
+    console.log('✅ URL construite pour upload:', finalUrl);
     return finalUrl;
   }
   
-  // Pour les images du dossier public du frontend
   if (cleanUrl.startsWith('/images')) {
+    console.log('✅ URL du dossier public:', cleanUrl);
     return cleanUrl;
   }
   
+  console.log('⚠️ Format non reconnu, retour tel quel:', cleanUrl);
   return cleanUrl;
 };
 
 export const getProductImageUrl = (product: any): string => {
   const PLACEHOLDER = '/images/product-placeholder.svg';
   
-  if (!product) return PLACEHOLDER;
+  if (!product) {
+    console.log('❌ Produit null ou undefined');
+    return PLACEHOLDER;
+  }
   
+  console.log('🔍 Produit reçu dans getProductImageUrl:', product.id, product.name);
+  console.log('📸 Images disponibles:', {
+    imageUrl: product.imageUrl,
+    imageUrl1: product.imageUrl1,
+    imageUrl2: product.imageUrl2,
+    imageUrl3: product.imageUrl3,
+  });
+  
+  // Priorité : imageUrl1, imageUrl2, imageUrl3, imageUrl
   const imageUrl = product.imageUrl1 || product.imageUrl2 || product.imageUrl3 || product.imageUrl;
   
-  if (!imageUrl) return PLACEHOLDER;
+  if (!imageUrl) {
+    console.log('❌ Aucune image trouvée pour le produit', product.id);
+    return PLACEHOLDER;
+  }
   
+  console.log('✅ Image trouvée:', imageUrl);
   return getImageUrl(imageUrl);
 };
 
@@ -57,6 +77,8 @@ export const getValidProductImages = (product: any): string[] => {
     product?.imageUrl3,
   ];
   
+  console.log('🔍 URLs brutes pour getValidProductImages:', rawUrls);
+  
   const validUrls = rawUrls.filter((url): url is string => {
     if (url == null) return false;
     if (typeof url !== 'string') return false;
@@ -68,6 +90,8 @@ export const getValidProductImages = (product: any): string[] => {
     }
     return true;
   });
+  
+  console.log('✅ URLs valides trouvées:', validUrls);
   
   // Supprimer les doublons
   const uniqueUrls = validUrls.filter((url, index, self) => {

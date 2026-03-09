@@ -106,7 +106,7 @@ export default function ManageShopProductsPage() {
   };
 
   const getImageUrl = (url: string | null | undefined) => {
-    if (!url) return '/images/product-placeholder.jpg';
+    if (!url) return '/images/product-placeholder.svg'; // ← .svg
     if (url.startsWith('http')) return url;
     const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://127.0.0.1:5019';
     return `${baseUrl}${url}`;
@@ -195,6 +195,7 @@ export default function ManageShopProductsPage() {
                       alt={product.name}
                       fill
                       className="object-cover"
+                      unoptimized
                     />
                   </div>
                   

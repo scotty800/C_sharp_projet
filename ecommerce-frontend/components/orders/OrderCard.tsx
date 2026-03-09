@@ -93,10 +93,11 @@ const OrderCard = ({ order }: OrderCardProps) => {
           {order.items.slice(0, 3).map((item) => (
             <div key={item.id} className="relative w-16 h-16 rounded-lg overflow-hidden">
               <Image
-                src={item.productImage || '/images/product-placeholder.jpg'}
+                src={item.productImage || '/images/product-placeholder.svg'} // ← .svg
                 alt={item.productName}
                 fill
                 className="object-cover"
+                unoptimized
               />
             </div>
           ))}

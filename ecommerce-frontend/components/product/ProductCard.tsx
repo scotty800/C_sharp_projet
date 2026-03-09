@@ -1,13 +1,14 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useState } from 'react';
 import { FiHeart, FiShoppingCart, FiEye } from 'react-icons/fi';
 import { Product } from '@/types/product';
 import { formatPrice } from '@/services/utils/formatters';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
-import { getProductImageUrl } from '@/utils/imageUtils';
+import { getProductImageUrl } from '@/utils/imageUtils'; // ← Import direct
 import toast from 'react-hot-toast';
 
 interface ProductCardProps {
@@ -20,9 +21,14 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
   const [isHovered, setIsHovered] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
-  const [imageError, setImageError] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const { addToCart } = useCart();
   const { user } = useAuth();
+
+  // Utiliser getProductImageUrl qui gère la priorité imageUrl1, imageUrl2, imageUrl3, imageUrl
+  const imageUrl = imgError 
+    ? '/images/product-placeholder.svg' 
+    : getProductImageUrl(product);
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -51,9 +57,6 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
     toast.success(isFavorite ? 'Retiré des favoris' : 'Ajouté aux favoris');
   };
 
-  // Utiliser le placeholder SVG en cas d'erreur
-  const imageUrl = imageError ? '/images/product-placeholder.svg' : getProductImageUrl(product);
-
   if (layout === 'list') {
     return (
       <div 
@@ -69,7 +72,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
               alt={product.name}
               fill
               className="object-cover"
-              onError={() => setImageError(true)}
+              onError={() => setImgError(true)}
               unoptimized
             />
             {product.stock <= 0 && (
@@ -145,7 +148,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
           alt={product.name}
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-110"
-          onError={() => setImageError(true)}
+          onError={() => setImgError(true)}
           unoptimized
         />
         

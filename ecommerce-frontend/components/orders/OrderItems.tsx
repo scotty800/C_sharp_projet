@@ -26,10 +26,11 @@ const OrderItems = ({ items, showReviews = false }: OrderItemsProps) => {
               <Link href={`/product/${item.productId}`} className="sm:w-24 flex-shrink-0">
                 <div className="relative aspect-square rounded-lg overflow-hidden">
                   <Image
-                    src={item.productImage || '/images/product-placeholder.jpg'}
+                    src={item.productImage || '/images/product-placeholder.svg'} // ← .svg
                     alt={item.productName}
                     fill
                     className="object-cover hover:scale-105 transition-transform"
+                    unoptimized
                   />
                 </div>
               </Link>
