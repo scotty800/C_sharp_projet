@@ -87,6 +87,10 @@ export interface CreateOrderDto {
   billingPostalCode?: string;
   billingCountry?: string;
   notes?: string;
+  // ✅ Champs optionnels ajoutés
+  taxAmount?: number;
+  shippingCost?: number;
+  discountAmount?: number;
 }
 
 export interface OrderResponseDto {
@@ -135,4 +139,35 @@ export interface OrderItemDto {
 
 export interface UpdateOrderStatusDto {
   status: OrderStatus;
+}
+
+export interface CreatePaymentIntentDto {
+  orderId: number;
+}
+
+export interface ConfirmPaymentDto {
+  orderId: number;
+  paymentIntentId: string;
+}
+
+export interface RefundRequestDto {
+  amount?: number;
+  reason?: string;
+}
+
+export interface PaymentIntentResponseDto {
+  id: string;
+  clientSecret: string;
+  amount: number;
+  currency: string;
+  status: string;
+}
+
+export interface PaymentIntent {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  clientSecret: string;
+  metadata?: Record<string, string>;
 }

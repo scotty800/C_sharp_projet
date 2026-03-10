@@ -129,7 +129,7 @@ export default function CheckoutPage() {
       const shippingCost = subtotal > 50 ? 0 : 5.99;
       const taxAmount = subtotal * 0.2; // TVA 20%
 
-      // 1. Créer la commande avec TOUS les champs requis
+      // 1. Créer la commande
       toast.loading('Création de votre commande...', { id: 'order' });
       
       const orderResponse = await orderService.createOrder({
@@ -144,27 +144,32 @@ export default function CheckoutPage() {
         billingCountry: formData.sameAsShipping ? formData.shippingCountry : formData.billingCountry,
         taxAmount: taxAmount,
         shippingCost: shippingCost,
-        discountAmount: 0, // Pas de réduction pour l'instant
+        discountAmount: 0,
         notes: formData.notes || undefined,
       });
 
       toast.success('Commande créée !', { id: 'order' });
+      console.log('✅ Commande créée:', orderResponse);
 
-      // 2. Créer l'intention de paiement
-      toast.loading('Préparation du paiement...', { id: 'payment' });
+      // 2. Créer l'intention de paiement avec Stripe
+      toast.loading('Préparation du paiement sécurisé...', { id: 'payment' });
       
       const paymentIntent = await paymentService.createPaymentIntent({
         orderId: orderResponse.orderId,
       });
 
+      console.log('💰 PaymentIntent créé:', paymentIntent);
       toast.success('Paiement prêt !', { id: 'payment' });
 
-      // 3. Simuler le paiement
+      // 3. Rediriger vers la page de paiement Stripe
+      // Note: Dans une vraie intégration, tu utiliserais Stripe Elements ou Stripe Checkout
+      // Pour cet exemple, on simule un paiement réussi
+      
       setStep('confirmation');
       
       toast.loading('Confirmation du paiement...', { id: 'confirm' });
       
-      // Simuler un délai de paiement
+      // Simuler un délai de paiement (remplacer par une vraie redirection Stripe)
       setTimeout(async () => {
         try {
           const confirmResponse = await paymentService.confirmPayment({
@@ -192,7 +197,7 @@ export default function CheckoutPage() {
       }, 2000);
 
     } catch (error: any) {
-      console.error('Erreur lors de la commande:', error);
+      console.error('❌ Erreur lors de la commande:', error);
       
       // Afficher le message d'erreur détaillé
       const errorMessage = error.response?.data?.message || 
@@ -446,7 +451,7 @@ export default function CheckoutPage() {
                     />
                     <div>
                       <span className="font-medium">Carte bancaire</span>
-                      <p className="text-sm text-gray-500">Visa, Mastercard, American Express</p>
+                      <p className="text-sm text-gray-500">Paiement sécurisé par Stripe</p>
                     </div>
                   </label>
 
@@ -495,7 +500,7 @@ export default function CheckoutPage() {
                     disabled={processing}
                     className="flex-1 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
                   >
-                    {processing ? 'Traitement...' : 'Payer'}
+                    {processing ? 'Traitement...' : 'Payer maintenant'}
                   </button>
                 </div>
               </div>

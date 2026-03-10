@@ -84,3 +84,6 @@ appsettings.Development.json
 logs/
 
 Migrations
+.env
+.env.local
+.env.*.local

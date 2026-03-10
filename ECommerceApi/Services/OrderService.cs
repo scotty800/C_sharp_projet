@@ -12,17 +12,20 @@ namespace ECommerceApi.Services
         private readonly ICartService _cartService;
         private readonly IProductService _productService;
         private readonly IPaymentService _paymentService;
+        private readonly ILogger<OrderService> _logger;
 
         public OrderService(
             AppDbContext context,
             ICartService cartService,
             IProductService productService,
-            IPaymentService paymentService)
+            IPaymentService paymentService,
+            ILogger<OrderService> logger)
         {
             _context = context;
             _cartService = cartService;
             _productService = productService;
             _paymentService = paymentService;
+            _logger = logger;
         }
 
         public async Task<Order> CreateOrderFromCartAsync(int userId, CreateOrderDto orderDto)
@@ -31,10 +34,12 @@ namespace ECommerceApi.Services
 
             try
             {
+                // 1. Récupérer le panier
                 var cart = await _cartService.GetCartDetailsAsync(userId);
                 if (!cart.Items.Any())
                     throw new Exception("Le panier est vide");
 
+                // 2. Vérifier le stock
                 foreach (var item in cart.Items)
                 {
                     var product = await _productService.GetProductByIdAsync(item.ProductId);
@@ -46,8 +51,10 @@ namespace ECommerceApi.Services
                         throw new Exception($"Stock insuffisant pour {product.Name}. Disponible: {product.Stock}, Demandé: {item.Quantity}");
                 }
 
-                var orderNumber = $"ORD-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper()}";
+                // 3. Générer le numéro de commande
+                var orderNumber = GenerateOrderNumber();
 
+                // 4. Créer la commande
                 var order = new Order
                 {
                     OrderNumber = orderNumber,
@@ -73,6 +80,7 @@ namespace ECommerceApi.Services
                 _context.Orders.Add(order);
                 await _context.SaveChangesAsync();
 
+                // 5. Ajouter les items et mettre à jour le stock
                 foreach (var item in cart.Items)
                 {
                     var product = await _context.Products.FindAsync(item.ProductId);
@@ -87,22 +95,41 @@ namespace ECommerceApi.Services
                             Quantity = item.Quantity,
                             UnitPrice = item.ProductPrice
                         };
-                        order.Items.Add(orderItem);
+                        _context.OrderItems.Add(orderItem);
                     }
                 }
 
                 await _context.SaveChangesAsync();
 
-                await _cartService.ClearCartAsync(userId);
+                // 6. Vider le panier
+                await ClearCartDirectly(userId);
 
-                await transaction.CommitAsync();
-
+                // 7. Paiement avec Stripe (si ce n'est pas du cash à la livraison)
                 if (orderDto.PaymentMethod != PaymentMethod.CashOnDelivery)
                 {
-                    var paymentIntent = await _paymentService.CreatePaymentIntentAsync(order.FinalAmount, order.OrderNumber);
-                    order.PaymentIntentId = paymentIntent.Id;
-                    await _context.SaveChangesAsync();
+                    try
+                    {
+                        _logger.LogInformation($"💰 Création du paiement Stripe pour la commande {order.OrderNumber}");
+                        
+                        var paymentIntent = await _paymentService.CreatePaymentIntentAsync(order.FinalAmount, order.OrderNumber);
+                        order.PaymentIntentId = paymentIntent.Id;
+                        await _context.SaveChangesAsync();
+                        
+                        _logger.LogInformation($"✅ PaymentIntent créé: {paymentIntent.Id} pour commande {order.OrderNumber}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"❌ Erreur paiement: {ex.Message}");
+                        throw new Exception($"Erreur lors de la création du paiement: {ex.Message}");
+                    }
                 }
+                else
+                {
+                    // Pour le cash à la livraison, pas de paiement Stripe
+                    _logger.LogInformation($"📦 Commande {order.OrderNumber} en cash à la livraison");
+                }
+
+                await transaction.CommitAsync();
 
                 return order;
             }
@@ -138,11 +165,8 @@ namespace ECommerceApi.Services
                     Username = o.User != null ? o.User.Username : "",
                     UserEmail = o.User != null ? o.User.Email : "",
                     Status = o.Status,
-                    // ❌ StatusName = o.Status.ToString(),  ← À SUPPRIMER
                     PaymentStatus = o.PaymentStatus,
-                    // ❌ PaymentStatusName = o.PaymentStatus.ToString(),  ← À SUPPRIMER
                     PaymentMethod = o.PaymentMethod,
-                    // ❌ PaymentMethodName = o.PaymentMethod.ToString(),  ← À SUPPRIMER
                     TotalAmount = o.TotalAmount,
                     TaxAmount = o.TaxAmount,
                     ShippingCost = o.ShippingCost,
@@ -175,6 +199,24 @@ namespace ECommerceApi.Services
                         ShopName = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Name : null,
                         IsReviewed = i.IsReviewed
                     }).ToList()
+                })
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<OrderResponseDto?> GetOrderByPaymentIntentId(string paymentIntentId)
+        {
+            return await _context.Orders
+                .Where(o => o.PaymentIntentId == paymentIntentId)
+                .Select(o => new OrderResponseDto
+                {
+                    Id = o.Id,
+                    OrderNumber = o.OrderNumber,
+                    UserId = o.UserId,
+                    Username = o.User != null ? o.User.Username : "",
+                    Status = o.Status,
+                    PaymentStatus = o.PaymentStatus,
+                    FinalAmount = o.FinalAmount,
+                    CreatedAt = o.CreatedAt
                 })
                 .FirstOrDefaultAsync();
         }
@@ -242,9 +284,30 @@ namespace ECommerceApi.Services
                 })
                 .ToListAsync();
         }
+
         public async Task<bool> UpdateOrderStatusAsync(int orderId, OrderStatus status)
         {
             var order = await _context.Orders.FindAsync(orderId);
+            if (order == null)
+                return false;
+
+            order.Status = status;
+            order.UpdatedAt = DateTime.UtcNow;
+
+            if (status == OrderStatus.Shipped)
+                order.ShippedAt = DateTime.UtcNow;
+            else if (status == OrderStatus.Delivered)
+                order.DeliveredAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> UpdateOrderStatusAsync(string orderNumber, OrderStatus status)
+        {
+            var order = await _context.Orders
+                .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
+            
             if (order == null)
                 return false;
 
@@ -282,6 +345,27 @@ namespace ECommerceApi.Services
             return true;
         }
 
+        public async Task<bool> UpdatePaymentStatusAsync(string orderNumber, PaymentStatus status)
+        {
+            var order = await _context.Orders
+                .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
+            
+            if (order == null)
+                return false;
+
+            order.PaymentStatus = status;
+            order.UpdatedAt = DateTime.UtcNow;
+
+            if (status == PaymentStatus.Paid)
+            {
+                order.PaidAt = DateTime.UtcNow;
+                order.Status = OrderStatus.Processing;
+            }
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
         public async Task<bool> CancelOrderAsync(int orderId, int userId)
         {
             var order = await _context.Orders
@@ -291,6 +375,7 @@ namespace ECommerceApi.Services
             if (order == null || order.Status != OrderStatus.Pending)
                 return false;
 
+            // Restaurer le stock
             foreach (var item in order.Items)
             {
                 var product = await _context.Products.FindAsync(item.ProductId);
@@ -361,11 +446,11 @@ namespace ECommerceApi.Services
                 .ToListAsync();
         }
 
-        public async Task<bool> HasUserPurchasedProductAsync(int userId, int productionId)
+        public async Task<bool> HasUserPurchasedProductAsync(int userId, int productId)
         {
             return await _context.OrderItems
                 .Include(oi => oi.Order)
-                .AnyAsync(oi => oi.ProductId == productionId &&
+                .AnyAsync(oi => oi.ProductId == productId &&
                                 oi.Order.UserId == userId &&
                                 oi.Order.Status == OrderStatus.Delivered);
         }
@@ -379,7 +464,6 @@ namespace ECommerceApi.Services
                 query = query.Where(o => o.Items.Any(i => i.Product.ShopId == shopId.Value));
             }
 
-            // Récupérer d'abord les données brutes
             var orders = await query
                 .Select(o => new
                 {
@@ -392,7 +476,6 @@ namespace ECommerceApi.Services
                 })
                 .ToListAsync();
 
-            // Calculer les statistiques en mémoire
             var totalOrders = orders.Count;
             var totalRevenue = orders.Sum(o => o.TotalAmount + o.TaxAmount + o.ShippingCost - o.DiscountAmount);
             var pendingOrders = orders.Count(o => o.Status == OrderStatus.Pending);
@@ -401,7 +484,6 @@ namespace ECommerceApi.Services
             var deliveredOrders = orders.Count(o => o.Status == OrderStatus.Delivered);
             var cancelledOrders = orders.Count(o => o.Status == OrderStatus.Cancelled);
 
-            // Statistiques par jour
             var revenueByDay = orders
                 .GroupBy(o => o.CreatedAt.Date.ToString("yyyy-MM-dd"))
                 .ToDictionary(g => g.Key, g => g.Sum(o => o.TotalAmount + o.TaxAmount + o.ShippingCost - o.DiscountAmount));
@@ -423,6 +505,32 @@ namespace ECommerceApi.Services
                 RevenueByDay = revenueByDay,
                 OrdersByDay = ordersByDay
             };
+        }
+
+        // ==================== MÉTHODES PRIVÉES ====================
+
+        private string GenerateOrderNumber()
+        {
+            var date = DateTime.UtcNow.ToString("yyyyMMdd");
+            var random = new Random().Next(10000, 99999);
+            return $"ORD-{date}-{random}";
+        }
+
+        private async Task<bool> ClearCartDirectly(int userId)
+        {
+            var cart = await _context.Carts
+                .Include(c => c.Items)
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+            
+            if (cart == null)
+                return false;
+            
+            _context.CartItems.RemoveRange(cart.Items);
+            cart.Items.Clear();
+            cart.UpdatedAt = DateTime.UtcNow;
+            
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }

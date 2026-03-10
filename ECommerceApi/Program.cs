@@ -13,7 +13,32 @@ var builder = WebApplication.CreateBuilder(args);
 // 🔑 Configuration JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured");
-//builder.Services.Configure<StripeSettings>(builder.Configuration.GetSection("Stripe"));
+
+// ✅ Charger Stripe depuis appsettings.json (ou variables d'environnement si disponibles)
+var stripeSettings = new StripeSettings
+{
+    // D'abord vérifier les variables d'environnement, sinon utiliser appsettings.json
+    SecretKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY") 
+        ?? builder.Configuration["Stripe:SecretKey"]
+        ?? throw new InvalidOperationException("STRIPE_SECRET_KEY not set in env or appsettings"),
+    
+    PublishableKey = Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY")
+        ?? builder.Configuration["Stripe:PublishableKey"]
+        ?? throw new InvalidOperationException("STRIPE_PUBLISHABLE_KEY not set in env or appsettings"),
+    
+    WebhookSecret = Environment.GetEnvironmentVariable("STRIPE_WEBHOOK_SECRET")
+        ?? builder.Configuration["Stripe:WebhookSecret"]
+        ?? throw new InvalidOperationException("STRIPE_WEBHOOK_SECRET not set in env or appsettings"),
+};
+
+Console.WriteLine($"✅ Stripe configuré - SecretKey: {stripeSettings.SecretKey.Substring(0, 10)}...");
+
+builder.Services.Configure<StripeSettings>(options =>
+{
+    options.SecretKey = stripeSettings.SecretKey;
+    options.PublishableKey = stripeSettings.PublishableKey;
+    options.WebhookSecret = stripeSettings.WebhookSecret;
+});
 
 // 🗄 Base de données
 builder.Services.AddDbContext<AppDbContext>(opt =>
@@ -21,7 +46,7 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
 
 builder.Services.AddHttpContextAccessor();
 
-// ✅ CONFIGURATION CORS - AJOUTÉ ICI
+// ✅ CONFIGURATION CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
@@ -157,4 +182,5 @@ using (var scope = app.Services.CreateScope())
 // 🔗 Mapper les contrôleurs (doit être après tous les middlewares)
 app.MapControllers();
 
+Console.WriteLine("🚀 Application démarrée avec succès!");
 app.Run();

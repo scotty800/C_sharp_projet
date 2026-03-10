@@ -16,5 +16,10 @@ namespace ECommerceApi.Services
         Task<List<OrderResponseDto>> GetOrdersByStatusAsync(OrderStatus status);
         Task<bool> HasUserPurchasedProductAsync(int userId, int productId);
         Task<OrderStatsDto> GetOrderStatsAsync(int? shopId = null);
+
+        // ✅ NOUVELLES MÉTHODES POUR LES WEBHOOKS
+        Task<bool> UpdatePaymentStatusAsync(string orderNumber, PaymentStatus status);
+        Task<bool> UpdateOrderStatusAsync(string orderNumber, OrderStatus status);
+        Task<OrderResponseDto?> GetOrderByPaymentIntentId(string paymentIntentId);
     }
 }
