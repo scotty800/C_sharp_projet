@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 import { orderService } from '@/services/api/orders';
@@ -11,10 +13,13 @@ import { paymentService } from '@/services/api/payments';
 import { productService } from '@/services/api/products';
 import { Product } from '@/types/product';
 import { PaymentMethod } from '@/types/order';
+import { StripePaymentForm } from '@/components/checkout/StripePaymentForm';
 import { FiArrowLeft, FiCreditCard, FiTruck, FiMapPin, FiUser, FiMail } from 'react-icons/fi';
 import { formatPrice } from '@/services/utils/formatters';
 import { getProductImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface CartItemWithProduct {
   id: number;
@@ -33,26 +38,21 @@ export default function CheckoutPage() {
   const [itemsWithProducts, setItemsWithProducts] = useState<CartItemWithProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [step, setStep] = useState<'shipping' | 'payment' | 'confirmation'>('shipping');
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [orderId, setOrderId] = useState<number | null>(null);
 
   // États du formulaire
   const [formData, setFormData] = useState({
-    // Adresse de livraison
     shippingAddress: '',
     shippingCity: '',
     shippingPostalCode: '',
     shippingCountry: 'France',
-    
-    // Adresse de facturation (peut être la même)
     sameAsShipping: true,
     billingAddress: '',
     billingCity: '',
     billingPostalCode: '',
     billingCountry: 'France',
-    
-    // Méthode de paiement
     paymentMethod: 'Card' as PaymentMethod,
-    
-    // Notes
     notes: '',
   });
 
@@ -116,20 +116,17 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmitOrder = async () => {
     if (!user || !cart || itemsWithProducts.length === 0) return;
 
     try {
       setProcessing(true);
 
-      // Calculer les montants
       const subtotal = cart.totalAmount;
       const shippingCost = subtotal > 50 ? 0 : 5.99;
-      const taxAmount = subtotal * 0.2; // TVA 20%
+      const taxAmount = subtotal * 0.2;
 
-      // 1. Créer la commande
+      // Créer la commande
       toast.loading('Création de votre commande...', { id: 'order' });
       
       const orderResponse = await orderService.createOrder({
@@ -149,64 +146,38 @@ export default function CheckoutPage() {
       });
 
       toast.success('Commande créée !', { id: 'order' });
-      console.log('✅ Commande créée:', orderResponse);
+      setOrderId(orderResponse.orderId);
 
-      // 2. Créer l'intention de paiement avec Stripe
+      // Créer l'intention de paiement
       toast.loading('Préparation du paiement sécurisé...', { id: 'payment' });
       
       const paymentIntent = await paymentService.createPaymentIntent({
         orderId: orderResponse.orderId,
       });
 
-      console.log('💰 PaymentIntent créé:', paymentIntent);
+      setClientSecret(paymentIntent.clientSecret);
       toast.success('Paiement prêt !', { id: 'payment' });
-
-      // 3. Rediriger vers la page de paiement Stripe
-      // Note: Dans une vraie intégration, tu utiliserais Stripe Elements ou Stripe Checkout
-      // Pour cet exemple, on simule un paiement réussi
-      
-      setStep('confirmation');
-      
-      toast.loading('Confirmation du paiement...', { id: 'confirm' });
-      
-      // Simuler un délai de paiement (remplacer par une vraie redirection Stripe)
-      setTimeout(async () => {
-        try {
-          const confirmResponse = await paymentService.confirmPayment({
-            orderId: orderResponse.orderId,
-            paymentIntentId: paymentIntent.id,
-          });
-
-          if (confirmResponse.status === 'succeeded') {
-            toast.success('Paiement réussi !', { id: 'confirm' });
-            
-            // Vider le panier
-            await clearCart();
-            
-            // Rediriger vers la page de la commande
-            setTimeout(() => {
-              router.push(`/orders/${orderResponse.orderId}`);
-            }, 1500);
-          } else {
-            toast.error('Le paiement est en attente', { id: 'confirm' });
-          }
-        } catch (error) {
-          console.error('Erreur confirmation:', error);
-          toast.error('Erreur lors de la confirmation', { id: 'confirm' });
-        }
-      }, 2000);
+      setStep('payment');
+      setProcessing(false);
 
     } catch (error: any) {
-      console.error('❌ Erreur lors de la commande:', error);
-      
-      // Afficher le message d'erreur détaillé
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.errors || 
-                          'Erreur lors de la création de la commande';
-      
-      toast.error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage), { id: 'error' });
+      console.error('❌ Erreur:', error);
+      toast.error(error.response?.data?.message || 'Erreur lors de la création de la commande', { id: 'error' });
       setProcessing(false);
     }
+  };
+
+  const handlePaymentSuccess = async () => {
+    toast.success('Paiement réussi !', { id: 'confirm' });
+    await clearCart();
+    setTimeout(() => {
+      router.push(`/orders/${orderId}`);
+    }, 1500);
+  };
+
+  const handlePaymentError = (error: string) => {
+    toast.error(error, { id: 'payment-error' });
+    setProcessing(false);
   };
 
   if (isLoading || !cart || loadingProducts) {
@@ -232,7 +203,6 @@ export default function CheckoutPage() {
 
         <h1 className="text-3xl font-bold mb-8">Finaliser la commande</h1>
 
-        {/* Barre de progression */}
         <div className="flex mb-8 max-w-3xl mx-auto">
           {['shipping', 'payment', 'confirmation'].map((s, index) => (
             <div key={s} className="flex-1">
@@ -250,7 +220,7 @@ export default function CheckoutPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Colonne de gauche - Formulaire */}
+          {/* Colonne de gauche */}
           <div className="lg:col-span-2">
             {step === 'shipping' && (
               <div className="bg-white rounded-lg shadow-lg p-6">
@@ -424,100 +394,33 @@ export default function CheckoutPage() {
 
                 <button
                   type="button"
-                  onClick={() => setStep('payment')}
-                  className="w-full mt-6 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+                  onClick={handleSubmitOrder}
+                  disabled={processing}
+                  className="w-full mt-6 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
                 >
-                  Continuer vers le paiement
+                  {processing ? 'Traitement...' : 'Continuer vers le paiement'}
                 </button>
               </div>
             )}
 
-            {step === 'payment' && (
+            {/* ✅ Section de paiement avec Stripe */}
+            {step === 'payment' && clientSecret && (
               <div className="bg-white rounded-lg shadow-lg p-6">
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                   <FiCreditCard className="text-primary" />
-                  Mode de paiement
+                  Paiement sécurisé
                 </h2>
 
-                <div className="space-y-4">
-                  <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:border-primary transition-colors">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="Card"
-                      checked={formData.paymentMethod === 'Card'}
-                      onChange={handleInputChange}
-                      className="text-primary focus:ring-primary"
+                {clientSecret && (
+                  <Elements key={clientSecret} stripe={stripePromise} options={{ clientSecret }}>
+                    <StripePaymentForm
+                      clientSecret={clientSecret}
+                      orderId={orderId || 0}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
                     />
-                    <div>
-                      <span className="font-medium">Carte bancaire</span>
-                      <p className="text-sm text-gray-500">Paiement sécurisé par Stripe</p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:border-primary transition-colors">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="PayPal"
-                      checked={formData.paymentMethod === 'PayPal'}
-                      onChange={handleInputChange}
-                      className="text-primary focus:ring-primary"
-                    />
-                    <div>
-                      <span className="font-medium">PayPal</span>
-                      <p className="text-sm text-gray-500">Paiement sécurisé avec PayPal</p>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:border-primary transition-colors">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value="BankTransfer"
-                      checked={formData.paymentMethod === 'BankTransfer'}
-                      onChange={handleInputChange}
-                      className="text-primary focus:ring-primary"
-                    />
-                    <div>
-                      <span className="font-medium">Virement bancaire</span>
-                      <p className="text-sm text-gray-500">Traitement sous 24-48h</p>
-                    </div>
-                  </label>
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setStep('shipping')}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors"
-                  >
-                    Retour
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={processing}
-                    className="flex-1 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {processing ? 'Traitement...' : 'Payer maintenant'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {step === 'confirmation' && (
-              <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold mb-4">Paiement en cours...</h2>
-                <p className="text-gray-600 mb-8">
-                  Votre paiement est en cours de traitement. Vous allez être redirigé.
-                </p>
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  </Elements>
+                )}
               </div>
             )}
           </div>
