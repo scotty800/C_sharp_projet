@@ -1,20 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
-import { FiShoppingCart, FiUser, FiMenu, FiSearch, FiPlusCircle } from 'react-icons/fi';
+import { FiShoppingCart, FiUser, FiMenu, FiSearch, FiPlusCircle, FiLogOut, FiPackage, FiSettings } from 'react-icons/fi';
 import MobileMenu from './MobileMenu';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -26,7 +28,19 @@ const Header = () => {
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    setIsUserMenuOpen(false);
   }, [pathname]);
+
+  // Fermer le menu utilisateur en cliquant en dehors
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,23 +103,6 @@ const Header = () => {
                 Catégories
               </Link>
 
-              {/* Bouton Créer une boutique - visible si connecté */}
-              {user && (
-  <>
-    <Link
-      href="/shop/create"
-      className="block px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
-    >
-      Créer une boutique
-    </Link>
-    <Link
-      href="/shop/my-shops"
-      className="block px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
-    >
-      Mes boutiques
-    </Link>
-  </>
-)}
               {/* Cart */}
               <Link
                 href="/cart"
@@ -121,39 +118,78 @@ const Header = () => {
 
               {/* User Menu */}
               {user ? (
-                <div className="relative group">
-                  <button className="flex items-center space-x-2 text-white hover:text-primary transition-colors">
+                <div className="relative" ref={userMenuRef}>
+                  <button
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className="flex items-center space-x-2 text-white hover:text-primary transition-colors"
+                  >
                     <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
                       <FiUser size={18} />
                     </div>
                     <span className="text-sm">{user.username}</span>
                   </button>
 
-                  <div className="absolute right-0 mt-2 w-48 bg-secondary rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  {/* Dropdown menu */}
+                  <div
+                    className={`absolute right-0 mt-2 w-56 bg-secondary rounded-lg shadow-xl transition-all duration-200 z-50 overflow-hidden ${
+                      isUserMenuOpen
+                        ? 'opacity-100 visible translate-y-0'
+                        : 'opacity-0 invisible -translate-y-2'
+                    }`}
+                  >
                     <div className="py-2">
+                      {/* Profil */}
                       <Link
                         href="/profile"
-                        className="block px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
                       >
+                        <FiUser size={16} />
                         Mon profil
                       </Link>
+
+                      {/* Mes commandes */}
                       <Link
                         href="/orders"
-                        className="block px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
                       >
+                        <FiPackage size={16} />
                         Mes commandes
                       </Link>
+
+                      {/* Mes boutiques */}
                       <Link
                         href="/shop/my-shops"
-                        className="block px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
                       >
+                        <FiSettings size={16} />
                         Mes boutiques
                       </Link>
-                      <hr className="my-2 border-white/10" />
-                      <button
-                        onClick={logout}
-                        className="block w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/10 transition-colors"
+
+                      {/* Créer une boutique */}
+                      <Link
+                        href="/shop/create"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors border-t border-white/10 mt-1"
+                        onClick={() => setIsUserMenuOpen(false)}
                       >
+                        <FiPlusCircle size={16} />
+                        Créer une boutique
+                      </Link>
+
+                      {/* Séparateur */}
+                      <hr className="my-2 border-white/10" />
+
+                      {/* Déconnexion */}
+                      <button
+                        onClick={() => {
+                          logout();
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="flex items-center gap-3 w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/10 transition-colors"
+                      >
+                        <FiLogOut size={16} />
                         Déconnexion
                       </button>
                     </div>

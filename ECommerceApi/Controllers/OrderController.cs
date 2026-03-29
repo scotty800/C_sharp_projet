@@ -11,11 +11,16 @@ public class OrderController : ControllerBase
 {
     private readonly IOrderService _orderService;
     private readonly ICartService _cartService;
+    private readonly ILogger<OrderController> _logger;
 
-    public OrderController(IOrderService orderService, ICartService cartService)
+    public OrderController(
+        IOrderService orderService, 
+        ICartService cartService,
+        ILogger<OrderController> logger)
     {
         _orderService = orderService;
         _cartService = cartService;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -57,27 +62,64 @@ public class OrderController : ControllerBase
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var orders = await _orderService.GetUserOrdersAsync(userId);
 
+        _logger.LogInformation($"📦 Récupération {orders.Count} commandes pour userId: {userId}");
+
         var orderDtos = orders.Select(o => new OrderResponseDto
         {
             Id = o.Id,
             OrderNumber = o.OrderNumber,
             UserId = o.UserId,
             Username = o.User?.Username ?? "",
+            UserEmail = o.User?.Email ?? "",
             Status = o.Status,
             PaymentStatus = o.PaymentStatus,
             PaymentMethod = o.PaymentMethod,
             TotalAmount = o.TotalAmount,
+            TaxAmount = o.TaxAmount,
+            ShippingCost = o.ShippingCost,
+            DiscountAmount = o.DiscountAmount,
             FinalAmount = o.FinalAmount,
+            ShippingAddress = o.ShippingAddress,
+            ShippingCity = o.ShippingCity,
+            ShippingPostalCode = o.ShippingPostalCode,
+            ShippingCountry = o.ShippingCountry,
+            BillingAddress = o.BillingAddress,
+            BillingCity = o.BillingCity,
+            BillingPostalCode = o.BillingPostalCode,
+            BillingCountry = o.BillingCountry,
+            PaymentIntentId = o.PaymentIntentId,
+            TrackingNumber = o.TrackingNumber,
             CreatedAt = o.CreatedAt,
-            Items = o.Items.Select(i => new OrderItemDto
+            PaidAt = o.PaidAt,
+            ShippedAt = o.ShippedAt,
+            DeliveredAt = o.DeliveredAt,
+            Items = o.Items.Select(i => 
             {
-                Id = i.Id,
-                ProductId = i.ProductId,
-                ProductName = i.Product?.Name ?? "",
-                Quantity = i.Quantity,
-                UnitPrice = i.UnitPrice,
-                TotalPrice = i.TotalPrice,
-                IsReviewed = i.IsReviewed
+                var imageUrl = i.Product?.ImageUrl;
+                
+                // 🔍 LOG SI IMAGE MANQUANTE
+                if (string.IsNullOrEmpty(imageUrl))
+                {
+                    _logger.LogWarning($"⚠️ IMAGE MANQUANTE - ProductId: {i.ProductId}, ProductName: {i.Product?.Name ?? "UNKNOWN"}");
+                }
+                else
+                {
+                    _logger.LogInformation($"✅ Image trouvée - ProductId: {i.ProductId}, Image: {imageUrl}");
+                }
+                
+                return new OrderItemDto
+                {
+                    Id = i.Id,
+                    ProductId = i.ProductId,
+                    ProductName = i.Product?.Name ?? "",
+                    ProductImage = imageUrl,  // ✅ Retourner l'image du produit
+                    Quantity = i.Quantity,
+                    UnitPrice = i.UnitPrice,
+                    TotalPrice = i.TotalPrice,
+                    ShopId = i.Product?.ShopId,
+                    ShopName = i.Product?.Shop?.Name,
+                    IsReviewed = i.IsReviewed
+                };
             }).ToList()
         }).ToList();
 
@@ -86,11 +128,9 @@ public class OrderController : ControllerBase
 
     [HttpGet("{id}")]
     [Authorize]
-    public async Task<IActionResult> GetOrderById(int id)  // ← paramètre "id"
+    public async Task<IActionResult> GetOrderById(int id)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-        // ✅ CORRIGÉ : utilise "id" au lieu de "orderId"
         var order = await _orderService.GetOrderByIdAsync(id);
 
         if (order == null)
@@ -122,10 +162,7 @@ public class OrderController : ControllerBase
             BillingCity = order.BillingCity,
             BillingPostalCode = order.BillingPostalCode,
             BillingCountry = order.BillingCountry,
-
-            // ✅ CORRIGÉ : majuscule P (comme dans le DTO)
             PaymentIntentId = order.PaymentIntentId,
-
             TrackingNumber = order.TrackingNumber,
             CreatedAt = order.CreatedAt,
             PaidAt = order.PaidAt,
@@ -183,7 +220,6 @@ public class OrderController : ControllerBase
     public async Task<IActionResult> GetShopOrders(int shopId)
     {
         var orders = await _orderService.GetShopOrdersAsync(shopId);
-
         return Ok(orders);
     }
 
@@ -206,7 +242,7 @@ public class OrderController : ControllerBase
 
         return Ok(new
         {
-            message = $"Statut mis à jour: {statusDto.Status}"  // ✅ CORRIGÉ : "Statut" au lieu de "Staut"
+            message = $"Statut mis à jour: {statusDto.Status}"
         });
     }
 

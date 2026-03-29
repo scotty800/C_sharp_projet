@@ -2,7 +2,7 @@
 
 import { Fragment } from 'react';
 import Link from 'next/link';
-import { FiX, FiShoppingCart, FiUser, FiHome, FiGrid, FiShoppingBag, FiLogOut } from 'react-icons/fi';
+import { FiX, FiShoppingCart, FiUser, FiHome, FiGrid, FiShoppingBag, FiLogOut, FiPackage, FiSettings, FiPlusCircle } from 'react-icons/fi';
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -114,7 +114,7 @@ const MobileMenu = ({ isOpen, onClose, user, onLogout, itemCount }: MobileMenuPr
                     className="flex items-center space-x-3 p-3 text-white hover:bg-white/10 rounded-lg transition-colors"
                     onClick={onClose}
                   >
-                    <FiShoppingBag size={20} />
+                    <FiPackage size={20} />
                     <span>Mes commandes</span>
                   </Link>
                 </li>
@@ -125,12 +125,23 @@ const MobileMenu = ({ isOpen, onClose, user, onLogout, itemCount }: MobileMenuPr
                     className="flex items-center space-x-3 p-3 text-white hover:bg-white/10 rounded-lg transition-colors"
                     onClick={onClose}
                   >
-                    <FiGrid size={20} />
+                    <FiSettings size={20} />
                     <span>Mes boutiques</span>
                   </Link>
                 </li>
 
                 <li>
+                  <Link
+                    href="/shop/create"
+                    className="flex items-center space-x-3 p-3 text-white hover:bg-white/10 rounded-lg transition-colors"
+                    onClick={onClose}
+                  >
+                    <FiPlusCircle size={20} />
+                    <span>Créer une boutique</span>
+                  </Link>
+                </li>
+
+                <li className="pt-4">
                   <button
                     onClick={() => {
                       onLogout();
