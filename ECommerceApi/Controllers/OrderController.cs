@@ -203,17 +203,26 @@ public class OrderController : ControllerBase
     }
 
     [HttpPut("{id}/cancel")]
-    [Authorize]
-    public async Task<IActionResult> CancelOrder(int id)
+[Authorize]
+public async Task<IActionResult> CancelOrder(int id)
+{
+    var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    
+    try
     {
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var cancelled = await _orderService.CancelOrderAsync(id, userId);
 
         if (!cancelled)
-            return BadRequest(new { message = "Impossible d'annuler cette commande" });
+            return BadRequest(new { message = "Impossible d'annuler cette commande. Vérifiez que vous êtes dans le délai de rétractation de 14 jours." });
 
-        return Ok(new { message = "Commande annulée avec succès" });
+        return Ok(new { message = "Commande annulée avec succès. Le remboursement sera effectué sous 3-5 jours ouvrés." });
     }
+    catch (Exception ex)
+    {
+        _logger.LogError($"❌ Erreur annulation commande {id}: {ex.Message}");
+        return BadRequest(new { message = ex.Message });
+    }
+}
 
     [HttpGet("shop/{shopId}")]
     [Authorize]
@@ -279,4 +288,61 @@ public class OrderController : ControllerBase
         var stats = await _orderService.GetOrderStatsAsync(shopId);
         return Ok(stats);
     }
+
+    // ==================== GESTION DES RETOURS ====================
+
+[HttpPost("{id}/return-request")]
+[Authorize]
+public async Task<IActionResult> RequestReturn(int id)
+{
+    var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    var result = await _orderService.RequestReturnAsync(id, userId);
+
+    if (!result)
+        return BadRequest(new { message = "Impossible de demander un retour. Vérifiez que la commande est livrée et dans les 14 jours." });
+
+    return Ok(new { message = "Demande de retour envoyée avec succès. Le vendeur va examiner votre demande." });
+}
+
+[HttpPost("{id}/return-approve")]
+[Authorize]
+public async Task<IActionResult> ApproveReturn(int id)
+{
+    var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    
+    // Vérifier que l'utilisateur est admin ou propriétaire du shop
+    var isAdmin = User.IsInRole("Admin");
+    var isShopOwner = await _orderService.IsUserShopOwnerAsync(userId, id);
+
+    if (!isAdmin && !isShopOwner)
+        return Unauthorized(new { message = "Vous n'êtes pas autorisé à approuver ce retour" });
+
+    var result = await _orderService.ApproveReturnAsync(id);
+
+    if (!result)
+        return BadRequest(new { message = "Erreur lors du remboursement. Vérifiez les logs." });
+
+    return Ok(new { message = "Remboursement effectué avec succès. Le client sera notifié." });
+}
+
+[HttpPost("{id}/return-reject")]
+[Authorize]
+public async Task<IActionResult> RejectReturn(int id)
+{
+    var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+    
+    // Vérifier que l'utilisateur est admin ou propriétaire du shop
+    var isAdmin = User.IsInRole("Admin");
+    var isShopOwner = await _orderService.IsUserShopOwnerAsync(userId, id);
+
+    if (!isAdmin && !isShopOwner)
+        return Unauthorized(new { message = "Vous n'êtes pas autorisé à refuser ce retour" });
+
+    var result = await _orderService.RejectReturnAsync(id);
+
+    if (!result)
+        return BadRequest(new { message = "Erreur lors du refus de retour" });
+
+    return Ok(new { message = "Demande de retour refusée. Le client sera notifié." });
+}
 }

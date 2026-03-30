@@ -78,4 +78,25 @@ export const orderService = {
     const response = await api.get(`/orders/shop/${shopId}/stats`);
     return response.data;
   },
+
+  // ==================== GESTION DES RETOURS ====================
+
+// Demander un retour
+async requestReturn(orderId: number): Promise<{ message: string }> {
+  const response = await api.post(`/orders/${orderId}/return-request`, {});
+  return response.data;
+},
+
+// Approuver un retour (vendeur)
+async approveReturn(orderId: number): Promise<{ message: string }> {
+  const response = await api.post(`/orders/${orderId}/return-approve`, {});
+  return response.data;
+},
+
+// Refuser un retour (vendeur)
+async rejectReturn(orderId: number): Promise<{ message: string }> {
+  const response = await api.post(`/orders/${orderId}/return-reject`, {});
+  return response.data;
+},
+
 };

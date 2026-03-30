@@ -7,7 +7,10 @@ export enum OrderStatus {
   Shipped = 'Shipped',
   Delivered = 'Delivered',
   Cancelled = 'Cancelled',
-  Refunded = 'Refunded'
+  Refunded = 'Refunded',
+  ReturnRequested = 'ReturnRequested',
+  ReturnApproved = 'ReturnApproved',
+  ReturnRejected = 'ReturnRejected'
 }
 
 export enum PaymentStatus {

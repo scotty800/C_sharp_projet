@@ -9,7 +9,10 @@ namespace ECommerceApi.Models
         Shipped,
         Delivered,
         Cancelled,
-        Refunded
+        Refunded,
+        ReturnRequested,
+        ReturnApproved,
+        ReturnRejected
     }
 
     public enum PaymentStatus

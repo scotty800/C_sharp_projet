@@ -392,7 +392,118 @@ namespace ECommerceApi.Services
                 .Include(o => o.Items)
                 .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
 
-            if (order == null || order.Status != OrderStatus.Pending)
+            if (order == null)
+                return false;
+
+            // Vérifier si la commande peut être annulée
+            var statusNum = (int)order.Status;
+            
+            // Cas 1: Commande en attente ou en traitement - Annulation simple
+            if (statusNum == 0 || statusNum == 1) // Pending (0) ou Processing (1)
+            {
+                // Restaurer le stock
+                foreach (var item in order.Items)
+                {
+                    var product = await _context.Products.FindAsync(item.ProductId);
+                    if (product != null)
+                    {
+                        product.Stock += item.Quantity;
+                    }
+                }
+
+                order.Status = OrderStatus.Cancelled;
+                order.UpdatedAt = DateTime.UtcNow;
+                
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            
+            // Cas 2: Commande livrée - Vérifier délai de 14 jours
+            if (statusNum == 3) // Delivered
+            {
+                var daysSinceOrder = (DateTime.UtcNow - order.CreatedAt).TotalDays;
+                
+                if (daysSinceOrder <= 14)
+                {
+                    // Demander le remboursement via Stripe
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(order.PaymentIntentId))
+                        {
+                            var refunded = await _paymentService.RefundPaymentAsync(order.PaymentIntentId);
+                            if (refunded)
+                            {
+                                order.Status = OrderStatus.Refunded;
+                                order.PaymentStatus = PaymentStatus.Refunded;
+                                order.UpdatedAt = DateTime.UtcNow;
+                                await _context.SaveChangesAsync();
+                                return true;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"❌ Erreur remboursement Stripe: {ex.Message}");
+                        throw new Exception("Erreur lors du remboursement");
+                    }
+                }
+            }
+            
+            // Cas 3: Commande expédiée mais pas livrée
+            if (statusNum == 2) // Shipped
+            {
+                order.Status = OrderStatus.Cancelled;
+                order.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            
+            return false;
+        }
+
+        // ==================== GESTION DES RETOURS ====================
+
+        public async Task<bool> RequestReturnAsync(int orderId, int userId)
+        {
+            var order = await _context.Orders
+                .FirstOrDefaultAsync(o => o.Id == orderId && o.UserId == userId);
+
+            if (order == null)
+                return false;
+
+            // Vérifier que la commande est livrée et dans les 14 jours
+            if (order.Status != OrderStatus.Delivered)
+                return false;
+
+            var daysSinceOrder = (DateTime.UtcNow - order.CreatedAt).TotalDays;
+            if (daysSinceOrder > 14)
+                return false;
+
+            // Vérifier qu'une demande n'existe pas déjà
+            if (order.Status == OrderStatus.ReturnRequested)
+                return false;
+
+            order.Status = OrderStatus.ReturnRequested;
+            order.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            // TODO: Envoyer un email au vendeur et au client
+            _logger.LogInformation($"📧 Demande de retour pour commande {order.OrderNumber} par utilisateur {userId}");
+
+            return true;
+        }
+
+        public async Task<bool> ApproveReturnAsync(int orderId)
+        {
+            var order = await _context.Orders
+                .Include(o => o.Items)
+                .FirstOrDefaultAsync(o => o.Id == orderId);
+
+            if (order == null)
+                return false;
+
+            if (order.Status != OrderStatus.ReturnRequested)
                 return false;
 
             // Restaurer le stock
@@ -405,10 +516,58 @@ namespace ECommerceApi.Services
                 }
             }
 
-            order.Status = OrderStatus.Cancelled;
+            // Effectuer le remboursement Stripe
+            try
+            {
+                if (!string.IsNullOrEmpty(order.PaymentIntentId))
+                {
+                    var refunded = await _paymentService.RefundPaymentAsync(order.PaymentIntentId);
+                    if (!refunded)
+                    {
+                        _logger.LogError($"❌ Échec remboursement Stripe pour commande {order.OrderNumber}");
+                        return false;
+                    }
+                }
+
+                order.Status = OrderStatus.Refunded;
+                order.PaymentStatus = PaymentStatus.Refunded;
+                order.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation($"💰 Remboursement effectué pour commande {order.OrderNumber}");
+                
+                // TODO: Envoyer un email au client confirmant le remboursement
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"❌ Erreur lors du remboursement: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> RejectReturnAsync(int orderId)
+        {
+            var order = await _context.Orders
+                .FirstOrDefaultAsync(o => o.Id == orderId);
+
+            if (order == null)
+                return false;
+
+            if (order.Status != OrderStatus.ReturnRequested)
+                return false;
+
+            order.Status = OrderStatus.Delivered; // Remettre en livré
             order.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"❌ Demande de retour refusée pour commande {order.OrderNumber}");
+            
+            // TODO: Envoyer un email au client expliquant le refus
+
             return true;
         }
 
