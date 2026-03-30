@@ -30,6 +30,16 @@ interface CartItemWithProduct {
   product?: Product | null;
 }
 
+// ✅ Conversion du PaymentMethod en numérique
+const convertPaymentMethodToNumber = (method: PaymentMethod): number => {
+  const map: Record<PaymentMethod, number> = {
+    'Card': 0,
+    'PayPal': 1,
+    'BankTransfer': 2,
+  };
+  return map[method] || 0;
+};
+
 export default function CheckoutPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -129,8 +139,17 @@ export default function CheckoutPage() {
       // Créer la commande
       toast.loading('Création de votre commande...', { id: 'order' });
       
-      const orderResponse = await orderService.createOrder({
+      console.log('📤 Envoi de la commande avec:', {
         paymentMethod: formData.paymentMethod,
+        paymentMethodConverted: convertPaymentMethodToNumber(formData.paymentMethod),
+        shippingAddress: formData.shippingAddress,
+        shippingCity: formData.shippingCity,
+        shippingPostalCode: formData.shippingPostalCode,
+        shippingCountry: formData.shippingCountry,
+      });
+
+      const orderResponse = await orderService.createOrder({
+        paymentMethod: convertPaymentMethodToNumber(formData.paymentMethod),
         shippingAddress: formData.shippingAddress,
         shippingCity: formData.shippingCity,
         shippingPostalCode: formData.shippingPostalCode,
@@ -145,6 +164,7 @@ export default function CheckoutPage() {
         notes: formData.notes || undefined,
       });
 
+      console.log('✅ Commande créée:', orderResponse);
       toast.success('Commande créée !', { id: 'order' });
       setOrderId(orderResponse.orderId);
 
@@ -155,6 +175,7 @@ export default function CheckoutPage() {
         orderId: orderResponse.orderId,
       });
 
+      console.log('✅ Intention de paiement créée:', paymentIntent);
       setClientSecret(paymentIntent.clientSecret);
       toast.success('Paiement prêt !', { id: 'payment' });
       setStep('payment');
@@ -162,6 +183,8 @@ export default function CheckoutPage() {
 
     } catch (error: any) {
       console.error('❌ Erreur:', error);
+      console.error('📤 Config:', error.config?.data);
+      console.error('📥 Réponse:', error.response?.data);
       toast.error(error.response?.data?.message || 'Erreur lors de la création de la commande', { id: 'error' });
       setProcessing(false);
     }

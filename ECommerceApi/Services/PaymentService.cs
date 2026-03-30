@@ -13,7 +13,7 @@ namespace ECommerceApi.Services
         {
             _stripeSettings = stripeSettings.Value;
             _logger = logger;
-            
+
             // Initialiser Stripe avec la clé secrète
             StripeConfiguration.ApiKey = _stripeSettings.SecretKey;
         }
@@ -33,8 +33,8 @@ namespace ECommerceApi.Services
                         { "order_number", orderNumber }
                     },
                     // Méthodes de paiement acceptées
-                    PaymentMethodTypes = new List<string> 
-                    { 
+                    PaymentMethodTypes = new List<string>
+                    {
                         "card",      // Cartes bancaires
                         "paypal",    // PayPal (si activé dans ton dashboard)
                         "bancontact", // Bancontact (Belgique)
@@ -54,7 +54,7 @@ namespace ECommerceApi.Services
                 var paymentIntent = await service.CreateAsync(options);
 
                 _logger.LogInformation($"✅ PaymentIntent créé: {paymentIntent.Id}");
-                
+
                 return paymentIntent;
             }
             catch (StripeException ex)
@@ -70,9 +70,9 @@ namespace ECommerceApi.Services
             {
                 var service = new PaymentIntentService();
                 var paymentIntent = await service.ConfirmAsync(paymentIntentId);
-                
+
                 _logger.LogInformation($"✅ Paiement confirmé: {paymentIntentId} - Statut: {paymentIntent.Status}");
-                
+
                 return paymentIntent;
             }
             catch (StripeException ex)

@@ -120,7 +120,7 @@ export default function SellerOrdersPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <Link
-                        href={`/dashboard/seller/orders/${order.id}`}
+                        href={`/dashboard/seller/orders/${order.id}?shopId=${shopId}`}
                         className="text-primary hover:text-primary-dark inline-flex items-center gap-1"
                       >
                         <FiEye size={18} />

@@ -77,7 +77,7 @@ export interface Order {
 }
 
 export interface CreateOrderDto {
-  paymentMethod: PaymentMethod;
+  paymentMethod: number;
   shippingAddress: string;
   shippingCity: string;
   shippingPostalCode: string;

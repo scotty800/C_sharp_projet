@@ -21,5 +21,6 @@ namespace ECommerceApi.Services
         Task<bool> UpdatePaymentStatusAsync(string orderNumber, PaymentStatus status);
         Task<bool> UpdateOrderStatusAsync(string orderNumber, OrderStatus status);
         Task<OrderResponseDto?> GetOrderByPaymentIntentId(string paymentIntentId);
+        Task<bool> IsUserShopOwnerAsync(int userId, int orderId);
     }
 }

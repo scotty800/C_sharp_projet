@@ -15,7 +15,7 @@ public class PaymentController : ControllerBase
     private readonly ILogger<PaymentController> _logger;
 
     public PaymentController(
-        IPaymentService paymentService, 
+        IPaymentService paymentService,
         IOrderService orderService,
         ILogger<PaymentController> logger)
     {
@@ -31,7 +31,7 @@ public class PaymentController : ControllerBase
         try
         {
             _logger.LogInformation("📤 Création PaymentIntent pour order: {OrderId}", intentDto.OrderId);
-            
+
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var order = await _orderService.GetOrderByIdAsync(intentDto.OrderId);
 
@@ -81,7 +81,7 @@ public class PaymentController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("📤 Confirmation paiement: orderId={OrderId}, paymentIntentId={PaymentIntentId}", 
+            _logger.LogInformation("📤 Confirmation paiement: orderId={OrderId}, paymentIntentId={PaymentIntentId}",
                 confirmDto.OrderId, confirmDto.PaymentIntentId);
 
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

@@ -14,7 +14,7 @@ public class OrderController : ControllerBase
     private readonly ILogger<OrderController> _logger;
 
     public OrderController(
-        IOrderService orderService, 
+        IOrderService orderService,
         ICartService cartService,
         ILogger<OrderController> logger)
     {
@@ -93,10 +93,10 @@ public class OrderController : ControllerBase
             PaidAt = o.PaidAt,
             ShippedAt = o.ShippedAt,
             DeliveredAt = o.DeliveredAt,
-            Items = o.Items.Select(i => 
+            Items = o.Items.Select(i =>
             {
                 var imageUrl = i.Product?.ImageUrl;
-                
+
                 // 🔍 LOG SI IMAGE MANQUANTE
                 if (string.IsNullOrEmpty(imageUrl))
                 {
@@ -106,7 +106,7 @@ public class OrderController : ControllerBase
                 {
                     _logger.LogInformation($"✅ Image trouvée - ProductId: {i.ProductId}, Image: {imageUrl}");
                 }
-                
+
                 return new OrderItemDto
                 {
                     Id = i.Id,
@@ -232,17 +232,35 @@ public class OrderController : ControllerBase
     }
 
     [HttpPut("{id}/status")]
-    [Authorize(Roles = "Admin")]
+    [Authorize]
     public async Task<IActionResult> UpdateOrderStatus(int id, [FromBody] UpdateOrderStatusDto statusDto)
     {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var order = await _orderService.GetOrderByIdAsync(id);
+
+        if (order == null)
+            return NotFound(new { message = "Commande non trouvée" });
+
+        var isAdmin = User.IsInRole("Admin");
+        var isShopOwner = await _orderService.IsUserShopOwnerAsync(userId, id);
+
+        if (!isAdmin && !isShopOwner)
+        {
+            _logger.LogWarning($"⚠️ Utilisateur {userId} non autorisé pour commande {id}");
+            return Unauthorized(new { message = "Vous n'êtes pas autorisé à modifier cette commande" });
+        }
+
         var updated = await _orderService.UpdateOrderStatusAsync(id, statusDto.Status);
 
         if (!updated)
-            return NotFound("Commande non trouvée");
+            return NotFound(new { message = "Erreur lors de la mise à jour" });
+
+        _logger.LogInformation($"✅ Commande {id} mise à jour vers {statusDto.Status} par user {userId}");
 
         return Ok(new
         {
-            message = $"Statut mis à jour: {statusDto.Status}"
+            message = $"Statut mis à jour: {statusDto.Status}",
+            status = statusDto.Status
         });
     }
 

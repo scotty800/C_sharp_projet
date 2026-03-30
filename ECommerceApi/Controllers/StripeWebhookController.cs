@@ -16,7 +16,7 @@ namespace ECommerceApi.Controllers
         private readonly ILogger<StripeWebhookController> _logger;
 
         public StripeWebhookController(
-            IOrderService orderService, 
+            IOrderService orderService,
             IOptions<StripeSettings> stripeSettings,
             ILogger<StripeWebhookController> logger)
         {
@@ -29,7 +29,7 @@ namespace ECommerceApi.Controllers
         public async Task<IActionResult> HandleWebhook()
         {
             var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
-            
+
             try
             {
                 var stripeEvent = EventUtility.ConstructEvent(
@@ -80,7 +80,7 @@ namespace ECommerceApi.Controllers
 
             var orderNumber = paymentIntent.Metadata["order_number"];
             _logger.LogInformation($"✅ Paiement réussi pour commande {orderNumber}");
-            
+
             await _orderService.UpdatePaymentStatusAsync(orderNumber, PaymentStatus.Paid);
             await _orderService.UpdateOrderStatusAsync(orderNumber, OrderStatus.Processing);
         }
@@ -95,7 +95,7 @@ namespace ECommerceApi.Controllers
 
             var orderNumber = paymentIntent.Metadata["order_number"];
             _logger.LogWarning($"❌ Paiement échoué pour commande {orderNumber}");
-            
+
             await _orderService.UpdatePaymentStatusAsync(orderNumber, PaymentStatus.Failed);
         }
 
@@ -109,7 +109,7 @@ namespace ECommerceApi.Controllers
             }
 
             _logger.LogInformation($"💰 Remboursement pour {paymentIntentId}");
-            
+
             // Récupérer la commande via paymentIntentId
             var order = await _orderService.GetOrderByPaymentIntentId(paymentIntentId);
             if (order != null)

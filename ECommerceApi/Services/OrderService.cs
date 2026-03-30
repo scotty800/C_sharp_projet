@@ -110,11 +110,11 @@ namespace ECommerceApi.Services
                     try
                     {
                         _logger.LogInformation($"💰 Création du paiement Stripe pour la commande {order.OrderNumber}");
-                        
+
                         var paymentIntent = await _paymentService.CreatePaymentIntentAsync(order.FinalAmount, order.OrderNumber);
                         order.PaymentIntentId = paymentIntent.Id;
                         await _context.SaveChangesAsync();
-                        
+
                         _logger.LogInformation($"✅ PaymentIntent créé: {paymentIntent.Id} pour commande {order.OrderNumber}");
                     }
                     catch (Exception ex)
@@ -303,11 +303,31 @@ namespace ECommerceApi.Services
             return true;
         }
 
+        public async Task<bool> IsUserShopOwnerAsync(int userId, int orderId)
+        {
+            // Récupérer les IDs des boutiques du vendeur
+            var shopIds = await _context.Shops
+                .Where(s => s.OwnerId == userId && s.IsActive)
+                .Select(s => s.Id)
+                .ToListAsync();
+
+            if (!shopIds.Any())
+                return false;
+
+            // Vérifier si la commande contient des produits de ces boutiques
+            return await _context.OrderItems
+                .Include(oi => oi.Product)
+                .AnyAsync(oi => oi.OrderId == orderId &&
+                                oi.Product != null &&
+                                oi.Product.ShopId.HasValue &&
+                                shopIds.Contains(oi.Product.ShopId.Value));
+        }
+
         public async Task<bool> UpdateOrderStatusAsync(string orderNumber, OrderStatus status)
         {
             var order = await _context.Orders
                 .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
-            
+
             if (order == null)
                 return false;
 
@@ -349,7 +369,7 @@ namespace ECommerceApi.Services
         {
             var order = await _context.Orders
                 .FirstOrDefaultAsync(o => o.OrderNumber == orderNumber);
-            
+
             if (order == null)
                 return false;
 
@@ -521,14 +541,14 @@ namespace ECommerceApi.Services
             var cart = await _context.Carts
                 .Include(c => c.Items)
                 .FirstOrDefaultAsync(c => c.UserId == userId);
-            
+
             if (cart == null)
                 return false;
-            
+
             _context.CartItems.RemoveRange(cart.Items);
             cart.Items.Clear();
             cart.UpdatedAt = DateTime.UtcNow;
-            
+
             await _context.SaveChangesAsync();
             return true;
         }

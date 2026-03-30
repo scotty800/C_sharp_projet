@@ -88,6 +88,30 @@ export default function OrdersPage() {
     }
   };
 
+  // ✅ Nouveau: Affichage du statut de paiement
+  const getPaymentStatusText = (status: any): string => {
+    const statusStr = String(status);
+    const map: Record<string, string> = {
+      'Pending': 'En attente',
+      'Paid': 'Payé',
+      'Failed': 'Échec',
+      '0': 'En attente',
+      '1': 'Payé',
+      '2': 'Échec',
+    };
+    return map[statusStr] || statusStr;
+  };
+
+  const getPaymentStatusColor = (status: any): string => {
+    const statusStr = String(status);
+    if (statusStr === 'Paid' || statusStr === '1') {
+      return 'text-green-600';
+    } else if (statusStr === 'Failed' || statusStr === '2') {
+      return 'text-red-600';
+    }
+    return 'text-yellow-600';
+  };
+
   const getItemImage = (item: any, orderId: number, itemIndex: number) => {
     const imageKey = `${orderId}-${itemIndex}`;
     
@@ -215,8 +239,9 @@ export default function OrdersPage() {
                     <div>
                       <span className="text-gray-500">Paiement :</span>
                       <p className="font-medium">{order.paymentMethod}</p>
-                      <p className={`text-xs ${order.paymentStatus === 'Paid' ? 'text-green-600' : 'text-yellow-600'}`}>
-                        {order.paymentStatus === 'Paid' ? 'Payé' : 'En attente'}
+                      {/* ✅ Affichage correctdu statut de paiement */}
+                      <p className={`text-xs ${getPaymentStatusColor(order.paymentStatus)}`}>
+                        {getPaymentStatusText(order.paymentStatus)}
                       </p>
                     </div>
                   </div>

@@ -18,14 +18,14 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperatio
 var stripeSettings = new StripeSettings
 {
     // D'abord vérifier les variables d'environnement, sinon utiliser appsettings.json
-    SecretKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY") 
+    SecretKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")
         ?? builder.Configuration["Stripe:SecretKey"]
         ?? throw new InvalidOperationException("STRIPE_SECRET_KEY not set in env or appsettings"),
-    
+
     PublishableKey = Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY")
         ?? builder.Configuration["Stripe:PublishableKey"]
         ?? throw new InvalidOperationException("STRIPE_PUBLISHABLE_KEY not set in env or appsettings"),
-    
+
     WebhookSecret = Environment.GetEnvironmentVariable("STRIPE_WEBHOOK_SECRET")
         ?? builder.Configuration["Stripe:WebhookSecret"]
         ?? throw new InvalidOperationException("STRIPE_WEBHOOK_SECRET not set in env or appsettings"),
