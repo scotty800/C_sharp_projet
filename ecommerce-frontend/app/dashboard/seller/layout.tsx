@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { shopService } from '@/services/api/shops';
 import { orderService } from '@/services/api/orders';
 import { Shop, ShopResponse } from '@/types/shop';
-import { FiRefreshCw } from 'react-icons/fi';
+import { FiRefreshCw, FiTruck, FiAlertCircle } from 'react-icons/fi';
 
 // Fonction pour transformer ShopResponse en Shop
 const transformShopResponse = (response: ShopResponse): Shop => ({
@@ -43,22 +43,46 @@ export default function SellerDashboardLayout({
   const [selectedShop, setSelectedShop] = useState<number | null>(null);
   const [loadingShops, setLoadingShops] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // ✅ États pour les notifications
   const [pendingReturnsCount, setPendingReturnsCount] = useState(0);
-  const [checkingReturns, setCheckingReturns] = useState(false);
+  const [pendingShipmentsCount, setPendingShipmentsCount] = useState(0);
+  const [checkingNotifications, setCheckingNotifications] = useState(false);
 
-  // Fonction pour vérifier les demandes de retour en attente
-  const checkPendingReturns = useCallback(async (shopId: number) => {
+  // ✅ Fonction pour vérifier les demandes de retour ET les livraisons en attente
+  const checkNotifications = useCallback(async (shopId: number) => {
     if (!shopId) return;
     
     try {
-      setCheckingReturns(true);
+      setCheckingNotifications(true);
+      console.log('🔔 Vérification des notifications pour shop:', shopId);
+      
       const orders = await orderService.getShopOrders(shopId);
-      const pendingCount = orders.filter(order => order.status === 'ReturnRequested').length;
-      setPendingReturnsCount(pendingCount);
+      console.log('📦 Commandes du shop:', orders);
+      
+      // Compter les retours demandés (statut 6 ou 'ReturnRequested')
+      const pendingReturnCount = orders.filter(order => {
+        const statusStr = String(order.status);
+        const statusNum = typeof order.status === 'number' ? order.status : parseInt(order.status as any);
+        return statusStr === 'ReturnRequested' || statusNum === 6;
+      }).length;
+      
+      // Compter les commandes en attente de confirmation (Pending = 0)
+      const pendingShipmentCount = orders.filter(order => {
+        const statusStr = String(order.status);
+        const statusNum = typeof order.status === 'number' ? order.status : parseInt(order.status as any);
+        return statusStr === 'Pending' || statusNum === 0;
+      }).length;
+      
+      console.log('🔔 Retours en attente:', pendingReturnCount);
+      console.log('🔔 Livraisons en attente:', pendingShipmentCount);
+      
+      setPendingReturnsCount(pendingReturnCount);
+      setPendingShipmentsCount(pendingShipmentCount);
     } catch (error) {
-      console.error('Erreur vérification retours:', error);
+      console.error('❌ Erreur vérification notifications:', error);
     } finally {
-      setCheckingReturns(false);
+      setCheckingNotifications(false);
     }
   }, []);
 
@@ -93,16 +117,16 @@ export default function SellerDashboardLayout({
           const shopExists = transformedShops.some(s => s.id === Number(shopIdFromUrl));
           if (shopExists) {
             setSelectedShop(Number(shopIdFromUrl));
-            // Vérifier les retours pour cette boutique
-            checkPendingReturns(Number(shopIdFromUrl));
+            // Vérifier les notifications pour cette boutique
+            checkNotifications(Number(shopIdFromUrl));
           } else if (transformedShops.length > 0) {
             setSelectedShop(transformedShops[0].id);
             router.replace(`/dashboard/seller?shopId=${transformedShops[0].id}`);
-            checkPendingReturns(transformedShops[0].id);
+            checkNotifications(transformedShops[0].id);
           }
         } else if (transformedShops.length > 0) {
           setSelectedShop(transformedShops[0].id);
-          checkPendingReturns(transformedShops[0].id);
+          checkNotifications(transformedShops[0].id);
         }
         
       } catch (error) {
@@ -114,20 +138,25 @@ export default function SellerDashboardLayout({
     };
 
     fetchShops();
-  }, [user, searchParams, router, checkPendingReturns]);
+  }, [user, searchParams, router, checkNotifications]);
 
-  // Re-vérifier les retours quand la boutique change
+  // ✅ POLLING : Vérifier les notifications toutes les 5 secondes
   useEffect(() => {
-    if (selectedShop) {
-      checkPendingReturns(selectedShop);
-    }
-  }, [selectedShop, checkPendingReturns]);
+    if (!selectedShop) return;
+
+    const pollInterval = setInterval(() => {
+      console.log('🔄 Vérification auto des notifications...');
+      checkNotifications(selectedShop);
+    }, 5000); // Toutes les 5 secondes
+
+    return () => clearInterval(pollInterval);
+  }, [selectedShop, checkNotifications]);
 
   const handleShopChange = useCallback((newShopId: number) => {
     setSelectedShop(newShopId);
     router.push(`/dashboard/seller?shopId=${newShopId}`);
-    checkPendingReturns(newShopId);
-  }, [router, checkPendingReturns]);
+    checkNotifications(newShopId);
+  }, [router, checkNotifications]);
 
   if (authLoading || loadingShops) {
     return (
@@ -185,64 +214,80 @@ export default function SellerDashboardLayout({
       <Sidebar shopId={selectedShop || undefined} />
       
       <div className="flex-1">
-        {/* Barre de sélection de boutique avec lien vers les retours */}
-        {shops.length > 1 && (
-          <div className="bg-white border-b p-4 sticky top-0 z-10">
-            <div className="container mx-auto flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-gray-700">
-                  Boutique active :
-                </span>
-                <select
-                  value={selectedShop || ''}
-                  onChange={(e) => handleShopChange(Number(e.target.value))}
-                  className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-w-[200px]"
-                  aria-label="Sélectionner une boutique"
-                >
-                  {shops.map((shop) => (
-                    <option key={shop.id} value={shop.id}>
-                      {shop.name}
-                    </option>
-                  ))}
-                </select>
+        {/* Barre de sélection de boutique avec badges de notification */}
+        <div className="bg-white border-b p-4 sticky top-0 z-10">
+          <div className="container mx-auto">
+            {shops.length > 1 && (
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium text-gray-700">
+                    Boutique active :
+                  </span>
+                  <select
+                    value={selectedShop || ''}
+                    onChange={(e) => handleShopChange(Number(e.target.value))}
+                    className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-w-[200px]"
+                    aria-label="Sélectionner une boutique"
+                  >
+                    {shops.map((shop) => (
+                      <option key={shop.id} value={shop.id}>
+                        {shop.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+            )}
 
-              {/* ✅ Bouton Demandes de retour - Affiche seulement s'il y a des demandes */}
+            {/* ✅ Badges de notification */}
+            <div className="flex flex-wrap gap-3 items-center">
+              {/* Badge Demandes de retour */}
               {pendingReturnsCount > 0 && (
                 <Link
                   href={`/dashboard/seller/returns?shopId=${selectedShop}`}
-                  className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors relative"
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors relative animate-pulse"
                 >
-                  <FiRefreshCw size={16} />
+                  <FiRefreshCw size={18} />
                   Demandes de retour
-                  {pendingReturnsCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {pendingReturnsCount}
-                    </span>
-                  )}
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-bounce">
+                    {pendingReturnsCount}
+                  </span>
                 </Link>
+              )}
+
+              {/* Badge Commandes en attente de confirmation */}
+              {pendingShipmentsCount > 0 && (
+                <Link
+                  href={`/dashboard/seller/orders?shopId=${selectedShop}`}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors relative animate-pulse"
+                >
+                  <FiTruck size={18} />
+                  Commandes à traiter
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-bounce">
+                    {pendingShipmentsCount}
+                  </span>
+                </Link>
+              )}
+
+              {/* Message si aucune notification */}
+              {pendingReturnsCount === 0 && pendingShipmentsCount === 0 && (
+                <p className="text-sm text-gray-500 flex items-center gap-2">
+                  ✅ Aucune action en attente
+                </p>
+              )}
+
+              {/* Indicateur de rafraîchissement */}
+              {checkingNotifications && (
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="animate-spin">
+                    <FiRefreshCw size={14} />
+                  </div>
+                  Vérification...
+                </div>
               )}
             </div>
           </div>
-        )}
-
-        {/* Si une seule boutique, afficher le lien seulement s'il y a des demandes */}
-        {shops.length === 1 && selectedShop && pendingReturnsCount > 0 && (
-          <div className="bg-white border-b p-4 sticky top-0 z-10">
-            <div className="container mx-auto flex justify-end">
-              <Link
-                href={`/dashboard/seller/returns?shopId=${selectedShop}`}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors relative"
-              >
-                <FiRefreshCw size={16} />
-                Demandes de retour
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {pendingReturnsCount}
-                </span>
-              </Link>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Contenu principal */}
         <main className="p-8">

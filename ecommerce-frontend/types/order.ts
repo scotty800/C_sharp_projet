@@ -1,6 +1,7 @@
 import { User } from './user';
 import { Product } from './product';
 
+// ✅ Enum avec statuts numériques ET string pour compatibilité
 export enum OrderStatus {
   Pending = 'Pending',
   Processing = 'Processing',
@@ -9,8 +10,6 @@ export enum OrderStatus {
   Cancelled = 'Cancelled',
   Refunded = 'Refunded',
   ReturnRequested = 'ReturnRequested',
-  ReturnApproved = 'ReturnApproved',
-  ReturnRejected = 'ReturnRejected'
 }
 
 export enum PaymentStatus {
@@ -25,6 +24,27 @@ export enum PaymentMethod {
   PayPal = 'PayPal',
   BankTransfer = 'BankTransfer'
 }
+
+// ✅ Mapping statuts numériques <-> string
+export const OrderStatusMap = {
+  0: OrderStatus.Pending,
+  1: OrderStatus.Processing,
+  2: OrderStatus.Shipped,
+  3: OrderStatus.Delivered,
+  4: OrderStatus.Cancelled,
+  5: OrderStatus.Refunded,
+  6: OrderStatus.ReturnRequested,
+} as const;
+
+export const OrderStatusReverseMap: Record<OrderStatus, number> = {
+  [OrderStatus.Pending]: 0,
+  [OrderStatus.Processing]: 1,
+  [OrderStatus.Shipped]: 2,
+  [OrderStatus.Delivered]: 3,
+  [OrderStatus.Cancelled]: 4,
+  [OrderStatus.Refunded]: 5,
+  [OrderStatus.ReturnRequested]: 6,
+};
 
 export interface OrderItem {
   id: number;
@@ -90,7 +110,6 @@ export interface CreateOrderDto {
   billingPostalCode?: string;
   billingCountry?: string;
   notes?: string;
-  // ✅ Champs optionnels ajoutés
   taxAmount?: number;
   shippingCost?: number;
   discountAmount?: number;
@@ -102,7 +121,7 @@ export interface OrderResponseDto {
   userId: number;
   username: string;
   userEmail?: string;
-  status: OrderStatus;
+  status: OrderStatus | string | number; // ✅ Support tous les formats
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
   paymentIntentId?: string;
@@ -141,7 +160,7 @@ export interface OrderItemDto {
 }
 
 export interface UpdateOrderStatusDto {
-  status: OrderStatus;
+  status: OrderStatus | number | string; // ✅ Support tous les formats
 }
 
 export interface CreatePaymentIntentDto {
