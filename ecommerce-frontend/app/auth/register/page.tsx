@@ -102,27 +102,68 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="text-center text-3xl font-bold text-gray-900 mb-2">
-          Créer un compte
-        </h2>
-        <p className="text-center text-gray-600">
-          Rejoignez notre communauté deacheteurs et vendeurs
-        </p>
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+      {/* Dégradé linéaire horizontal gauche → droite */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(90deg, #F04E23 0%, #F5B335 100%)'
+        }}
+      />
+      
+      {/* Cercles blancs flous pour effet de profondeur */}
+      <div 
+        className="absolute top-20 left-20 w-64 h-64 rounded-full opacity-20"
+        style={{ background: '#F2F2F2', filter: 'blur(80px)' }}
+      />
+      <div 
+        className="absolute bottom-20 right-20 w-72 h-72 rounded-full opacity-20"
+        style={{ background: '#F2F2F2', filter: 'blur(80px)' }}
+      />
+      <div 
+        className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-10"
+        style={{ background: '#F2F2F2', filter: 'blur(100px)' }}
+      />
+
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
+        {/* Logo et titre */}
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-4">
+            <div className="w-24 h-24 rounded-full flex items-center justify-center shadow-lg overflow-hidden" style={{ background: '#F2F2F2' }}>
+              <img 
+                src="/logo.png"
+                alt="NOVAERA Logo"
+                className="w-full h-full object-contain p-3"
+              />
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold tracking-tight" style={{ color: '#F2F2F2' }}>
+            NOVAERA
+          </h1>
+          <p className="text-sm tracking-wider mt-1 opacity-90" style={{ color: '#F2F2F2' }}>
+            OWN THE ERA
+          </p>
+        </div>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
+      <div className="relative z-10 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="py-8 px-4 shadow-xl sm:rounded-lg sm:px-10" style={{ background: '#F2F2F2' }}>
+          <h2 className="text-center text-2xl font-bold mb-2" style={{ background: 'linear-gradient(90deg, #F04E23, #F5B335)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+            Créer un compte
+          </h2>
+          <p className="text-center text-sm mb-6" style={{ color: '#666' }}>
+            Rejoignez notre communauté d'acheteurs et vendeurs
+          </p>
+          
+          <form className="space-y-5" onSubmit={handleSubmit}>
             {/* Nom d'utilisateur */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="username" className="block text-sm font-medium mb-1" style={{ color: '#F04E23' }}>
                 Nom d'utilisateur
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiUser className="text-gray-400" size={18} />
+                  <FiUser style={{ color: '#F5B335' }} size={18} />
                 </div>
                 <input
                   id="username"
@@ -130,9 +171,25 @@ export default function RegisterPage() {
                   type="text"
                   value={formData.username}
                   onChange={handleChange}
-                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                    errors.username ? 'border-red-500' : 'border-gray-300'
+                  className={`block w-full pl-10 pr-3 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                    errors.username ? 'border-red-500' : ''
                   }`}
+                  style={{ 
+                    border: `1px solid ${errors.username ? '#ef4444' : '#F5B335'}`,
+                    backgroundColor: 'white'
+                  }}
+                  onFocus={(e) => {
+                    if (!errors.username) {
+                      e.target.style.borderColor = '#F04E23';
+                      e.target.style.boxShadow = `0 0 0 2px rgba(240, 78, 35, 0.2)`;
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!errors.username) {
+                      e.target.style.borderColor = '#F5B335';
+                    }
+                    e.target.style.boxShadow = 'none';
+                  }}
                   placeholder="JohnDoe"
                 />
               </div>
@@ -143,12 +200,12 @@ export default function RegisterPage() {
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium mb-1" style={{ color: '#F04E23' }}>
                 Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiMail className="text-gray-400" size={18} />
+                  <FiMail style={{ color: '#F5B335' }} size={18} />
                 </div>
                 <input
                   id="email"
@@ -157,9 +214,25 @@ export default function RegisterPage() {
                   autoComplete="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className={`block w-full pl-10 pr-3 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                    errors.email ? 'border-red-500' : 'border-gray-300'
+                  className={`block w-full pl-10 pr-3 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                    errors.email ? 'border-red-500' : ''
                   }`}
+                  style={{ 
+                    border: `1px solid ${errors.email ? '#ef4444' : '#F5B335'}`,
+                    backgroundColor: 'white'
+                  }}
+                  onFocus={(e) => {
+                    if (!errors.email) {
+                      e.target.style.borderColor = '#F04E23';
+                      e.target.style.boxShadow = `0 0 0 2px rgba(240, 78, 35, 0.2)`;
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!errors.email) {
+                      e.target.style.borderColor = '#F5B335';
+                    }
+                    e.target.style.boxShadow = 'none';
+                  }}
                   placeholder="vous@exemple.com"
                 />
               </div>
@@ -170,12 +243,12 @@ export default function RegisterPage() {
 
             {/* Mot de passe */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium mb-1" style={{ color: '#F04E23' }}>
                 Mot de passe
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiLock className="text-gray-400" size={18} />
+                  <FiLock style={{ color: '#F5B335' }} size={18} />
                 </div>
                 <input
                   id="password"
@@ -183,9 +256,25 @@ export default function RegisterPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={handleChange}
-                  className={`block w-full pl-10 pr-10 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                    errors.password ? 'border-red-500' : 'border-gray-300'
+                  className={`block w-full pl-10 pr-10 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                    errors.password ? 'border-red-500' : ''
                   }`}
+                  style={{ 
+                    border: `1px solid ${errors.password ? '#ef4444' : '#F5B335'}`,
+                    backgroundColor: 'white'
+                  }}
+                  onFocus={(e) => {
+                    if (!errors.password) {
+                      e.target.style.borderColor = '#F04E23';
+                      e.target.style.boxShadow = `0 0 0 2px rgba(240, 78, 35, 0.2)`;
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!errors.password) {
+                      e.target.style.borderColor = '#F5B335';
+                    }
+                    e.target.style.boxShadow = 'none';
+                  }}
                   placeholder="••••••••"
                 />
                 <button
@@ -203,19 +292,19 @@ export default function RegisterPage() {
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password}</p>
               )}
-              <div className="mt-2 text-xs text-gray-500">
+              <div className="mt-2 text-xs" style={{ color: '#F04E23' }}>
                 Le mot de passe doit contenir au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.
               </div>
             </div>
 
             {/* Confirmation mot de passe */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1" style={{ color: '#F04E23' }}>
                 Confirmer le mot de passe
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiLock className="text-gray-400" size={18} />
+                  <FiLock style={{ color: '#F5B335' }} size={18} />
                 </div>
                 <input
                   id="confirmPassword"
@@ -223,9 +312,25 @@ export default function RegisterPage() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  className={`block w-full pl-10 pr-10 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                    errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+                  className={`block w-full pl-10 pr-10 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                    errors.confirmPassword ? 'border-red-500' : ''
                   }`}
+                  style={{ 
+                    border: `1px solid ${errors.confirmPassword ? '#ef4444' : '#F5B335'}`,
+                    backgroundColor: 'white'
+                  }}
+                  onFocus={(e) => {
+                    if (!errors.confirmPassword) {
+                      e.target.style.borderColor = '#F04E23';
+                      e.target.style.boxShadow = `0 0 0 2px rgba(240, 78, 35, 0.2)`;
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (!errors.confirmPassword) {
+                      e.target.style.borderColor = '#F5B335';
+                    }
+                    e.target.style.boxShadow = 'none';
+                  }}
                   placeholder="••••••••"
                 />
                 <button
@@ -254,17 +359,21 @@ export default function RegisterPage() {
                   type="checkbox"
                   checked={formData.acceptTerms}
                   onChange={handleChange}
-                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+                  className="h-4 w-4 rounded focus:ring-2"
+                  style={{ 
+                    borderColor: '#F5B335',
+                    accentColor: '#F04E23'
+                  }}
                 />
               </div>
               <div className="ml-3 text-sm">
-                <label htmlFor="acceptTerms" className="text-gray-600">
+                <label htmlFor="acceptTerms" style={{ color: '#666' }}>
                   J'accepte les{' '}
-                  <a href="/terms" className="text-primary hover:text-primary-dark">
+                  <a href="/terms" className="transition-all hover:underline" style={{ color: '#F04E23' }}>
                     conditions d'utilisation
                   </a>{' '}
                   et la{' '}
-                  <a href="/privacy" className="text-primary hover:text-primary-dark">
+                  <a href="/privacy" className="transition-all hover:underline" style={{ color: '#F04E23' }}>
                     politique de confidentialité
                   </a>
                 </label>
@@ -279,7 +388,10 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center items-center gap-2 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex justify-center items-center gap-2 text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                style={{
+                  background: 'linear-gradient(90deg, #F04E23, #F5B335)'
+                }}
               >
                 {isLoading ? (
                   <>
@@ -300,27 +412,27 @@ export default function RegisterPage() {
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+                <div className="w-full border-t" style={{ borderColor: '#E5E7EB' }}></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Ou continuer avec</span>
+                <span className="px-2" style={{ background: '#F2F2F2', color: '#666' }}>Ou continuer avec</span>
               </div>
             </div>
           </div>
 
           {/* Boutons réseaux sociaux */}
           <div className="mt-6 grid grid-cols-2 gap-3">
-            <button className="w-full flex justify-center items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors">
+            <button className="w-full flex justify-center items-center gap-2 border rounded-lg font-medium py-2 px-4 transition-all hover:shadow-md" style={{ borderColor: '#F5B335', background: 'white', color: '#F04E23' }}>
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
-                  fill="currentColor"
+                  fill="#F04E23"
                   d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"
                 />
               </svg>
               <span>Google</span>
             </button>
-            <button className="w-full flex justify-center items-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <button className="w-full flex justify-center items-center gap-2 border rounded-lg font-medium py-2 px-4 transition-all hover:shadow-md" style={{ borderColor: '#F5B335', background: 'white', color: '#F04E23' }}>
+              <svg className="w-5 h-5" fill="#F04E23" viewBox="0 0 24 24">
                 <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
               </svg>
               <span>Facebook</span>
@@ -328,9 +440,9 @@ export default function RegisterPage() {
           </div>
 
           {/* Lien vers connexion */}
-          <p className="mt-6 text-center text-sm text-gray-600">
+          <p className="mt-6 text-center text-sm">
             Déjà un compte ?{' '}
-            <Link href="/auth/login" className="text-primary hover:text-primary-dark font-semibold">
+            <Link href="/auth/login" className="font-semibold transition-all hover:underline" style={{ color: '#F04E23' }}>
               Se connecter
             </Link>
           </p>

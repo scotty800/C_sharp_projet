@@ -1,33 +1,33 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import { AuthProvider } from '@/contexts/AuthContext'
-import { CartProvider } from '@/contexts/CartContext'
-import { NotificationProvider } from '@/contexts/NotificationContext' // ← Ajoute ceci
-import Header from '@/components/layout/Header'
-import Footer from '@/components/layout/Footer'
-import { Toaster } from 'react-hot-toast'
+'use client';
 
-const inter = Inter({ subsets: ['latin'] })
+import { usePathname } from 'next/navigation';
+import { Inter } from 'next/font/google';
+import './globals.css';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { CartProvider } from '@/contexts/CartContext';
+import { NotificationProvider } from '@/contexts/NotificationContext'; // ← Ajoute cette ligne
+import Header from '@/components/layout/Header';
+import Footer from '@/components/layout/Footer';
+import { Toaster } from 'react-hot-toast';
 
-export const metadata: Metadata = {
-  title: 'MarketPlace - Achetez et vendez en ligne',
-  description: 'La plateforme n°1 pour acheter et vendre dans toute la France',
-}
+const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isAuthPage = pathname?.startsWith('/auth/');
+
   return (
     <html lang="fr">
       <body className={`${inter.className} bg-gray-50 min-h-screen flex flex-col`}>
-        <NotificationProvider> {/* ← Ajoute ce wrapper */}
+        <NotificationProvider>  {/* ← Ajoute ce wrapper */}
           <AuthProvider>
             <CartProvider>
               <Header />
-              <main className="flex-grow pt-16">
+              <main className={`flex-grow ${!isAuthPage ? 'pt-16' : ''}`}>
                 {children}
               </main>
               <Footer />
@@ -46,5 +46,5 @@ export default function RootLayout({
         </NotificationProvider>
       </body>
     </html>
-  )
+  );
 }

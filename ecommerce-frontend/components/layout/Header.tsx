@@ -9,7 +9,6 @@ import { FiShoppingCart, FiUser, FiMenu, FiSearch, FiPlusCircle, FiLogOut, FiPac
 import MobileMenu from './MobileMenu';
 
 const Header = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -17,14 +16,6 @@ const Header = () => {
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
   const userMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 0);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -52,11 +43,7 @@ const Header = () => {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
-            ? 'bg-black/95 backdrop-blur-md py-2'
-            : 'bg-gradient-to-b from-black/80 to-transparent py-4'
-        }`}
+        className="fixed top-0 left-0 right-0 z-50 bg-transparent py-4"
       >
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between">
@@ -138,7 +125,6 @@ const Header = () => {
                     }`}
                   >
                     <div className="py-2">
-                      {/* Profil */}
                       <Link
                         href="/profile"
                         className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
@@ -148,7 +134,6 @@ const Header = () => {
                         Mon profil
                       </Link>
 
-                      {/* Mes commandes */}
                       <Link
                         href="/orders"
                         className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
@@ -158,7 +143,6 @@ const Header = () => {
                         Mes commandes
                       </Link>
 
-                      {/* Mes boutiques */}
                       <Link
                         href="/shop/my-shops"
                         className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
@@ -168,7 +152,6 @@ const Header = () => {
                         Mes boutiques
                       </Link>
 
-                      {/* Créer une boutique */}
                       <Link
                         href="/shop/create"
                         className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors border-t border-white/10 mt-1"
@@ -178,10 +161,8 @@ const Header = () => {
                         Créer une boutique
                       </Link>
 
-                      {/* Séparateur */}
                       <hr className="my-2 border-white/10" />
 
-                      {/* Déconnexion */}
                       <button
                         onClick={() => {
                           logout();
@@ -232,7 +213,7 @@ const Header = () => {
         itemCount={itemCount}
       />
 
-      <div className="h-16" />
+      {/* Supprimé le div h-16 */}
     </>
   );
 };
