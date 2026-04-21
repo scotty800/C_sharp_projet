@@ -44,38 +44,38 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6 sticky top-24">
-      <h2 className="text-xl font-bold mb-6">Récapitulatif</h2>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 sticky top-24">
+      <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Récapitulatif</h2>
 
       {/* Détails des prix */}
       <div className="space-y-3 mb-6">
-        <div className="flex justify-between text-gray-600">
+        <div className="flex justify-between text-gray-600 dark:text-gray-400">
           <span>Sous-total ({cart.items.length} article{cart.items.length > 1 ? 's' : ''})</span>
-          <span>{formatPrice(subtotal)}</span>
+          <span className="text-gray-900 dark:text-white">{formatPrice(subtotal)}</span>
         </div>
         
-        <div className="flex justify-between text-gray-600">
+        <div className="flex justify-between text-gray-600 dark:text-gray-400">
           <span>Livraison</span>
           <div className="text-right">
             {shipping === 0 ? (
-              <span className="text-green-600 font-medium">Gratuite</span>
+              <span className="text-green-600 dark:text-green-400 font-medium">Gratuite</span>
             ) : (
-              <span>{formatPrice(shipping)}</span>
+              <span className="text-gray-900 dark:text-white">{formatPrice(shipping)}</span>
             )}
           </div>
         </div>
 
-        <div className="flex justify-between text-gray-600">
+        <div className="flex justify-between text-gray-600 dark:text-gray-400">
           <span>TVA (20%)</span>
-          <span>{formatPrice(tax)}</span>
+          <span className="text-gray-900 dark:text-white">{formatPrice(tax)}</span>
         </div>
 
-        <div className="border-t pt-3 mt-3">
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
           <div className="flex justify-between font-bold text-lg">
-            <span>Total</span>
+            <span className="text-gray-900 dark:text-white">Total</span>
             <span className="text-primary">{formatPrice(total)}</span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             Dont TVA {formatPrice(tax)}
           </p>
         </div>
@@ -83,16 +83,16 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
 
       {/* Code promo */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Code promo
         </label>
         <div className="flex gap-2">
           <input
             type="text"
             placeholder="EXEMPLE20"
-            className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           />
-          <button className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium">
+          <button className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors font-medium">
             Appliquer
           </button>
         </div>
@@ -100,12 +100,12 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
 
       {/* Options de livraison */}
       <div className="mb-6">
-        <h3 className="font-medium mb-3">Mode de livraison</h3>
+        <h3 className="font-medium mb-3 text-gray-900 dark:text-white">Mode de livraison</h3>
         <div className="space-y-2">
           {shippingOptions.map(option => (
             <label
               key={option.id}
-              className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:border-primary transition-colors"
+              className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary transition-colors"
             >
               <div className="flex items-center gap-3">
                 <input
@@ -116,16 +116,16 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
                   className="text-primary focus:ring-primary"
                 />
                 <div>
-                  <span className="font-medium">{option.label}</span>
-                  <span className="text-sm text-gray-500 ml-2">{option.days}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{option.label}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">{option.days}</span>
                   {option.condition && (
-                    <span className="text-xs text-green-600 block">
+                    <span className="text-xs text-green-600 dark:text-green-400 block">
                       {option.condition}
                     </span>
                   )}
                 </div>
               </div>
-              <span className={option.price === 0 ? 'text-green-600 font-medium' : ''}>
+              <span className={option.price === 0 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-700 dark:text-gray-300'}>
                 {option.price === 0 ? 'Gratuit' : formatPrice(option.price)}
               </span>
             </label>
@@ -145,27 +145,27 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
 
       {/* Paiements sécurisés */}
       <div className="mt-6 space-y-3">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <FiCreditCard className="text-primary" />
           <span>Paiement sécurisé (CB, PayPal, Apple Pay)</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <FiShield className="text-primary" />
           <span>Protection acheteur incluse</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <FiTruck className="text-primary" />
           <span>Livraison suivie et garantie</span>
         </div>
       </div>
 
       {/* Moyens de paiement */}
-      <div className="mt-6 pt-6 border-t">
+      <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
         <div className="flex justify-center gap-3">
-          <div className="w-10 h-6 bg-gray-200 rounded"></div>
-          <div className="w-10 h-6 bg-gray-200 rounded"></div>
-          <div className="w-10 h-6 bg-gray-200 rounded"></div>
-          <div className="w-10 h-6 bg-gray-200 rounded"></div>
+          <div className="w-10 h-6 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="w-10 h-6 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="w-10 h-6 bg-gray-200 dark:bg-gray-700 rounded" />
+          <div className="w-10 h-6 bg-gray-200 dark:bg-gray-700 rounded" />
         </div>
       </div>
     </div>

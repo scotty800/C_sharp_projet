@@ -63,24 +63,24 @@ export default function CategoryPage() {
   }, [categoryId]);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="container mx-auto px-4">
         {/* Fil d'Ariane */}
         <div className="mb-6">
-          <Link href="/categories" className="inline-flex items-center gap-2 text-gray-600 hover:text-primary transition-colors">
+          <Link href="/categories" className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary transition-colors">
             <FiArrowLeft size={18} />
             Toutes les catégories
           </Link>
         </div>
 
         {/* En-tête de la catégorie */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 mb-8">
           <div className="flex items-center gap-4">
             <div className="text-6xl">{category.icon}</div>
             <div>
-              <h1 className="text-3xl font-bold mb-2">{category.name}</h1>
-              <p className="text-gray-600">{category.description}</p>
-              <p className="text-sm text-gray-500 mt-2">
+              <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">{category.name}</h1>
+              <p className="text-gray-600 dark:text-gray-400">{category.description}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                 {products.length} produits disponibles
               </p>
             </div>

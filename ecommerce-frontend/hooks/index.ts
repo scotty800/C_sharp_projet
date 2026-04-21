@@ -8,3 +8,4 @@ export * from './useWindowSize';
 export * from './useClickOutside';
 export * from './useScrollPosition';
 export * from './useNotification'; // ← Ajouter cette ligne
+export * from './useTheme'; // ← Ajouter cette ligne

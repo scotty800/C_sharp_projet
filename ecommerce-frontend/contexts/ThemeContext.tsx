@@ -1,60 +1,63 @@
 'use client';
 
-import { createContext, useState, useEffect, ReactNode } from 'react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'dark' | 'light';
 
 interface ThemeContextType {
   theme: Theme;
+  toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
-  resolvedTheme: 'light' | 'dark';
 }
 
-export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [storedTheme, setStoredTheme] = useLocalStorage<Theme>('theme', 'system');
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+export const useTheme = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error('useTheme must be used within ThemeProvider');
+  }
+  return context;
+};
 
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    const updateTheme = () => {
-      if (storedTheme === 'system') {
-        setResolvedTheme(mediaQuery.matches ? 'dark' : 'light');
-      } else {
-        setResolvedTheme(storedTheme);
-      }
-    };
-
-    updateTheme();
-
-    // Écouter les changements de préférence système
-    mediaQuery.addEventListener('change', updateTheme);
-    return () => mediaQuery.removeEventListener('change', updateTheme);
-  }, [storedTheme]);
+export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
+  const [mounted, setMounted] = useState(false);
+  const [theme, setTheme] = useState<Theme>('light'); // Commencer en clair
 
   useEffect(() => {
-    const root = document.documentElement;
+    setMounted(true);
+    // Récupérer le thème sauvegardé dans localStorage
+    const savedTheme = localStorage.getItem('theme') as Theme | null;
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    if (resolvedTheme === 'dark') {
-      root.classList.add('dark');
+    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+    setTheme(initialTheme);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
+    // Appliquer la classe dark au document html
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
     } else {
-      root.classList.remove('dark');
+      document.documentElement.classList.remove('dark');
     }
-  }, [resolvedTheme]);
+    // Sauvegarder dans localStorage
+    localStorage.setItem('theme', theme);
+  }, [theme, mounted]);
 
-  const setTheme = (theme: Theme) => {
-    setStoredTheme(theme);
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
   };
 
+  // Éviter l'hydratation mismatch
+  if (!mounted) {
+    return <>{children}</>;
+  }
+
   return (
-    <ThemeContext.Provider value={{
-      theme: storedTheme,
-      setTheme,
-      resolvedTheme,
-    }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -21,7 +21,7 @@ const ShopInfo = ({ shop, themeColor = '#e50914' }: ShopInfoProps) => {
 
   return (
     <div 
-      className="rounded-lg shadow-md overflow-hidden"
+      className="rounded-lg shadow-md overflow-hidden dark:shadow-gray-900/30"
       style={{ backgroundColor: shop.backgroundColor || '#ffffff' }}
     >
       {/* Onglets */}
@@ -49,27 +49,27 @@ const ShopInfo = ({ shop, themeColor = '#e50914' }: ShopInfoProps) => {
         {activeTab === 'about' && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold mb-3">Description</h3>
-              <p className="leading-relaxed opacity-80">
+              <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Description</h3>
+              <p className="leading-relaxed opacity-80 text-gray-600 dark:text-gray-300">
                 {shop.description || 'Aucune description disponible.'}
               </p>
             </div>
 
             <div>
-              <h3 className="text-lg font-semibold mb-3">Détails</h3>
+              <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Détails</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center gap-3">
                   <FiClock style={{ color: themeColor }} />
                   <div>
-                    <span className="text-sm opacity-75">Membre depuis</span>
-                    <p className="font-medium">{formatDate(shop.createdAt)}</p>
+                    <span className="text-sm opacity-75 text-gray-500 dark:text-gray-400">Membre depuis</span>
+                    <p className="font-medium text-gray-900 dark:text-white">{formatDate(shop.createdAt)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <FiAward style={{ color: themeColor }} />
                   <div>
-                    <span className="text-sm opacity-75">Vendeur certifié</span>
-                    <p className="font-medium">✓ Vérifié</p>
+                    <span className="text-sm opacity-75 text-gray-500 dark:text-gray-400">Vendeur certifié</span>
+                    <p className="font-medium text-gray-900 dark:text-white">✓ Vérifié</p>
                   </div>
                 </div>
               </div>
@@ -78,7 +78,7 @@ const ShopInfo = ({ shop, themeColor = '#e50914' }: ShopInfoProps) => {
         )}
 
         {activeTab === 'reviews' && (
-          <div className="text-center py-8 opacity-75">
+          <div className="text-center py-8 opacity-75 text-gray-500 dark:text-gray-400">
             <p>Les avis clients arrivent bientôt...</p>
           </div>
         )}
@@ -88,8 +88,8 @@ const ShopInfo = ({ shop, themeColor = '#e50914' }: ShopInfoProps) => {
             <div className="flex items-start gap-4">
               <FiTruck style={{ color: themeColor }} className="text-xl mt-1" />
               <div>
-                <h4 className="font-semibold mb-2">Livraison</h4>
-                <p className="opacity-80">
+                <h4 className="font-semibold mb-2 text-gray-900 dark:text-white">Livraison</h4>
+                <p className="opacity-80 text-gray-600 dark:text-gray-300">
                   Livraison sous 2-5 jours ouvrés. Retours acceptés sous 14 jours.
                 </p>
               </div>
@@ -98,8 +98,8 @@ const ShopInfo = ({ shop, themeColor = '#e50914' }: ShopInfoProps) => {
             <div className="flex items-start gap-4">
               <FiShield style={{ color: themeColor }} className="text-xl mt-1" />
               <div>
-                <h4 className="font-semibold mb-2">Garantie</h4>
-                <p className="opacity-80">
+                <h4 className="font-semibold mb-2 text-gray-900 dark:text-white">Garantie</h4>
+                <p className="opacity-80 text-gray-600 dark:text-gray-300">
                   Tous les produits sont garantis 2 ans contre les défauts de fabrication.
                 </p>
               </div>

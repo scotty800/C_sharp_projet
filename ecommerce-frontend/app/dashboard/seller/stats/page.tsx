@@ -163,8 +163,8 @@ export default function SellerDashboard() {
     <div className="space-y-8">
       {/* En-tête */}
       <div>
-        <h1 className="text-2xl font-bold mb-2">Tableau de bord</h1>
-        <p className="text-gray-600">
+        <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Tableau de bord</h1>
+        <p className="text-gray-600 dark:text-gray-400">
           Bienvenue dans votre espace vendeur. Voici un aperçu de votre activité.
         </p>
       </div>
@@ -177,19 +177,19 @@ export default function SellerDashboard() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500">Aucune statistique disponible</p>
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
+          <p className="text-gray-500 dark:text-gray-400">Aucune statistique disponible</p>
         </div>
       )}
 
       {/* Graphique et produits populaires */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-lg p-6">
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
           {chartData.values.length > 0 ? (
             <Chart data={chartData} title="Évolution des ventes" />
           ) : (
             <div className="h-80 flex items-center justify-center">
-              <p className="text-gray-500">Aucune donnée de vente disponible</p>
+              <p className="text-gray-500 dark:text-gray-400">Aucune donnée de vente disponible</p>
             </div>
           )}
         </div>
@@ -202,8 +202,8 @@ export default function SellerDashboard() {
       {recentOrders && recentOrders.length > 0 ? (
         <RecentOrders orders={recentOrders} />
       ) : (
-        <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-          <p className="text-gray-500">Aucune commande récente</p>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-12 text-center">
+          <p className="text-gray-500 dark:text-gray-400">Aucune commande récente</p>
         </div>
       )}
     </div>

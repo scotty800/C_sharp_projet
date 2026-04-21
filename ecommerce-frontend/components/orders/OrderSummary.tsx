@@ -28,23 +28,23 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-6">
-      <h3 className="text-lg font-semibold mb-6">Récapitulatif</h3>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+      <h3 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white">Récapitulatif</h3>
 
       {/* Détails */}
       <div className="space-y-4 mb-6">
         {summaryItems.map((item, index) => (
-          <div key={index} className="flex justify-between items-center text-gray-600">
+          <div key={index} className="flex justify-between items-center text-gray-600 dark:text-gray-400">
             <div className="flex items-center gap-2">
               <item.icon className="text-primary" size={18} />
               <span>{item.label}</span>
             </div>
-            <span>{item.value}</span>
+            <span className="text-gray-900 dark:text-white">{item.value}</span>
           </div>
         ))}
 
         {order.discountAmount > 0 && (
-          <div className="flex justify-between items-center text-green-600">
+          <div className="flex justify-between items-center text-green-600 dark:text-green-400">
             <div className="flex items-center gap-2">
               <span>Réduction</span>
             </div>
@@ -52,9 +52,9 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
           </div>
         )}
 
-        <div className="border-t pt-4 mt-4">
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
           <div className="flex justify-between items-center font-bold text-lg">
-            <span>Total</span>
+            <span className="text-gray-900 dark:text-white">Total</span>
             <span className="text-primary">{formatPrice(order.finalAmount)}</span>
           </div>
         </div>
@@ -63,21 +63,21 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
       {/* Informations de paiement */}
       <div className="space-y-3 text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-600">Méthode de paiement</span>
-          <span className="font-medium">{order.paymentMethod}</span>
+          <span className="text-gray-600 dark:text-gray-400">Méthode de paiement</span>
+          <span className="font-medium text-gray-900 dark:text-white">{order.paymentMethod}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-600">Statut du paiement</span>
+          <span className="text-gray-600 dark:text-gray-400">Statut du paiement</span>
           <span className={`font-medium ${
-            order.paymentStatus === 'Paid' ? 'text-green-600' : 'text-yellow-600'
+            order.paymentStatus === 'Paid' ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'
           }`}>
             {order.paymentStatus === 'Paid' ? 'Payé' : 'En attente'}
           </span>
         </div>
         {order.paidAt && (
           <div className="flex justify-between">
-            <span className="text-gray-600">Payé le</span>
-            <span className="font-medium">{new Date(order.paidAt).toLocaleDateString('fr-FR')}</span>
+            <span className="text-gray-600 dark:text-gray-400">Payé le</span>
+            <span className="font-medium text-gray-900 dark:text-white">{new Date(order.paidAt).toLocaleDateString('fr-FR')}</span>
           </div>
         )}
       </div>
@@ -91,12 +91,12 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
         )}
         
         {order.status === 'Pending' && (
-          <button className="w-full border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white font-semibold py-3 px-4 rounded-lg transition-colors">
+          <button className="w-full border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white font-semibold py-3 px-4 rounded-lg transition-colors dark:border-red-500 dark:text-red-400 dark:hover:bg-red-500 dark:hover:text-white">
             Annuler la commande
           </button>
         )}
 
-        <button className="w-full border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold py-3 px-4 rounded-lg transition-colors">
+        <button className="w-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors">
           Télécharger la facture
         </button>
       </div>

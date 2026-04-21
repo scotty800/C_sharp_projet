@@ -141,20 +141,20 @@ export default function SellerReviewsPage() {
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
-        <Link href={`/dashboard/seller?shopId=${shopId}`} className="text-gray-600 hover:text-primary">
+        <Link href={`/dashboard/seller?shopId=${shopId}`} className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors">
           <FiArrowLeft size={20} />
         </Link>
-        <h1 className="text-2xl font-bold">Avis clients</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Avis clients</h1>
       </div>
       
-      <p className="text-gray-600 mb-6">Boutique : {shopName}</p>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">Boutique : {shopName}</p>
 
       {/* Résumé des notes */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
         <div className="flex items-center gap-8">
           <div className="text-center">
             <p className="text-5xl font-bold text-primary">{averageRating.toFixed(1)}</p>
-            <p className="text-sm text-gray-500 mt-1">sur 5</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">sur 5</p>
           </div>
           
           <div className="flex-1">
@@ -163,18 +163,18 @@ export default function SellerReviewsPage() {
                 <button
                   key={rating}
                   onClick={() => setFilter(filter === rating ? null : rating)}
-                  className={`flex items-center gap-2 w-full p-1 rounded hover:bg-gray-50 transition-colors ${
-                    filter === rating ? 'bg-primary/10' : ''
+                  className={`flex items-center gap-2 w-full p-1 rounded hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                    filter === rating ? 'bg-primary/10 dark:bg-primary/20' : ''
                   }`}
                 >
-                  <span className="text-sm w-8">{rating} étoiles</span>
-                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <span className="text-sm w-8 text-gray-700 dark:text-gray-300">{rating} étoiles</span>
+                  <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-yellow-400"
                       style={{ width: `${reviews.length > 0 ? (distribution[rating as keyof typeof distribution] / reviews.length) * 100 : 0}%` }}
                     />
                   </div>
-                  <span className="text-sm text-gray-500 w-12">
+                  <span className="text-sm text-gray-500 dark:text-gray-400 w-12">
                     {distribution[rating as keyof typeof distribution]}
                   </span>
                 </button>
@@ -183,34 +183,34 @@ export default function SellerReviewsPage() {
           </div>
           
           <div className="text-right">
-            <p className="text-2xl font-bold">{reviews.length}</p>
-            <p className="text-sm text-gray-500">avis totaux</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{reviews.length}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">avis totaux</p>
           </div>
         </div>
       </div>
 
       {/* Liste des avis */}
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
         {filteredReviews.length === 0 ? (
           <div className="text-center py-12">
-            <FiMessageSquare className="mx-auto text-gray-300 mb-4" size={48} />
-            <p className="text-gray-500">Aucun avis pour cette boutique</p>
+            <FiMessageSquare className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={48} />
+            <p className="text-gray-500 dark:text-gray-400">Aucun avis pour cette boutique</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
             {filteredReviews.map((review) => (
-              <div key={review.id} className="p-6 hover:bg-gray-50">
+              <div key={review.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                      <div className="w-8 h-8 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center">
                         <span className="text-primary font-semibold">
                           {review.user.username.charAt(0).toUpperCase()}
                         </span>
                       </div>
                       <div>
-                        <p className="font-semibold">{review.user.username}</p>
-                        <p className="text-sm text-gray-500">{formatDate(review.createdAt)}</p>
+                        <p className="font-semibold text-gray-900 dark:text-white">{review.user.username}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(review.createdAt)}</p>
                       </div>
                     </div>
                     <Link 
@@ -231,10 +231,10 @@ export default function SellerReviewsPage() {
                   </div>
                 </div>
                 
-                <p className="text-gray-700 mb-4">{review.comment}</p>
+                <p className="text-gray-700 dark:text-gray-300 mb-4">{review.comment}</p>
                 
                 <div className="flex items-center gap-4 text-sm">
-                  <button className="flex items-center gap-1 text-gray-500 hover:text-primary transition-colors">
+                  <button className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-primary transition-colors">
                     <FiThumbsUp size={16} />
                     Utile
                   </button>

@@ -160,10 +160,10 @@ export default function SellerDashboardLayout({
 
   if (authLoading || loadingShops) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-gray-600">Chargement de votre espace vendeur...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Chargement de votre espace vendeur...</p>
         </div>
       </div>
     );
@@ -175,10 +175,10 @@ export default function SellerDashboardLayout({
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Une erreur est survenue</h2>
-          <p className="text-gray-600 mb-8">{error}</p>
+          <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">Une erreur est survenue</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-8">{error}</p>
           <button
             onClick={() => window.location.reload()}
             className="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-8 rounded-lg transition-colors"
@@ -192,10 +192,10 @@ export default function SellerDashboardLayout({
 
   if (shops.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center max-w-md mx-auto px-4">
-          <h2 className="text-2xl font-bold mb-4">Vous n'avez pas encore de boutique</h2>
-          <p className="text-gray-600 mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Vous n'avez pas encore de boutique</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-8">
             Créez votre première boutique pour commencer à vendre et gérer vos produits
           </p>
           <a
@@ -210,23 +210,23 @@ export default function SellerDashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
       <Sidebar shopId={selectedShop || undefined} />
       
       <div className="flex-1">
         {/* Barre de sélection de boutique avec badges de notification */}
-        <div className="bg-white border-b p-4 sticky top-0 z-10">
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 sticky top-0 z-10">
           <div className="container mx-auto">
             {shops.length > 1 && (
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Boutique active :
                   </span>
                   <select
                     value={selectedShop || ''}
                     onChange={(e) => handleShopChange(Number(e.target.value))}
-                    className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-w-[200px]"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent min-w-[200px] bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     aria-label="Sélectionner une boutique"
                   >
                     {shops.map((shop) => (
@@ -271,14 +271,14 @@ export default function SellerDashboardLayout({
 
               {/* Message si aucune notification */}
               {pendingReturnsCount === 0 && pendingShipmentsCount === 0 && (
-                <p className="text-sm text-gray-500 flex items-center gap-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
                   ✅ Aucune action en attente
                 </p>
               )}
 
               {/* Indicateur de rafraîchissement */}
               {checkingNotifications && (
-                <div className="flex items-center gap-2 text-xs text-gray-500">
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                   <div className="animate-spin">
                     <FiRefreshCw size={14} />
                   </div>
@@ -295,7 +295,7 @@ export default function SellerDashboardLayout({
             children
           ) : (
             <div className="text-center py-12">
-              <p className="text-gray-500">Veuillez sélectionner une boutique</p>
+              <p className="text-gray-500 dark:text-gray-400">Veuillez sélectionner une boutique</p>
             </div>
           )}
         </main>

@@ -66,9 +66,9 @@ const CartRecommendations = ({ currentItemIds }: CartRecommendationsProps) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="animate-pulse">
-            <div className="bg-gray-200 aspect-square rounded-lg mb-2" />
-            <div className="h-4 bg-gray-200 rounded w-3/4 mb-1" />
-            <div className="h-4 bg-gray-200 rounded w-1/2" />
+            <div className="bg-gray-200 dark:bg-gray-700 aspect-square rounded-lg mb-2" />
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-1" />
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
           </div>
         ))}
       </div>
@@ -79,7 +79,7 @@ const CartRecommendations = ({ currentItemIds }: CartRecommendationsProps) => {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4">Complétez votre panier</h3>
+      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Complétez votre panier</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {recommendations.map((product) => {
           const imageUrl = imageErrors[product.id] 
@@ -89,7 +89,7 @@ const CartRecommendations = ({ currentItemIds }: CartRecommendationsProps) => {
           return (
             <div key={product.id} className="group">
               <Link href={`/product/${product.id}`}>
-                <div className="relative aspect-square rounded-lg overflow-hidden mb-2 bg-gray-100">
+                <div className="relative aspect-square rounded-lg overflow-hidden mb-2 bg-gray-100 dark:bg-gray-700">
                   <Image
                     src={imageUrl}
                     alt={product.name}
@@ -99,7 +99,7 @@ const CartRecommendations = ({ currentItemIds }: CartRecommendationsProps) => {
                     unoptimized
                   />
                 </div>
-                <h4 className="text-sm font-medium text-gray-900 group-hover:text-primary transition-colors line-clamp-2 mb-1">
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-primary transition-colors line-clamp-2 mb-1">
                   {product.name}
                 </h4>
                 <p className="text-sm text-primary font-semibold">

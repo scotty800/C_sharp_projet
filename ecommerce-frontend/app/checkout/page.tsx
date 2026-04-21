@@ -205,7 +205,7 @@ export default function CheckoutPage() {
 
   if (isLoading || !cart || loadingProducts) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -217,23 +217,23 @@ export default function CheckoutPage() {
   const total = subtotal + shipping + tax;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="container mx-auto px-4">
-        <Link href="/cart" className="inline-flex items-center gap-2 text-gray-600 hover:text-primary mb-6">
+        <Link href="/cart" className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary mb-6 transition-colors">
           <FiArrowLeft />
           Retour au panier
         </Link>
 
-        <h1 className="text-3xl font-bold mb-8">Finaliser la commande</h1>
+        <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-white">Finaliser la commande</h1>
 
         <div className="flex mb-8 max-w-3xl mx-auto">
           {['shipping', 'payment', 'confirmation'].map((s, index) => (
             <div key={s} className="flex-1">
               <div className={`h-2 rounded-full ${
                 step === s ? 'bg-primary' : 
-                ['shipping', 'payment'].indexOf(s) < ['shipping', 'payment'].indexOf(step) ? 'bg-green-500' : 'bg-gray-200'
+                ['shipping', 'payment'].indexOf(s) < ['shipping', 'payment'].indexOf(step) ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700'
               }`} />
-              <p className="text-sm mt-2 text-center">
+              <p className="text-sm mt-2 text-center text-gray-600 dark:text-gray-400">
                 {s === 'shipping' && 'Livraison'}
                 {s === 'payment' && 'Paiement'}
                 {s === 'confirmation' && 'Confirmation'}
@@ -246,15 +246,15 @@ export default function CheckoutPage() {
           {/* Colonne de gauche */}
           <div className="lg:col-span-2">
             {step === 'shipping' && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
                   <FiTruck className="text-primary" />
                   Adresse de livraison
                 </h2>
                 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Adresse *
                     </label>
                     <input
@@ -263,14 +263,14 @@ export default function CheckoutPage() {
                       value={formData.shippingAddress}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       placeholder="Numéro et nom de rue"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Ville *
                       </label>
                       <input
@@ -279,11 +279,11 @@ export default function CheckoutPage() {
                         value={formData.shippingCity}
                         onChange={handleInputChange}
                         required
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Code postal *
                       </label>
                       <input
@@ -292,13 +292,13 @@ export default function CheckoutPage() {
                         value={formData.shippingPostalCode}
                         onChange={handleInputChange}
                         required
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Pays *
                     </label>
                     <select
@@ -306,7 +306,7 @@ export default function CheckoutPage() {
                       value={formData.shippingCountry}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     >
                       <option value="France">France</option>
                       <option value="Belgique">Belgique</option>
@@ -316,7 +316,7 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <h2 className="text-xl font-semibold mt-6 mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-semibold mt-6 mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
                   <FiMapPin className="text-primary" />
                   Adresse de facturation
                 </h2>
@@ -330,7 +330,7 @@ export default function CheckoutPage() {
                       onChange={handleInputChange}
                       className="rounded text-primary focus:ring-primary"
                     />
-                    <span className="text-sm text-gray-700">
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
                       Utiliser la même adresse
                     </span>
                   </label>
@@ -339,7 +339,7 @@ export default function CheckoutPage() {
                 {!formData.sameAsShipping && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Adresse *
                       </label>
                       <input
@@ -348,13 +348,13 @@ export default function CheckoutPage() {
                         value={formData.billingAddress}
                         onChange={handleInputChange}
                         required
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Ville *
                         </label>
                         <input
@@ -363,11 +363,11 @@ export default function CheckoutPage() {
                           value={formData.billingCity}
                           onChange={handleInputChange}
                           required
-                          className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Code postal *
                         </label>
                         <input
@@ -376,13 +376,13 @@ export default function CheckoutPage() {
                           value={formData.billingPostalCode}
                           onChange={handleInputChange}
                           required
-                          className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Pays *
                       </label>
                       <select
@@ -390,7 +390,7 @@ export default function CheckoutPage() {
                         value={formData.billingCountry}
                         onChange={handleInputChange}
                         required
-                        className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
                         <option value="France">France</option>
                         <option value="Belgique">Belgique</option>
@@ -402,7 +402,7 @@ export default function CheckoutPage() {
                 )}
 
                 <div className="mt-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Notes (optionnel)
                   </label>
                   <textarea
@@ -410,7 +410,7 @@ export default function CheckoutPage() {
                     value={formData.notes}
                     onChange={handleInputChange}
                     rows={3}
-                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="Instructions particulières pour la livraison..."
                   />
                 </div>
@@ -428,8 +428,8 @@ export default function CheckoutPage() {
 
             {/* ✅ Section de paiement avec Stripe */}
             {step === 'payment' && clientSecret && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
                   <FiCreditCard className="text-primary" />
                   Paiement sécurisé
                 </h2>
@@ -450,13 +450,13 @@ export default function CheckoutPage() {
 
           {/* Colonne de droite - Récapitulatif */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg p-6 sticky top-24">
-              <h2 className="text-lg font-bold mb-4">Récapitulatif</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 sticky top-24">
+              <h2 className="text-lg font-bold mb-4 text-gray-900 dark:text-white">Récapitulatif</h2>
 
               <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
                 {itemsWithProducts.map((item) => (
                   <div key={item.id} className="flex gap-3">
-                    <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                    <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
                       {item.product ? (
                         <Image
                           src={getProductImageUrl(item.product)}
@@ -466,50 +466,50 @@ export default function CheckoutPage() {
                           unoptimized
                         />
                       ) : (
-                        <div className="w-full h-full bg-gray-200" />
+                        <div className="w-full h-full bg-gray-200 dark:bg-gray-600" />
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium line-clamp-2">{item.product?.name}</p>
-                      <p className="text-xs text-gray-500">Qté: {item.quantity}</p>
+                      <p className="text-sm font-medium line-clamp-2 text-gray-900 dark:text-white">{item.product?.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Qté: {item.quantity}</p>
                       <p className="text-sm font-semibold text-primary">{formatPrice(item.totalPrice)}</p>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="space-y-3 pt-4 border-t">
-                <div className="flex justify-between text-gray-600">
+              <div className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Sous-total</span>
-                  <span>{formatPrice(subtotal)}</span>
+                  <span className="text-gray-900 dark:text-white">{formatPrice(subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-gray-600">
+                <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Livraison</span>
                   {shipping === 0 ? (
-                    <span className="text-green-600">Gratuite</span>
+                    <span className="text-green-600 dark:text-green-400">Gratuite</span>
                   ) : (
-                    <span>{formatPrice(shipping)}</span>
+                    <span className="text-gray-900 dark:text-white">{formatPrice(shipping)}</span>
                   )}
                 </div>
-                <div className="flex justify-between text-gray-600">
+                <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>TVA (20%)</span>
-                  <span>{formatPrice(tax)}</span>
+                  <span className="text-gray-900 dark:text-white">{formatPrice(tax)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-lg pt-4 border-t">
-                  <span>Total</span>
+                <div className="flex justify-between font-bold text-lg pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <span className="text-gray-900 dark:text-white">Total</span>
                   <span className="text-primary">{formatPrice(total)}</span>
                 </div>
               </div>
 
               {user && (
-                <div className="mt-6 pt-6 border-t space-y-2 text-sm text-gray-600">
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 space-y-2 text-sm text-gray-600 dark:text-gray-400">
                   <div className="flex items-center gap-2">
                     <FiUser size={16} />
-                    <span>{user.username}</span>
+                    <span className="text-gray-900 dark:text-white">{user.username}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <FiMail size={16} />
-                    <span>{user.email}</span>
+                    <span className="text-gray-900 dark:text-white">{user.email}</span>
                   </div>
                 </div>
               )}

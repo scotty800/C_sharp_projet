@@ -41,8 +41,8 @@ const Chart = ({ data, title, color = '#e50914' }: ChartProps) => {
   // Vérifier que les données existent
   if (!data || !data.labels || !data.values || data.labels.length === 0) {
     return (
-      <div className="h-80 flex items-center justify-center bg-gray-50 rounded-lg">
-        <p className="text-gray-500">Aucune donnée disponible</p>
+      <div className="h-80 flex items-center justify-center bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+        <p className="text-gray-500 dark:text-gray-400">Aucune donnée disponible</p>
       </div>
     );
   }
@@ -80,6 +80,7 @@ const Chart = ({ data, title, color = '#e50914' }: ChartProps) => {
           size: 16,
           weight: 'bold',
         },
+        color: '#1f2937', // Couleur du titre en mode clair
         padding: {
           bottom: 20,
         },
@@ -112,7 +113,7 @@ const Chart = ({ data, title, color = '#e50914' }: ChartProps) => {
       y: {
         beginAtZero: true,
         grid: {
-          color: '#e5e7eb',
+          color: '#e5e7eb20', // Grille plus transparente
         },
         ticks: {
           callback: (value) => {
@@ -122,15 +123,32 @@ const Chart = ({ data, title, color = '#e50914' }: ChartProps) => {
               minimumFractionDigits: 0,
             }).format(value as number);
           },
+          color: '#6b7280', // Couleur des ticks en mode clair
         },
       },
       x: {
         grid: {
           display: false,
         },
+        ticks: {
+          color: '#6b7280', // Couleur des ticks en mode clair
+        },
       },
     },
   };
+
+  // Pour le mode sombre, on peut ajuster la couleur du titre
+  if (typeof document !== 'undefined' && document.documentElement.classList.contains('dark')) {
+    if (options.plugins?.title) {
+      options.plugins.title.color = '#f3f4f6';
+    }
+    if (options.scales?.y?.ticks) {
+      options.scales.y.ticks.color = '#9ca3af';
+    }
+    if (options.scales?.x?.ticks) {
+      options.scales.x.ticks.color = '#9ca3af';
+    }
+  }
 
   return (
     <div className="h-80">

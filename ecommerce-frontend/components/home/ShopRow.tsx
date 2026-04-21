@@ -46,12 +46,12 @@ const ShopRow = ({ title, subtitle, shops, loading = false }: ShopRowProps) => {
     return (
       <div className="shop-row py-8">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl font-bold mb-6">{title}</h2>
+          <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">{title}</h2>
           <div className="flex gap-4 overflow-hidden">
             {[...Array(5)].map((_, i) => (
               <div
                 key={i}
-                className="flex-shrink-0 w-64 h-36 bg-gray-200 rounded-lg animate-pulse"
+                className="flex-shrink-0 w-64 h-36 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"
               />
             ))}
           </div>
@@ -68,8 +68,8 @@ const ShopRow = ({ title, subtitle, shops, loading = false }: ShopRowProps) => {
         {/* En-tête */}
         <div className="flex items-end justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
-            {subtitle && <p className="text-gray-600">{subtitle}</p>}
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h2>
+            {subtitle && <p className="text-gray-600 dark:text-gray-400">{subtitle}</p>}
           </div>
           <a href="#" className="text-primary hover:underline text-sm font-semibold">
             Voir tout

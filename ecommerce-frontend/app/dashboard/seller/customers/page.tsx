@@ -90,60 +90,60 @@ export default function SellerCustomersPage() {
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
-        <Link href={`/dashboard/seller?shopId=${shopId}`} className="text-gray-600 hover:text-primary">
+        <Link href={`/dashboard/seller?shopId=${shopId}`} className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors">
           <FiArrowLeft size={20} />
         </Link>
-        <h1 className="text-2xl font-bold">Clients</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Clients</h1>
       </div>
       
-      <p className="text-gray-600 mb-6">Boutique : {shopName}</p>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">Boutique : {shopName}</p>
 
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
         {customers.length === 0 ? (
           <div className="text-center py-12">
-            <FiUsers className="mx-auto text-gray-300 mb-4" size={48} />
-            <p className="text-gray-500">Aucun client pour cette boutique</p>
+            <FiUsers className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={48} />
+            <p className="text-gray-500 dark:text-gray-400">Aucun client pour cette boutique</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-gray-700/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commandes</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total dépensé</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dernière commande</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Commandes</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total dépensé</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Dernière commande</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {customers.map((customer) => (
-                  <tr key={customer.id} className="hover:bg-gray-50">
+                  <tr key={customer.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                        <div className="w-8 h-8 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center">
                           <span className="text-primary font-semibold">
                             {customer.username.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className="font-medium">{customer.username}</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{customer.username}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                           <FiMail size={14} />
                           {customer.email}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap font-semibold">
+                    <td className="px-6 py-4 whitespace-nowrap font-semibold text-gray-900 dark:text-white">
                       {customer.totalOrders}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap font-semibold text-primary">
                       {customer.totalSpent.toFixed(2)} €
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {new Date(customer.lastOrderDate).toLocaleDateString('fr-FR')}
                     </td>
                   </tr>

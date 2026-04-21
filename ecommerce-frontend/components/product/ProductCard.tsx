@@ -8,7 +8,7 @@ import { Product } from '@/types/product';
 import { formatPrice } from '@/services/utils/formatters';
 import { useCart } from '@/hooks/useCart';
 import { useAuth } from '@/hooks/useAuth';
-import { getProductImageUrl } from '@/utils/imageUtils'; // ← Import direct
+import { getProductImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
 
 interface ProductCardProps {
@@ -25,7 +25,6 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
   const { addToCart } = useCart();
   const { user } = useAuth();
 
-  // Utiliser getProductImageUrl qui gère la priorité imageUrl1, imageUrl2, imageUrl3, imageUrl
   const imageUrl = imgError 
     ? '/images/product-placeholder.svg' 
     : getProductImageUrl(product);
@@ -60,13 +59,13 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
   if (layout === 'list') {
     return (
       <div 
-        className="block bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden cursor-pointer"
+        className="block bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl transition-shadow overflow-hidden cursor-pointer"
         onClick={() => window.location.href = `/product/${product.id}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
         <div className="flex flex-col md:flex-row">
-          <div className="relative md:w-48 h-48 flex-shrink-0 bg-gray-100">
+          <div className="relative md:w-48 h-48 flex-shrink-0 bg-gray-100 dark:bg-gray-700">
             <Image
               src={imageUrl}
               alt={product.name}
@@ -87,20 +86,20 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
           <div className="flex-1 p-4">
             <div className="flex justify-between items-start mb-2">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 hover:text-primary transition-colors">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white hover:text-primary transition-colors">
                   {product.name}
                 </h3>
-                <p className="text-sm text-gray-500">{product.category}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{product.category}</p>
               </div>
               <button
                 onClick={handleToggleFavorite}
-                className="text-gray-400 hover:text-red-500 transition-colors"
+                className="text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors"
               >
                 <FiHeart fill={isFavorite ? 'currentColor' : 'none'} />
               </button>
             </div>
 
-            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+            <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
               {product.description}
             </p>
 
@@ -110,7 +109,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
                   {formatPrice(product.price)}
                 </span>
                 {product.stock > 0 && (
-                  <span className="text-sm text-gray-500 ml-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
                     Stock: {product.stock}
                   </span>
                 )}
@@ -122,7 +121,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
                   product.stock > 0
                     ? 'bg-primary hover:bg-primary-dark text-white'
-                    : 'bg-gray-300 cursor-not-allowed text-gray-500'
+                    : 'bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400'
                 }`}
               >
                 <FiShoppingCart />
@@ -137,12 +136,12 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
 
   return (
     <div 
-      className="product-card group bg-white cursor-pointer"
+      className="product-card group bg-white dark:bg-gray-800 cursor-pointer"
       onClick={() => window.location.href = `/product/${product.id}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative aspect-square overflow-hidden bg-gray-100">
+      <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700">
         <Image
           src={imageUrl}
           alt={product.name}
@@ -161,7 +160,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
               handleAddToCart(e);
             }}
             disabled={product.stock <= 0}
-            className="bg-white hover:bg-primary text-gray-900 hover:text-white p-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-white dark:bg-gray-800 hover:bg-primary text-gray-900 dark:text-white hover:text-white p-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Ajouter au panier"
           >
             <FiShoppingCart size={20} />
@@ -171,7 +170,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
               e.stopPropagation();
               handleToggleFavorite(e);
             }}
-            className="bg-white hover:bg-primary text-gray-900 hover:text-white p-3 rounded-full transition-colors"
+            className="bg-white dark:bg-gray-800 hover:bg-primary text-gray-900 dark:text-white hover:text-white p-3 rounded-full transition-colors"
             title="Ajouter aux favoris"
           >
             <FiHeart fill={isFavorite ? 'currentColor' : 'none'} />
@@ -181,7 +180,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
               e.stopPropagation();
               window.location.href = `/product/${product.id}`;
             }}
-            className="bg-white hover:bg-primary text-gray-900 hover:text-white p-3 rounded-full transition-colors"
+            className="bg-white dark:bg-gray-800 hover:bg-primary text-gray-900 dark:text-white hover:text-white p-3 rounded-full transition-colors"
             title="Voir détails"
           >
             <FiEye size={20} />
@@ -196,7 +195,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
       </div>
 
       <div className="p-4">
-        <h3 className="text-sm font-medium text-gray-900 mb-1 line-clamp-2 group-hover:text-primary transition-colors">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-1 line-clamp-2 group-hover:text-primary transition-colors">
           {product.name}
         </h3>
         
@@ -205,7 +204,7 @@ const ProductCard = ({ product, layout = 'grid', themeColor = '#e50914' }: Produ
             {formatPrice(product.price)}
           </span>
           {product.shop && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-400">
               {product.shop.name}
             </span>
           )}

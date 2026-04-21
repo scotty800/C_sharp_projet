@@ -43,9 +43,9 @@ const ShopProducts = ({
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {[...Array(8)].map((_, i) => (
           <div key={i} className="animate-pulse">
-            <div className="bg-gray-200 h-48 rounded-lg mb-4" />
-            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
-            <div className="h-4 bg-gray-200 rounded w-1/2" />
+            <div className="bg-gray-200 dark:bg-gray-700 h-48 rounded-lg mb-4" />
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-2" />
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2" />
           </div>
         ))}
       </div>
@@ -55,7 +55,7 @@ const ShopProducts = ({
   if (!products || products.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500 text-lg">Aucun produit trouvé</p>
+        <p className="text-gray-500 dark:text-gray-400 text-lg">Aucun produit trouvé</p>
       </div>
     );
   }
@@ -64,14 +64,14 @@ const ShopProducts = ({
     <div>
       {/* En-tête avec filtres et tri */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <p className="opacity-75">
+        <p className="opacity-75 text-gray-600 dark:text-gray-400">
           <span className="font-semibold">{totalCount || 0}</span> produits
         </p>
 
         <div className="flex items-center gap-4">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="lg:hidden flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-black/5 transition-colors"
+            className="lg:hidden flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             style={{ borderColor: themeColor }}
           >
             <FiFilter style={{ color: themeColor }} />
@@ -81,7 +81,7 @@ const ShopProducts = ({
           <select
             value={sortBy}
             onChange={(e) => handleSortChange(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none"
+            className="px-4 py-2 border rounded-lg focus:outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             style={{ 
               borderColor: themeColor,
             }}
@@ -103,7 +103,7 @@ const ShopProducts = ({
           <div className="hidden sm:flex border rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}
-              className="p-2 transition-colors"
+              className="p-2 transition-colors bg-white dark:bg-gray-800"
               style={{ 
                 backgroundColor: viewMode === 'grid' ? themeColor : 'transparent',
                 color: viewMode === 'grid' ? 'white' : 'inherit'
@@ -113,7 +113,7 @@ const ShopProducts = ({
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className="p-2 transition-colors"
+              className="p-2 transition-colors bg-white dark:bg-gray-800"
               style={{ 
                 backgroundColor: viewMode === 'list' ? themeColor : 'transparent',
                 color: viewMode === 'list' ? 'white' : 'inherit'

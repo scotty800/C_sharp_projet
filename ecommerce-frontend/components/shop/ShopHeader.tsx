@@ -78,16 +78,16 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
 
           <div className="flex-1 text-white">
             <h1 className="text-3xl md:text-4xl font-bold mb-2">{shop.name}</h1>
-            <p className="text-gray-200 mb-4 max-w-2xl">{shop.description}</p>
+            <p className="text-gray-200 dark:text-gray-300 mb-4 max-w-2xl">{shop.description}</p>
             
             <div className="flex flex-wrap gap-6 text-sm">
               <div>
                 <span className="font-semibold">{formatNumber(shop.productCount)}</span>
-                <span className="text-gray-300 ml-1">produits</span>
+                <span className="text-gray-300 dark:text-gray-400 ml-1">produits</span>
               </div>
               <div>
                 <span className="font-semibold">4.8</span>
-                <span className="text-gray-300 ml-1">note moyenne</span>
+                <span className="text-gray-300 dark:text-gray-400 ml-1">note moyenne</span>
               </div>
             </div>
           </div>
@@ -115,18 +115,18 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
 
         {/* Informations de contact */}
         <div 
-          className="rounded-lg shadow-md p-6 mb-8"
+          className="rounded-lg shadow-md p-6 mb-8 dark:shadow-gray-900/30"
           style={{ 
             backgroundColor: shop.backgroundColor || '#ffffff',
             color: shop.textColor || '#000000'
           }}
         >
-          <h2 className="text-lg font-semibold mb-4">Informations boutique</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Informations boutique</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {shop.email && (
               <div className="flex items-center gap-3">
                 <FiMail style={{ color: shop.themeColor || '#e50914' }} />
-                <a href={`mailto:${shop.email}`} className="hover:underline">
+                <a href={`mailto:${shop.email}`} className="text-gray-600 dark:text-gray-300 hover:underline">
                   {shop.email}
                 </a>
               </div>
@@ -134,14 +134,14 @@ const ShopHeader = ({ shop, isOwner = false }: ShopHeaderProps) => {
             {shop.phone && (
               <div className="flex items-center gap-3">
                 <FiPhone style={{ color: shop.themeColor || '#e50914' }} />
-                <a href={`tel:${shop.phone}`} className="hover:underline">
+                <a href={`tel:${shop.phone}`} className="text-gray-600 dark:text-gray-300 hover:underline">
                   {shop.phone}
                 </a>
               </div>
             )}
             <div className="flex items-center gap-3">
               <FiMapPin style={{ color: shop.themeColor || '#e50914' }} />
-              <span>France</span>
+              <span className="text-gray-600 dark:text-gray-300">France</span>
             </div>
           </div>
         </div>

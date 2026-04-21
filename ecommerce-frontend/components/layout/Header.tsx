@@ -152,6 +152,16 @@ const Header = () => {
                         Mes boutiques
                       </Link>
 
+                      {/* ✅ Lien Paramètres ajouté */}
+                      <Link
+                        href="/settings"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors"
+                        onClick={() => setIsUserMenuOpen(false)}
+                      >
+                        <FiSettings size={16} />
+                        Paramètres
+                      </Link>
+
                       <Link
                         href="/shop/create"
                         className="flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-white/10 transition-colors border-t border-white/10 mt-1"

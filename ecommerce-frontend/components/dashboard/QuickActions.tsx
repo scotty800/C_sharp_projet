@@ -65,7 +65,7 @@ const QuickActions = ({ shopId }: QuickActionsProps) => {
             key={index}
             href={action.href}
             onClick={action.onClick}
-            className={`${action.color} text-white rounded-lg p-4 text-center transition-colors group`}
+            className={`${action.color} text-white rounded-lg p-4 text-center transition-all duration-200 group hover:scale-105`}
           >
             <Icon className="mx-auto mb-2 text-2xl group-hover:scale-110 transition-transform" />
             <span className="text-sm font-medium">{action.label}</span>

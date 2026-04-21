@@ -98,7 +98,7 @@ export default function SellerReturnsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -106,9 +106,9 @@ export default function SellerReturnsPage() {
 
   if (!shopId) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-600">Aucun shop sélectionné</p>
+          <p className="text-gray-600 dark:text-gray-400">Aucun shop sélectionné</p>
           <Link href="/dashboard/seller" className="text-primary hover:underline mt-4 inline-block">
             Retour au dashboard
           </Link>
@@ -118,33 +118,33 @@ export default function SellerReturnsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="container mx-auto px-4">
         {/* Fil d'Ariane */}
         <div className="mb-6">
-          <Link href={`/dashboard/seller/orders?shopId=${shopId}`} className="inline-flex items-center gap-2 text-gray-600 hover:text-primary">
+          <Link href={`/dashboard/seller/orders?shopId=${shopId}`} className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary transition-colors">
             <FiArrowLeft />
             Retour aux commandes
           </Link>
         </div>
 
-        <h1 className="text-2xl font-bold mb-6">Demandes de retour</h1>
+        <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Demandes de retour</h1>
 
         {returnRequests.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-            <FiPackage className="mx-auto text-gray-300 mb-4" size={48} />
-            <p className="text-gray-500">Aucune demande de retour en attente</p>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-12 text-center">
+            <FiPackage className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={48} />
+            <p className="text-gray-500 dark:text-gray-400">Aucune demande de retour en attente</p>
           </div>
         ) : (
           <div className="space-y-4">
             {returnRequests.map(order => (
-              <div key={order.id} className="bg-white rounded-lg shadow-lg p-6">
+              <div key={order.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="font-semibold">Commande #{order.orderNumber}</p>
-                    <p className="text-sm text-gray-500">Demandé le {formatDate(order.createdAt)}</p>
-                    <p className="text-sm text-gray-500">Montant: {formatPrice(order.finalAmount)}</p>
-                    <div className="mt-2 text-sm text-gray-600">
+                    <p className="font-semibold text-gray-900 dark:text-white">Commande #{order.orderNumber}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Demandé le {formatDate(order.createdAt)}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Montant: {formatPrice(order.finalAmount)}</p>
+                    <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                       {order.items.map(item => (
                         <p key={item.id}>• {item.productName} x{item.quantity}</p>
                       ))}

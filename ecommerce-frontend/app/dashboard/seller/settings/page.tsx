@@ -93,26 +93,26 @@ export default function SellerSettingsPage() {
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
-        <Link href={`/dashboard/seller?shopId=${shopId}`} className="text-gray-600 hover:text-primary">
+        <Link href={`/dashboard/seller?shopId=${shopId}`} className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors">
           <FiArrowLeft size={20} />
         </Link>
-        <h1 className="text-2xl font-bold">Paramètres de la boutique</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Paramètres de la boutique</h1>
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-        <p className="text-gray-600 mb-4">
-          Boutique : <span className="font-semibold">{shop?.name}</span>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
+        <p className="text-gray-600 dark:text-gray-400 mb-4">
+          Boutique : <span className="font-semibold text-gray-900 dark:text-white">{shop?.name}</span>
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
         {/* Informations générales */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-semibold mb-6">Informations générales</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-white">Informations générales</h2>
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Nom de la boutique
               </label>
               <input
@@ -120,13 +120,13 @@ export default function SellerSettingsPage() {
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Description
               </label>
               <textarea
@@ -134,19 +134,19 @@ export default function SellerSettingsPage() {
                 value={formData.description}
                 onChange={handleChange}
                 rows={4}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
           </div>
         </div>
 
         {/* Coordonnées */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-semibold mb-6">Coordonnées</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-white">Coordonnées</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 <FiMail className="inline mr-1" />
                 Email
               </label>
@@ -155,12 +155,12 @@ export default function SellerSettingsPage() {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 <FiPhone className="inline mr-1" />
                 Téléphone
               </label>
@@ -169,7 +169,7 @@ export default function SellerSettingsPage() {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>
           </div>
@@ -189,7 +189,7 @@ export default function SellerSettingsPage() {
       </form>
 
       {/* Note d'information */}
-      <div className="mt-6 text-center text-sm text-gray-500">
+      <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
         <p>Pour modifier le logo, la bannière ou les couleurs,</p>
         <Link href={`/shop/customize/${shopId}`} className="text-primary hover:underline">
           allez dans Personnaliser

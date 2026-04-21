@@ -93,12 +93,12 @@ export default function SellerPaymentsPage() {
 
   const getStatusColor = (status: string) => {
     const colors = {
-      'paid': 'bg-green-100 text-green-800',
-      'pending': 'bg-yellow-100 text-yellow-800',
-      'failed': 'bg-red-100 text-red-800',
-      'refunded': 'bg-orange-100 text-orange-800',
+      'paid': 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+      'pending': 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
+      'failed': 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
+      'refunded': 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300',
     };
-    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+    return colors[status as keyof typeof colors] || 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
   };
 
   if (loading) {
@@ -112,19 +112,19 @@ export default function SellerPaymentsPage() {
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
-        <Link href={`/dashboard/seller?shopId=${shopId}`} className="text-gray-600 hover:text-primary">
+        <Link href={`/dashboard/seller?shopId=${shopId}`} className="text-gray-600 dark:text-gray-400 hover:text-primary transition-colors">
           <FiArrowLeft size={20} />
         </Link>
-        <h1 className="text-2xl font-bold">Paiements</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Paiements</h1>
       </div>
       
-      <p className="text-gray-600 mb-6">Boutique : {shopName}</p>
+      <p className="text-gray-600 dark:text-gray-400 mb-6">Boutique : {shopName}</p>
 
       {/* Résumé */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <p className="text-sm text-gray-500 mb-1">Chiffre d'affaires total</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Chiffre d'affaires total</p>
             <p className="text-3xl font-bold text-primary">{formatPrice(totalRevenue)}</p>
           </div>
           <button className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors">
@@ -135,41 +135,41 @@ export default function SellerPaymentsPage() {
       </div>
 
       {/* Liste des paiements */}
-      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
         {payments.length === 0 ? (
           <div className="text-center py-12">
-            <FiCreditCard className="mx-auto text-gray-300 mb-4" size={48} />
-            <p className="text-gray-500">Aucun paiement pour cette boutique</p>
+            <FiCreditCard className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={48} />
+            <p className="text-gray-500 dark:text-gray-400">Aucun paiement pour cette boutique</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-gray-700/50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Commande</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Méthode</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Commande</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Client</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Montant</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Méthode</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Statut</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {payments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap font-medium">
+                  <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 dark:text-white">
                       #{payment.orderNumber}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white">
                       {payment.customerName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {formatDate(payment.date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap font-semibold text-primary">
                       {formatPrice(payment.amount)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                       {payment.method}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

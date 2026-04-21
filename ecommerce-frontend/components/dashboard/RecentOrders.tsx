@@ -10,85 +10,108 @@ interface RecentOrdersProps {
 }
 
 const RecentOrders = ({ orders = [] }: RecentOrdersProps) => {
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  // ✅ Gérer status string ET number
+  const getStatusColor = (status: string | number) => {
+    const statusStr = String(status);
+    switch (statusStr) {
       case 'Delivered':
-        return 'bg-green-100 text-green-800';
+      case '3':
+        return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
       case 'Shipped':
-        return 'bg-blue-100 text-blue-800';
+      case '2':
+        return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300';
       case 'Processing':
-        return 'bg-yellow-100 text-yellow-800';
+      case '1':
+        return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300';
       case 'Pending':
-        return 'bg-gray-100 text-gray-800';
+      case '0':
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
       case 'Cancelled':
-        return 'bg-red-100 text-red-800';
+      case '4':
+        return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300';
+      case 'Refunded':
+      case '5':
+        return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300';
+      case 'ReturnRequested':
+      case '6':
+        return 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300';
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: string | number) => {
+    const statusStr = String(status);
     const statusMap: Record<string, string> = {
       'Pending': 'En attente',
       'Processing': 'En traitement',
       'Shipped': 'Expédiée',
       'Delivered': 'Livrée',
       'Cancelled': 'Annulée',
+      'Refunded': 'Remboursée',
+      'ReturnRequested': 'Retour demandé',
+      '0': 'En attente',
+      '1': 'En traitement',
+      '2': 'Expédiée',
+      '3': 'Livrée',
+      '4': 'Annulée',
+      '5': 'Remboursée',
+      '6': 'Retour demandé',
     };
-    return statusMap[status] || status;
+    return statusMap[statusStr] || statusStr;
   };
 
   if (!orders || orders.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-lg p-12 text-center">
-        <p className="text-gray-500">Aucune commande récente</p>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-12 text-center">
+        <p className="text-gray-500 dark:text-gray-400">Aucune commande récente</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg">
-      <div className="p-6 border-b">
-        <h3 className="text-lg font-semibold">Commandes récentes</h3>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+      <div className="p-6 border-b dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Commandes récentes</h3>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 N° commande
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Client
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Date
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Montant
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Statut
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {orders.map((order) => (
-              <tr key={order.id} className="hover:bg-gray-50">
+              <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="font-medium">#{order.orderNumber}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">#{order.orderNumber}</span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white">
                   {order.username}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {formatDate(order.createdAt)}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap font-semibold">
+                <td className="px-6 py-4 whitespace-nowrap font-semibold text-primary dark:text-primary">
                   {formatPrice(order.finalAmount)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -111,10 +134,10 @@ const RecentOrders = ({ orders = [] }: RecentOrdersProps) => {
         </table>
       </div>
 
-      <div className="p-6 border-t text-center">
+      <div className="p-6 border-t dark:border-gray-700 text-center">
         <Link
           href="/dashboard/seller/orders"
-          className="text-primary hover:text-primary-dark font-semibold"
+          className="text-primary hover:text-primary-dark font-semibold transition-colors"
         >
           Voir toutes les commandes
         </Link>

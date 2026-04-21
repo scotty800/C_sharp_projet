@@ -31,7 +31,7 @@ export default function CategoriesPage() {
           categories.map(async (category) => {
             try {
               const response = await productService.getProducts({
-                category: category.id,  // ← Maintenant ça fonctionne !
+                category: category.id,
                 pageSize: 1,
               });
               
@@ -56,11 +56,11 @@ export default function CategoriesPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="container mx-auto px-4">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-4">Catégories</h1>
-          <p className="text-gray-600">
+          <h1 className="text-3xl font-bold mb-4 text-gray-900 dark:text-white">Catégories</h1>
+          <p className="text-gray-600 dark:text-gray-400">
             Parcourez les produits par catégorie
           </p>
         </div>
