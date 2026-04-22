@@ -185,7 +185,7 @@ export default function EditProductPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -193,8 +193,8 @@ export default function EditProductPage() {
 
   if (!product) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Produit non trouvé</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <p className="text-gray-600 dark:text-gray-400">Produit non trouvé</p>
       </div>
     );
   }
@@ -202,18 +202,18 @@ export default function EditProductPage() {
   const imageUrl = getImageUrl(product.imageUrl);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="container mx-auto px-4 max-w-3xl">
         {/* Header avec boutons */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.back()}
-              className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
             >
               <FiArrowLeft size={24} />
             </button>
-            <h1 className="text-2xl font-bold">Modifier le produit</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Modifier le produit</h1>
           </div>
           
           <button
@@ -228,9 +228,9 @@ export default function EditProductPage() {
 
         {/* Image du produit */}
         {imageUrl && (
-          <div className="mb-6 bg-white rounded-lg shadow-lg p-4">
-            <h2 className="text-sm font-medium text-gray-700 mb-3">Image actuelle</h2>
-            <div className="relative w-48 h-48 rounded-lg overflow-hidden border">
+          <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4">
+            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Image actuelle</h2>
+            <div className="relative w-48 h-48 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
               <Image
                 src={imageError ? '/images/product-placeholder.svg' : imageUrl}
                 alt={product.name}
@@ -244,10 +244,10 @@ export default function EditProductPage() {
         )}
 
         {/* Formulaire d'édition */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 space-y-6">
           {/* Nom du produit */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Nom du produit *
             </label>
             <input
@@ -255,7 +255,7 @@ export default function EditProductPage() {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               placeholder="Ex: T-shirt en coton"
               required
             />
@@ -263,7 +263,7 @@ export default function EditProductPage() {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Description
             </label>
             <textarea
@@ -271,7 +271,7 @@ export default function EditProductPage() {
               value={formData.description}
               onChange={handleChange}
               rows={4}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               placeholder="Description détaillée du produit..."
             />
           </div>
@@ -279,7 +279,7 @@ export default function EditProductPage() {
           {/* Prix et Stock */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Prix (€) *
               </label>
               <input
@@ -289,13 +289,13 @@ export default function EditProductPage() {
                 onChange={handleChange}
                 step="0.01"
                 min="0"
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="29.99"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Stock *
               </label>
               <input
@@ -304,7 +304,7 @@ export default function EditProductPage() {
                 value={formData.stock}
                 onChange={handleChange}
                 min="0"
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="10"
                 required
               />
@@ -313,14 +313,14 @@ export default function EditProductPage() {
 
           {/* Catégorie */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Catégorie *
             </label>
             <select
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               required
             >
               <option value="">Sélectionnez une catégorie</option>
@@ -333,7 +333,7 @@ export default function EditProductPage() {
           {/* Taille et Couleur (optionnels) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Taille (optionnel)
               </label>
               <input
@@ -341,12 +341,12 @@ export default function EditProductPage() {
                 name="size"
                 value={formData.size}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="Ex: M, XL, 42..."
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Couleur (optionnel)
               </label>
               <input
@@ -354,7 +354,7 @@ export default function EditProductPage() {
                 name="color"
                 value={formData.color}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="Ex: Rouge, Bleu..."
               />
             </div>
@@ -375,7 +375,7 @@ export default function EditProductPage() {
               type="button"
               onClick={() => router.back()}
               disabled={saving || deleting}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+              className="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
             >
               Annuler
             </button>
@@ -383,9 +383,9 @@ export default function EditProductPage() {
         </form>
 
         {/* Lien pour gérer les images */}
-        <div className="mt-6 bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">Images du produit</h2>
-          <p className="text-sm text-gray-500 mb-4">
+        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Images du produit</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Vous pouvez ajouter ou modifier les images de ce produit.
           </p>
           <button

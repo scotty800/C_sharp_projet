@@ -90,7 +90,7 @@ export default function ProductPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -98,26 +98,26 @@ export default function ProductPage() {
 
   if (!product) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Produit non trouvé</h1>
-          <p className="text-gray-600">Le produit que vous recherchez n'existe pas ou a été supprimé.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Produit non trouvé</h1>
+          <p className="text-gray-600 dark:text-gray-400">Le produit que vous recherchez n'existe pas ou a été supprimé.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="container mx-auto px-4">
         {/* Fil d'Ariane */}
         <nav className="text-sm mb-6">
-          <ol className="flex items-center gap-2 text-gray-500">
-            <li><a href="/" className="hover:text-primary">Accueil</a></li>
+          <ol className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+            <li><a href="/" className="hover:text-primary transition-colors">Accueil</a></li>
             <li>/</li>
-            <li><a href={`/categories/${product.category}`} className="hover:text-primary">{product.category}</a></li>
+            <li><a href={`/categories/${product.category}`} className="hover:text-primary transition-colors">{product.category}</a></li>
             <li>/</li>
-            <li className="text-gray-900 font-medium">{product.name}</li>
+            <li className="text-gray-900 dark:text-white font-medium">{product.name}</li>
           </ol>
         </nav>
 
@@ -137,7 +137,7 @@ export default function ProductPage() {
         {/* Produits similaires */}
         {relatedProducts.length > 0 && (
           <div className="mt-12">
-            <h2 className="text-2xl font-bold mb-6">Produits similaires</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Produits similaires</h2>
             <ProductGrid products={relatedProducts} />
           </div>
         )}

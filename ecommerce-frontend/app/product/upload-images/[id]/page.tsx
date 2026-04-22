@@ -157,7 +157,7 @@ export default function UploadProductImagesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -165,37 +165,37 @@ export default function UploadProductImagesPage() {
 
   if (!product) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-600">Produit non trouvé</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <p className="text-gray-600 dark:text-gray-400">Produit non trouvé</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="container mx-auto px-4 max-w-4xl">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => router.back()}
-            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-700 dark:text-gray-300"
           >
             <FiArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold">Gérer les images</h1>
-            <p className="text-gray-500">Produit : {product.name}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gérer les images</h1>
+            <p className="text-gray-500 dark:text-gray-400">Produit : {product.name}</p>
           </div>
         </div>
 
         {/* Images existantes */}
         {existingImages.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-lg font-semibold mb-4">Images actuelles</h2>
+            <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Images actuelles</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {existingImages.map((imageUrl, index) => (
                 <div key={index} className="relative group">
-                  <div className="relative aspect-square rounded-lg overflow-hidden border bg-gray-100">
+                  <div className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
                     <Image
                       src={getImageUrl(imageUrl)}
                       alt={`Image ${index + 1}`}
@@ -210,7 +210,7 @@ export default function UploadProductImagesPage() {
                   >
                     <FiX size={16} />
                   </button>
-                  <p className="text-xs text-gray-500 mt-1 text-center">Image {index + 1}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-center">Image {index + 1}</p>
                 </div>
               ))}
             </div>
@@ -218,9 +218,9 @@ export default function UploadProductImagesPage() {
         )}
 
         {/* Upload de nouvelles images */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-lg font-semibold mb-4">Ajouter des images</h2>
-          <p className="text-sm text-gray-500 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Ajouter des images</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
             Vous pouvez ajouter jusqu'à 3 images. Format accepté : JPG, PNG, WEBP, GIF (max 5 Mo)
           </p>
 
@@ -228,8 +228,8 @@ export default function UploadProductImagesPage() {
             {[1, 2, 3].map((num) => {
               const imageKey = `image${num}` as 'image1' | 'image2' | 'image3';
               return (
-                <div key={num} className="border rounded-lg p-4">
-                  <div className="relative aspect-square mb-2 bg-gray-50 rounded-lg overflow-hidden">
+                <div key={num} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <div className="relative aspect-square mb-2 bg-gray-50 dark:bg-gray-700 rounded-lg overflow-hidden">
                     {imagePreviews[imageKey] ? (
                       <>
                         <Image
@@ -247,7 +247,7 @@ export default function UploadProductImagesPage() {
                         </button>
                       </>
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                      <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500">
                         <FiUpload size={32} />
                         <span className="text-sm mt-2">Image {num}</span>
                       </div>
@@ -262,7 +262,7 @@ export default function UploadProductImagesPage() {
                   />
                   <label
                     htmlFor={`image-${num}`}
-                    className="block w-full text-center py-2 px-3 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 cursor-pointer transition-colors"
+                    className="block w-full text-center py-2 px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors text-gray-700 dark:text-gray-300"
                   >
                     {imagePreviews[imageKey] ? 'Changer' : 'Choisir un fichier'}
                   </label>
@@ -284,7 +284,7 @@ export default function UploadProductImagesPage() {
             <button
               onClick={() => router.back()}
               disabled={uploading}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
+              className="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
             >
               Retour
             </button>
