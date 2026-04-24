@@ -1,3 +1,4 @@
+// app/layout.tsx
 'use client';
 
 import { usePathname } from 'next/navigation';
@@ -6,7 +7,7 @@ import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CartProvider } from '@/contexts/CartContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
-import { ThemeProvider } from '@/contexts/ThemeContext'; // ← Ajoute cette ligne
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { Toaster } from 'react-hot-toast';
@@ -20,19 +21,26 @@ export default function RootLayout({
 }) {
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith('/auth/');
+  const isHomePage = pathname === '/';
 
   return (
     <html lang="fr">
-      <body className={`${inter.className} bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-300`}>
-        <ThemeProvider> {/* ← Ajoute ce wrapper */}
+      <body className={`${inter.className} bg-black text-white min-h-screen flex flex-col`}>
+        <ThemeProvider>
           <NotificationProvider>
             <AuthProvider>
               <CartProvider>
-                <Header />
+                {/* Header caché sur les pages d'authentification, présent sur home */}
+                {!isAuthPage && <Header />}
+                
+                {/* Padding top seulement si le header est présent */}
                 <main className={`flex-grow ${!isAuthPage ? 'pt-16' : ''}`}>
                   {children}
                 </main>
-                <Footer />
+                
+                {/* Footer caché sur la page d'accueil ET sur les pages d'authentification */}
+                {!isHomePage && !isAuthPage && <Footer />}
+                
                 <Toaster 
                   position="top-right"
                   toastOptions={{

@@ -1,8 +1,10 @@
+// components/home/ShopRow.tsx
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
 import { FiChevronLeft, FiChevronRight } from 'react-icons/fi';
-import ShopCard from './ShopCard';
+import Link from 'next/link';
+import BrandCard from './BrandCard';
 import { Shop } from '@/types/shop';
 
 interface ShopRowProps {
@@ -10,9 +12,18 @@ interface ShopRowProps {
   subtitle?: string;
   shops: Shop[];
   loading?: boolean;
+  variant?: 'default' | 'trending' | 'new';
+  showTrend?: boolean;
 }
 
-const ShopRow = ({ title, subtitle, shops, loading = false }: ShopRowProps) => {
+const ShopRow = ({ 
+  title, 
+  subtitle, 
+  shops, 
+  loading = false, 
+  variant = 'default',
+  showTrend = false
+}: ShopRowProps) => {
   const rowRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(true);
@@ -28,8 +39,8 @@ const ShopRow = ({ title, subtitle, shops, loading = false }: ShopRowProps) => {
   const checkScroll = () => {
     if (rowRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = rowRef.current;
-      setShowLeftArrow(scrollLeft > 0);
-      setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 10);
+      setShowLeftArrow(scrollLeft > 20);
+      setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 20);
     }
   };
 
@@ -44,15 +55,24 @@ const ShopRow = ({ title, subtitle, shops, loading = false }: ShopRowProps) => {
 
   if (loading) {
     return (
-      <div className="shop-row py-8">
+      <div className="py-8">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">{title}</h2>
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse mb-2" />
+              <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            </div>
+          </div>
           <div className="flex gap-4 overflow-hidden">
-            {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                className="flex-shrink-0 w-64 h-36 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"
-              />
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex-shrink-0 w-48">
+                <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded-t-xl animate-pulse" />
+                <div className="p-3 space-y-2">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-2/3" />
+                  <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -62,18 +82,33 @@ const ShopRow = ({ title, subtitle, shops, loading = false }: ShopRowProps) => {
 
   if (!shops.length) return null;
 
+  // Valeurs de tendance simulées pour l'effet visuel
+  const getTrendValue = (index: number) => {
+    const trends = ['+245%', '+189%', '+156%', '+134%', '+112%', '+98%', '+87%'];
+    return trends[index % trends.length];
+  };
+
   return (
-    <div className="shop-row py-8 group/row">
+    <div className="py-8 group/row">
       <div className="container mx-auto px-4">
-        {/* En-tête */}
-        <div className="flex items-end justify-between mb-4">
+        {/* En-tête style NOVERA - exactement comme l'image */}
+        <div className="flex justify-between items-end mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h2>
-            {subtitle && <p className="text-gray-600 dark:text-gray-400">{subtitle}</p>}
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                {subtitle}
+              </p>
+            )}
           </div>
-          <a href="#" className="text-primary hover:underline text-sm font-semibold">
-            Voir tout
-          </a>
+          <Link
+            href="#"
+            className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white text-sm font-medium transition-colors"
+          >
+            View all &rarr;
+          </Link>
         </div>
 
         {/* Carousel */}
@@ -82,9 +117,9 @@ const ShopRow = ({ title, subtitle, shops, loading = false }: ShopRowProps) => {
           {showLeftArrow && (
             <button
               onClick={() => scroll('left')}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity duration-300 -ml-4"
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 text-gray-800 dark:text-white p-2 rounded-full shadow-lg opacity-0 group-hover/row:opacity-100 transition-all duration-300 -translate-x-1/2"
             >
-              <FiChevronLeft size={24} />
+              <FiChevronLeft size={20} />
             </button>
           )}
 
@@ -92,23 +127,36 @@ const ShopRow = ({ title, subtitle, shops, loading = false }: ShopRowProps) => {
           {showRightArrow && (
             <button
               onClick={() => scroll('right')}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/70 text-white p-3 rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity duration-300 -mr-4"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 text-gray-800 dark:text-white p-2 rounded-full shadow-lg opacity-0 group-hover/row:opacity-100 transition-all duration-300 translate-x-1/2"
             >
-              <FiChevronRight size={24} />
+              <FiChevronRight size={20} />
             </button>
           )}
 
-          {/* Conteneur des cartes */}
+          {/* Conteneur des cartes - défilement horizontal */}
           <div
             ref={rowRef}
-            className="shop-row-container"
+            className="flex gap-4 overflow-x-auto scrollbar-hide pb-4"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             {shops.map((shop, index) => (
-              <ShopCard key={shop.id} shop={shop} index={index} />
+              <BrandCard
+                key={shop.id}
+                shop={shop}
+                variant={variant}
+                showTrend={showTrend}
+                trendValue={getTrendValue(index)}
+              />
             ))}
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </div>
   );
 };
