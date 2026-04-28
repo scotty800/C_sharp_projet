@@ -21,10 +21,25 @@ namespace ECommerceApi.Data
         public DbSet<ProductView> ProductViews { get; set; }
         public DbSet<ShopVisit> ShopVisits { get; set; }
 
+        // Personnalisation avancée
+        public DbSet<ShopCustomization> ShopCustomizations { get; set; }
+        public DbSet<CustomSection> CustomSections { get; set; }
+        public DbSet<CustomAsset> CustomAssets { get; set; }
+        public DbSet<Template> Templates { get; set; }
+        public DbSet<ShopProductCustomization> ShopProductCustomizations { get; set; }
+        public DbSet<CustomizationSnapshot> CustomizationSnapshots { get; set; }
+        public DbSet<Asset> Assets { get; set; }
+
+        // Filtres
+        public DbSet<ImageFilter> ImageFilters { get; set; }
+        public DbSet<ProductImageFilter> ProductImageFilters { get; set; }
+        public DbSet<ShopFilter> ShopFilters { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
+            // Configuration existante
             modelBuilder.Entity<Shop>()
                 .HasMany(s => s.Products)
                 .WithOne(p => p.Shop)
@@ -73,6 +88,45 @@ namespace ECommerceApi.Data
 
             modelBuilder.Entity<ShopVisit>()
                 .HasIndex(sv => new { sv.ShopId, sv.VisitedAt });
+
+            // ✅ AJOUTE CES CONFIGURATIONS POUR LES FILTRES
+
+            // Configuration de ImageFilter
+            modelBuilder.Entity<ImageFilter>()
+                .HasOne(i => i.ShopCustomization)
+                .WithMany(s => s.ImageFilters)
+                .HasForeignKey(i => i.ShopCustomizationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configuration de ShopCustomization avec ActiveShopFilter
+            modelBuilder.Entity<ShopCustomization>()
+                .HasOne(s => s.ActiveShopFilter)
+                .WithOne()
+                .HasForeignKey<ShopCustomization>(s => s.ActiveShopFilterId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configuration de ShopProductCustomization
+            modelBuilder.Entity<ShopProductCustomization>()
+                .HasIndex(sp => new { sp.ShopId, sp.ProductId })
+                .IsUnique();
+
+            // Configuration de CustomizationSnapshot
+            modelBuilder.Entity<CustomizationSnapshot>()
+                .HasIndex(cs => cs.ShopId);
+
+            // Configuration de Asset
+            modelBuilder.Entity<Asset>()
+                .HasIndex(a => new { a.Type, a.Category });
+
+            // Configuration de ShopFilter
+            modelBuilder.Entity<ShopFilter>()
+                .HasIndex(sf => sf.ShopId)
+                .IsUnique();
+
+            // Configuration de ProductImageFilter
+            modelBuilder.Entity<ProductImageFilter>()
+                .HasIndex(pf => new { pf.ShopId, pf.ProductId, pf.ImageIndex })
+                .IsUnique();
         }
     }
 }
