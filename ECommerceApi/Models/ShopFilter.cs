@@ -15,7 +15,6 @@ namespace ECommerceApi.Models
         // Filtres globaux
         public string GlobalFilter { get; set; } = "none";
         
-        // CORRECTION 1: Renommer GlobalCasFilter en GlobalCssFilter (cohérence avec le nom demandé)
         public string? GlobalCssFilter { get; set; }
 
         // Ajustements globaux
