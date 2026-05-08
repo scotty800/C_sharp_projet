@@ -25,7 +25,8 @@ import {
   FiPackage,
   FiPlus,
   FiEdit,
-  FiTrash2
+  FiTrash2,
+  FiLayout  // ← AJOUTÉ pour l'icône du studio
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -264,6 +265,14 @@ export default function CustomizeShopPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Personnaliser {shop.name}</h1>
             </div>
             <div className="flex items-center gap-3">
+              {/* NOUVEAU BOUTON VERS LE STUDIO */}
+              <Link
+                href={`/shop/studio/${shop.id}`}
+                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                <FiLayout size={18} />
+                Nouveau Studio Créateur
+              </Link>
               <button
                 onClick={handleViewShop}
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { shopService } from '@/services/api/shops';
 import { ShopResponse } from '@/types/shop';
-import { FiSettings, FiExternalLink, FiPlus, FiPackage } from 'react-icons/fi';
+import { FiSettings, FiExternalLink, FiPlus, FiPackage, FiLayout } from 'react-icons/fi'; // ← AJOUTÉ FiLayout
 
 export default function MyShopsPage() {
   const { user } = useAuth();
@@ -86,6 +86,15 @@ export default function MyShopsPage() {
                   >
                     <FiExternalLink size={16} />
                     Voir
+                  </Link>
+
+                  {/* Studio Créateur (NOUVEAU) */}
+                  <Link
+                    href={`/shop/studio/${shop.id}`}
+                    className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors"
+                  >
+                    <FiLayout size={16} />
+                    Studio
                   </Link>
 
                   {/* Personnaliser (couleurs, logo, bannière) */}

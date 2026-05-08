@@ -22,21 +22,23 @@ namespace ECommerceApi.Models
         public string Url { get; set; } = string.Empty;
 
         public string? ThumbnailUrl { get; set; }
-
         public string? PreviewUrl { get; set; }
 
+        [ForeignKey(nameof(ShopId))]
+        public Shop? Shop { get; set; }
+
+        public int? ShopId { get; set; }
+
+        public bool IsGlobal { get; set; } = false;
+
         public bool IsPremium { get; set; } = false;
-
         public int Price { get; set; } = 0;
-
         public string? License { get; set; }
 
         public int UsageCount { get; set; } = 0;
-
         public bool IsActive { get; set; } = true;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
         public int? CreatedBy { get; set; }
 
     }

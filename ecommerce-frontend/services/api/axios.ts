@@ -1,9 +1,12 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import { ApiError } from '@/types/api';
 
+// ⭐ Correction : utiliser le bon port 5019
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5019/api';
+
 // Création de l'instance Axios
 const api: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },

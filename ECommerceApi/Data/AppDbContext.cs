@@ -35,6 +35,9 @@ namespace ECommerceApi.Data
         public DbSet<ProductImageFilter> ProductImageFilters { get; set; }
         public DbSet<ShopFilter> ShopFilters { get; set; }
 
+        // ❌ SUPPRIMÉ - ImageSelection pour la bibliothèque d'images
+        // public DbSet<ImageSelection> ImageSelections { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -89,7 +92,7 @@ namespace ECommerceApi.Data
             modelBuilder.Entity<ShopVisit>()
                 .HasIndex(sv => new { sv.ShopId, sv.VisitedAt });
 
-            // ✅ AJOUTE CES CONFIGURATIONS POUR LES FILTRES
+            // ⭐ CONFIGURATIONS POUR LES FILTRES
 
             // Configuration de ImageFilter
             modelBuilder.Entity<ImageFilter>()

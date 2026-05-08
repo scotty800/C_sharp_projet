@@ -61,7 +61,8 @@ builder.Services.AddCors(options =>
                 )
                 .AllowAnyHeader()
                 .AllowAnyMethod()
-                .AllowCredentials(); // Important pour les cookies/auth
+                .AllowCredentials() // Important pour les cookies/auth
+                .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
         });
 });
 
@@ -150,14 +151,26 @@ app.UseRouting(); // 1. Routing en premier
 
 app.UseCors("AllowFrontend"); // 2. CORS immédiatement après Routing
 
-// Middleware custom pour les exceptions
-app.UseMiddleware<ExceptionMiddleware>();
-app.UseMiddleware<TrackingMiddleware>();
-
-// HTTPS, Auth
-app.UseHttpsRedirection();
-app.UseAuthentication(); // 3. Authentication après CORS
-app.UseAuthorization(); // 4. Authorization après Authentication
+// ⭐ IMPORTANT: Ajouter les en-têtes CORS pour les fichiers statiques AVANT UseStaticFiles()
+app.Use(async (context, next) =>
+{
+    // Appliquer CORS aux fichiers statiques
+    if (context.Request.Path.StartsWithSegments("/uploads"))
+    {
+        context.Response.Headers.Append("Access-Control-Allow-Origin", "http://localhost:3000");
+        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
+        context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, OPTIONS");
+        context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type");
+        
+        if (context.Request.Method == "OPTIONS")
+        {
+            context.Response.StatusCode = 200;
+            await context.Response.CompleteAsync();
+            return;
+        }
+    }
+    await next();
+});
 
 // 📂 Servir les fichiers statiques pour les uploads (logo, banner, products)
 app.UseStaticFiles(); // wwwroot
@@ -168,6 +181,15 @@ app.UseFileServer(new FileServerOptions
     RequestPath = "/uploads",
     EnableDirectoryBrowsing = true
 });
+
+// Middleware custom pour les exceptions
+app.UseMiddleware<ExceptionMiddleware>();
+app.UseMiddleware<TrackingMiddleware>();
+
+// HTTPS, Auth
+app.UseHttpsRedirection();
+app.UseAuthentication(); // 3. Authentication après CORS
+app.UseAuthorization(); // 4. Authorization après Authentication
 
 // 🔨 Créer la base si nécessaire
 using (var scope = app.Services.CreateScope())

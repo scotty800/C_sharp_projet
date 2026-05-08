@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
 namespace ECommerceApi.Models
 {
@@ -24,6 +25,8 @@ namespace ECommerceApi.Models
         public string BackgroundRepeat { get; set; } = "no-repeat";
         public string BackgroundSize { get; set; } = "cover";
         public bool BackgroundFixed { get; set; } = false;
+        public string? BackgroundColor { get; set; } = "#FFFFFF";
+        public int? BackgroundOpacity { get; set; } = 100;
 
         // Couleurs
         public string PrimaryColor { get; set; } = "#2563EB";
@@ -106,9 +109,25 @@ namespace ECommerceApi.Models
         public string DefaultImageFilter { get; set; } = "none";
         public bool EnableFiltersPanel { get; set; } = true;
         public List<ImageFilter> ImageFilters { get; set; } = new();
+        public float CanvasBrightness { get; set; } = 1;
+        public float CanvasContrast { get; set; } = 1;
+        public float CanvasSaturation { get; set; } = 1;
+        public float CanvasBlur { get; set; } = 0;
+        public string? CanvasCssFilter { get; set; } = "none";
+
+        public string? BlocksJson { get; set; }  // Stocke tous les blocs de l'éditeur
+        // Pour un accès facile, tu peux aussi ajouter une propriété non mappée
+        [NotMapped]
+        public List<Block>? Blocks 
+        { 
+            get => string.IsNullOrEmpty(BlocksJson) ? null : JsonSerializer.Deserialize<List<Block>>(BlocksJson);
+            set => BlocksJson = JsonSerializer.Serialize(value);
+        }
 
         [ForeignKey(nameof(ActiveShopFilterId))]
         public ImageFilter? ActiveShopFilter { get; set; }
+
+        public string? ImageSelectionsJson { get; set; }
 
         // Dates
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

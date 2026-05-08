@@ -131,4 +131,52 @@ namespace ECommerceApi.DTO
         public string? ProductAnimation { get; set; }
         public int AnimationDelay { get; set; }
     }
+
+    public class BlockDto
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string Type { get; set; } = "section";
+        public string Name { get; set; } = "";
+        public int Order { get; set; }
+        public bool IsVisible { get; set; } = true;
+        public BlockPositionDto? Position { get; set; }  // ← AJOUTE CETTE LIGNE
+        public Dictionary<string, object> Settings { get; set; } = new();
+        public List<BlockDto> Children { get; set; } = new();
+
+        public float Brightness { get; set; } = 1f;
+        public float Contrast { get; set; } = 1f;
+        public float Saturation { get; set; } = 1f;
+        public float Blur { get; set; } = 0f;
+        public string? CssFilter { get; set; } = "none";
+    }
+
+    public class BlockPositionDto
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Width { get; set; } = 0;
+        public int Height { get; set; } = 0;
+        public int ZIndex { get; set; } = 0;
+        public string? PositionType { get; set; } = "absolute";
+        public string? Alignment { get; set; } = "center";
+
+        public int Rotation { get; set; } = 0;
+    }
+
+    public class UpdateBackgroundDto
+    {
+        public string? BackgroundColor { get; set; }
+        public string? BackgroundType { get; set; }
+        public string? BackgroundValue { get; set; }
+        public int? BackgroundOpacity { get; set; }
+    }
+
+    public class UpdateCanvasFiltersDto
+    {
+        public float GlobalBrightness { get; set; } = 1;
+        public float GlobalContrast { get; set; } = 1;
+        public float GlobalSaturation { get; set; } = 1;
+        public float GlobalBlur { get; set; } = 0;
+        public string? GlobalCssFilter { get; set; } = "none";
+    }
 }
