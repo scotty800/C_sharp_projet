@@ -98,7 +98,6 @@ export default function StudioLayout() {
       try {
         setLoading(true);
         
-        // ⭐ AJOUT DE getBackground
         const [shop, customization, filters, blocksFromApi, canvasFilters, background] = await Promise.all([
           shopService.getShopById(Number(id)),
           shopCustomizationService.getByShopId(Number(id)).catch(() => null),
@@ -140,7 +139,6 @@ export default function StudioLayout() {
           }));
         }
 
-        // ⭐ CORRECTION : Utiliser background pour les couleurs de fond
         setState(prev => ({
           ...prev,
           shop,
@@ -149,7 +147,6 @@ export default function StudioLayout() {
             ...(customization || {}),
             shopId: shop.id,
             primaryColor: customization?.PrimaryColor || shop.themeColor || '#2563EB',
-            // ⭐ Utiliser background pour les couleurs de fond
             backgroundColor: background?.backgroundColor || shop.backgroundColor || '#FFFFFF',
             textColor: customization?.TextColor || shop.textColor || '#1F2937',
             backgroundType: background?.backgroundType || 'solid',
@@ -176,7 +173,6 @@ export default function StudioLayout() {
     if (id) loadData();
   }, [id, user, router]);
 
-  // ⭐ SAUVEGARDE COMPLÈTE AVEC LOGS
   const saveChanges = useCallback(async () => {
     console.log('💾 saveChanges appelée - isDirty:', state.isDirty);
     console.log('💾 saveChanges - backgroundColor:', state.customization?.backgroundColor);
@@ -232,7 +228,6 @@ export default function StudioLayout() {
     }
   }, [id, state.blocks, state.isDirty, state.canvasFilters, state.customization]);
 
-  // ⭐ TIMER DE SAUVEGARDE AUTOMATIQUE CORRIGÉ
   useEffect(() => {
     if (state.isDirty && !saving) {
       console.log('⏰ Déclenchement du timer - isDirty:', state.isDirty);
@@ -250,7 +245,6 @@ export default function StudioLayout() {
     }
   }, [state.isDirty, saving, saveChanges]);
 
-  // ⭐ UPDATE CUSTOMIZATION AVEC LOGS DÉTAILLÉS
   const updateCustomization = (updates: any) => {
     console.log('🔴🔴🔴 updateCustomization APPELEE avec:', updates);
     console.log('🔴 customization actuel:', state.customization);
@@ -296,18 +290,17 @@ export default function StudioLayout() {
     }));
   };
 
+  // ⭐ SUPPRESSION DIRECTE SANS CONFIRMATION
   const deleteBlock = (blockId: string) => {
     console.log('🗑️ deleteBlock appelé:', blockId);
-    if (confirm('Supprimer cet élément ?')) {
-      setState(prev => ({
-        ...prev,
-        blocks: prev.blocks.filter(b => b.id !== blockId),
-        selectedBlockId: null,
-        selectedTarget: 'text',
-        isBackgroundSelected: false,
-        isDirty: true,
-      }));
-    }
+    setState(prev => ({
+      ...prev,
+      blocks: prev.blocks.filter(b => b.id !== blockId),
+      selectedBlockId: null,
+      selectedTarget: 'text',
+      isBackgroundSelected: false,
+      isDirty: true,
+    }));
   };
 
   const updateBlock = (blockId: string, updates: any) => {

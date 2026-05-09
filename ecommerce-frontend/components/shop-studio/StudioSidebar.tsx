@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { 
   FiDroplet, FiType, FiFilter, FiImage, FiLayout, 
   FiPackage, FiSettings, FiLayers, FiTrash2, FiMove,
-  FiCamera, FiBox, FiCopy, FiMaximize
+  FiCamera, FiBox, FiCopy, FiMaximize, FiPlusSquare
 } from 'react-icons/fi';
 import ColorsPanel from './panels/ColorsPanel';
 import FontsPanel from './panels/FontsPanel';
@@ -39,6 +39,7 @@ interface Props {
 }
 
 const PANELS = [
+  { id: 'sections', label: 'Sections', icon: FiPlusSquare },  // ⭐ NOUVEAU - Ajouter des sections
   { id: 'colors', label: 'Couleurs', icon: FiDroplet },
   { id: 'fonts', label: 'Polices', icon: FiType },
   { id: 'filters', label: 'Filtres', icon: FiFilter },
@@ -136,7 +137,9 @@ export default function StudioSidebar({
           </div>
 
           <div className="flex-1 p-4 overflow-y-auto">
+            {/* ⭐ NOUVEAU PANEL SECTIONS */}
             {activePanel === 'sections' && <SectionsPanel onAddSection={onAddBlock} />}
+            
             {activePanel === 'assets' && <AssetsPanel onSelectAsset={(asset) => onAddBlock(asset.type, asset.defaultProps)} shopId={shopId} />}
             {activePanel === 'colors' && <ColorsPanel selectedBlock={selectedBlock} selectedTarget={selectedTarget} isBackgroundSelected={isBackgroundSelected} customization={customization} onUpdateBlock={handleUpdateBlock} onUpdateCustomization={onUpdateCustomization} />}
             {activePanel === 'fonts' && <FontsPanel selectedBlock={selectedBlock} selectedTarget={selectedTarget} isBackgroundSelected={isBackgroundSelected} customization={customization} onUpdateBlock={handleUpdateBlock} onUpdateCustomization={onUpdateCustomization} />}

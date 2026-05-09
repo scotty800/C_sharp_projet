@@ -10,6 +10,8 @@ import { ImageBlock } from './blocks/ImageBlock';
 import { ButtonBlock } from './blocks/ButtonBlock';
 import { SpacerBlock } from './blocks/SpacerBlock';
 import { ShapeBlock } from './blocks/ShapeBlock';
+import { ScreenBannerBlock } from './blocks/ScreenBannerBlock';
+import { CarouselBannerBlock } from './blocks/CarouselBannerBlock';
 
 interface Props {
   shop: any;
@@ -79,8 +81,8 @@ export default function StudioCanvas({
         onUpdateBlockPosition(draggingBlock, {
           x: originalPosition.x + dx,
           y: originalPosition.y + dy,
-          width: originalPosition.width,  // ⭐ AJOUTER
-          height: originalPosition.height, // ⭐ AJOUTER
+          width: originalPosition.width,
+          height: originalPosition.height,
         });
         dragRafId.current = null;
       });
@@ -278,6 +280,8 @@ export default function StudioCanvas({
     const renderContent = () => {
       switch (block.type) {
         case 'banner': return <BannerBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
+        case 'screen-banner': return <ScreenBannerBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
+        case 'carousel-banner': return <CarouselBannerBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
         case 'logo': return <LogoBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
         case 'title': return <TitleBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
         case 'products': return <ProductsBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
