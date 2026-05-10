@@ -1,6 +1,8 @@
+// components/shop-studio/blocks/ImageBlock.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { ImageCropper } from '../tools/ImageCropper';
 
 interface Props {
   shop: any;
@@ -13,25 +15,33 @@ interface Props {
   isResizing?: boolean;
 }
 
-export function ImageBlock({ block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing = false }: Props) {
+export function ImageBlock({ shop, block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing = false }: Props) {
   const { props } = block;
   const [imageError, setImageError] = useState(false);
+  const [showCropper, setShowCropper] = useState(false);
 
-  // ⭐ Fonction pour nettoyer l'URL (supprimer le backend URL)
   const getCleanImageUrl = (url: string) => {
     if (!url) return '';
-    // Si l'URL contient 127.0.0.1 ou localhost, on garde seulement le chemin
     if (url.includes('127.0.0.1:5019') || url.includes('localhost:5019')) {
       const match = url.match(/\/(uploads|api)\/.*/);
-      if (match) {
-        return match[0];
-      }
+      if (match) return match[0];
     }
-    // Si l'URL ne commence pas par /, on ajoute /
     if (url && !url.startsWith('/') && !url.startsWith('http')) {
       return '/' + url;
     }
     return url;
+  };
+
+  const handleDoubleClick = () => {
+    if (props.url && !imageError) {
+      setShowCropper(true);
+    }
+  };
+
+  const handleCroppedSave = (croppedImageUrl: string) => {
+    console.log('📸 Image recadrée sauvegardée:', croppedImageUrl);
+    onUpdate({ url: croppedImageUrl });
+    setShowCropper(false);
   };
 
   const containerStyle: React.CSSProperties = {
@@ -74,10 +84,6 @@ export function ImageBlock({ block, customization, isSelected, onSelect, onUpdat
     onUpdate({ url: getCleanImageUrl(e.target.value) });
   };
 
-  const handleAltBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    onUpdate({ alt: e.target.value });
-  };
-
   const handleDragStart = (e: React.DragEvent) => {
     e.preventDefault();
     return false;
@@ -85,12 +91,44 @@ export function ImageBlock({ block, customization, isSelected, onSelect, onUpdat
 
   const cleanImageUrl = getCleanImageUrl(props.url);
 
-  // Mode édition
+  // ⭐ Pendant le cadrage, on désactive complètement l'image dans le canvas
+  if (showCropper) {
+    return (
+      <>
+        {/* Image floutée en arrière-plan, non interactive */}
+        <div className="relative w-full h-full opacity-40 blur-sm pointer-events-none" style={containerStyle}>
+          {cleanImageUrl && !imageError ? (
+            <div style={imageContainerStyle}>
+              <img
+                src={cleanImageUrl}
+                alt={props.alt || 'Image'}
+                style={{ ...imageStyle, filter: imageFilter }}
+                onDragStart={handleDragStart}
+                draggable={false}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        {/* Cropper modal */}
+        <ImageCropper
+          imageUrl={props.url}
+          assetId={props.assetId}
+          shopId={shop?.id || 0}
+          onSave={handleCroppedSave}
+          onCancel={() => setShowCropper(false)}
+        />
+      </>
+    );
+  }
+
+  // Mode édition (sélectionné sans cropper)
   if (isSelected) {
     return (
       <div 
         className="relative w-full h-full cursor-pointer"
         onClick={onSelect}
+        onDoubleClick={handleDoubleClick}
         style={containerStyle}
       >
         {cleanImageUrl && !imageError ? (
@@ -109,7 +147,7 @@ export function ImageBlock({ block, customization, isSelected, onSelect, onUpdat
             <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <span className="text-sm">Image</span>
+            <span className="text-sm">Double-cliquez pour ajouter une image</span>
             {!props.url && (
               <input
                 type="text"
@@ -127,17 +165,18 @@ export function ImageBlock({ block, customization, isSelected, onSelect, onUpdat
         )}
         
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap">
-          Image {cleanImageUrl ? '(Cliquer pour modifier)' : '(Cliquer pour définir une URL)'}
+          🖼️ Image - Double-clic pour recadrer
         </div>
       </div>
     );
   }
 
-  // Rendu normal
+  // Rendu normal (non sélectionné)
   return (
     <div 
       className="relative w-full h-full cursor-grab active:cursor-grabbing"
       onClick={onSelect}
+      onDoubleClick={handleDoubleClick}
       style={containerStyle}
     >
       {cleanImageUrl && !imageError ? (

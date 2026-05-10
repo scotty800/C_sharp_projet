@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { shopService } from '@/services/api/shops';
@@ -70,6 +70,7 @@ export default function StudioLayout() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
 
   const getAllUsedFonts = useCallback(() => {
     const fonts: string[] = [];
@@ -177,16 +178,54 @@ export default function StudioLayout() {
   useEffect(() => {
     const handleOpenAssetPickerForCarousel = (event: CustomEvent) => {
       console.log('🎠 Ouverture du sélecteur d\'images pour le carrousel');
-      // Ouvrir le panel assets et passer à l'onglet "Mes images"
       setState(prev => ({ ...prev, activePanel: 'assets' }));
-      
-      // Stocker le callback pour l'utiliser quand l'utilisateur sélectionne une image
       (window as any).pendingCarouselCallback = event.detail.callback;
     };
     
     window.addEventListener('openAssetPickerForCarousel', handleOpenAssetPickerForCarousel as EventListener);
     return () => window.removeEventListener('openAssetPickerForCarousel', handleOpenAssetPickerForCarousel as EventListener);
   }, []);
+
+  // ⭐ Gestionnaire pour ouvrir/fermer le cropper
+  const handleOpenCropper = useCallback(() => {
+    // Désélectionner le bloc avant d'ouvrir le cropper
+    selectBlock(null, 'background');
+    setIsCropperOpen(true);
+  }, []);
+
+  const handleCloseCropper = useCallback(() => {
+    setIsCropperOpen(false);
+  }, []);
+
+  // ⭐ Désélectionner quand on clique ailleurs sur la page (hors sidebar et toolbar)
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Ne pas désélectionner si on clique dans le cropper
+      if (target.closest('.image-cropper-modal')) {
+        return;
+      }
+      
+      // Ne pas désélectionner si on clique sur un panel ou la toolbar
+      if (target.closest('.studio-sidebar') || target.closest('.studio-toolbar')) {
+        return;
+      }
+      
+      // Ne pas désélectionner si on clique sur un élément éditable (input, textarea, contenteditable)
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+      
+      // Désélectionner le bloc
+      if (state.selectedBlockId) {
+        selectBlock(null, 'background');
+      }
+    };
+    
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, [state.selectedBlockId]);
 
   const saveChanges = useCallback(async () => {
     console.log('💾 saveChanges appelée - isDirty:', state.isDirty);
@@ -424,6 +463,7 @@ export default function StudioLayout() {
   };
 
   const selectBackground = () => {
+    if (isCropperOpen) return;
     setState(prev => ({ 
       ...prev, 
       selectedBlockId: null,
@@ -433,6 +473,7 @@ export default function StudioLayout() {
   };
 
   const selectBlock = (blockId: string | null, target?: 'text' | 'background') => {
+    if (isCropperOpen && blockId !== null) return;
     setState(prev => ({ 
       ...prev, 
       selectedBlockId: blockId,
@@ -460,10 +501,12 @@ export default function StudioLayout() {
 
   useEffect(() => {
     const handleChangePanel = (event: CustomEvent) => {
+      if (isCropperOpen) return;
       setState(prev => ({ ...prev, activePanel: event.detail }));
     };
     
     const handleOpenAddPanel = () => {
+      if (isCropperOpen) return;
       setState(prev => ({ ...prev, showAddPanel: true }));
     };
     
@@ -474,7 +517,7 @@ export default function StudioLayout() {
       window.removeEventListener('changePanel', handleChangePanel as EventListener);
       window.removeEventListener('openAddPanel', handleOpenAddPanel);
     };
-  }, []);
+  }, [isCropperOpen]);
 
   const usedFonts = getAllUsedFonts();
 
@@ -494,7 +537,7 @@ export default function StudioLayout() {
         <StudioToolbar
           shop={state.shop}
           saving={saving}
-          onAddBlock={() => setState(prev => ({ ...prev, showAddPanel: true }))}
+          onAddBlock={() => !isCropperOpen && setState(prev => ({ ...prev, showAddPanel: true }))}
           onSave={saveChanges}
           previewMode={state.previewMode}
           onPreviewModeChange={handlePreviewModeChange}
@@ -553,6 +596,7 @@ export default function StudioLayout() {
                 onReorderBlocks={reorderBlocks}
                 onDeleteBlock={deleteBlock}
                 onDuplicateBlock={duplicateBlock}
+                isCropperOpen={isCropperOpen}
               />
             </div>
             
@@ -565,7 +609,7 @@ export default function StudioLayout() {
           </div>
         </div>
 
-        {state.showAddPanel && (
+        {state.showAddPanel && !isCropperOpen && (
           <AddBlockPanel
             onClose={() => setState(prev => ({ ...prev, showAddPanel: false }))}
             onAddBlock={addBlock}

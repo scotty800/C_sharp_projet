@@ -28,6 +28,8 @@ interface Props {
   onReorderBlocks: (startIndex: number, endIndex: number) => void;
   onDeleteBlock: (id: string) => void;
   onDuplicateBlock: (id: string) => void;
+  // ⭐ Props pour le cropper
+  isCropperOpen?: boolean;
 }
 
 export default function StudioCanvas({
@@ -44,6 +46,7 @@ export default function StudioCanvas({
   onUpdateBlockPosition,
   onDeleteBlock,
   onDuplicateBlock,
+  isCropperOpen = false,
 }: Props) {
   const [draggingBlock, setDraggingBlock] = useState<string | null>(null);
   const [resizingBlock, setResizingBlock] = useState<string | null>(null);
@@ -70,14 +73,13 @@ export default function StudioCanvas({
     };
   }, []);
 
-  // ⭐ CORRECTION: Ajout de width et height dans le drag
+  // ⭐ DRAG - désactivé si le cropper est ouvert
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (draggingBlock) {
+    if (draggingBlock && !isCropperOpen) {
       if (dragRafId.current) return;
       dragRafId.current = requestAnimationFrame(() => {
         const dx = e.clientX - dragStart.x;
         const dy = e.clientY - dragStart.y;
-        // ⭐ Passer aussi la largeur et hauteur actuelles
         onUpdateBlockPosition(draggingBlock, {
           x: originalPosition.x + dx,
           y: originalPosition.y + dy,
@@ -87,10 +89,13 @@ export default function StudioCanvas({
         dragRafId.current = null;
       });
     }
-  }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition]);
+  }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition, isCropperOpen]);
 
+  // ⭐ RESIZE MOVE - correction : ajouter isCropperOpen dans les dépendances pour éviter les appels fantômes
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
+    if (isCropperOpen) return; // ⭐ AJOUT : ne pas redimensionner si cropper ouvert
     if (resizeRafId.current) return;
+    
     resizeRafId.current = requestAnimationFrame(() => {
       const dx = e.clientX - startData.startX;
       const dy = e.clientY - startData.startY;
@@ -142,7 +147,7 @@ export default function StudioCanvas({
       setResizeForceUpdate(prev => prev + 1);
       resizeRafId.current = null;
     });
-  }, [onUpdateBlockPosition]);
+  }, [onUpdateBlockPosition, isCropperOpen]);
 
   const handleMouseUp = useCallback(() => {
     if (dragRafId.current) {
@@ -161,7 +166,7 @@ export default function StudioCanvas({
   }, [handleMouseMove]);
 
   useEffect(() => {
-    if (draggingBlock) {
+    if (draggingBlock && !isCropperOpen) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
       return () => {
@@ -169,9 +174,14 @@ export default function StudioCanvas({
         window.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [draggingBlock, handleMouseMove, handleMouseUp]);
+  }, [draggingBlock, handleMouseMove, handleMouseUp, isCropperOpen]);
 
+  // ⭐ HANDLE BLOCK CLICK - désactivé si cropper ouvert
   const handleBlockClick = (e: React.MouseEvent, blockId: string, block: any) => {
+    if (isCropperOpen) {
+      e.stopPropagation();
+      return;
+    }
     e.stopPropagation();
     const target = e.target as HTMLElement;
     const isTextClick = target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3' || 
@@ -180,16 +190,30 @@ export default function StudioCanvas({
     onSelectBlock(blockId, isTextClick ? 'text' : 'background');
   };
 
-  const handleCanvasClick = () => onSelectBackground();
+  // ⭐ HANDLE CANVAS CLICK - désactivé si cropper ouvert
+  const handleCanvasClick = () => {
+    if (isCropperOpen) return;
+    onSelectBackground();
+  };
 
+  // ⭐ MOUSE DOWN - désactivé si cropper ouvert
   const handleMouseDown = (e: React.MouseEvent, blockId: string, block: any) => {
+    if (isCropperOpen) {
+      e.stopPropagation();
+      return;
+    }
     e.stopPropagation();
     setDraggingBlock(blockId);
     setDragStart({ x: e.clientX, y: e.clientY });
     setOriginalPosition({ x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height });
   };
 
+  // ⭐ RESIZE START - désactivé si cropper ouvert
   const handleResizeStart = (e: React.MouseEvent, blockId: string, block: any, direction: string) => {
+    if (isCropperOpen) {
+      e.stopPropagation();
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     setIsResizing(true);
@@ -227,7 +251,9 @@ export default function StudioCanvas({
     window.addEventListener('mouseup', handleMouseUpResize);
   };
 
+  // ⭐ TEXT DOUBLE CLICK - désactivé si cropper ouvert
   const handleTextDoubleClick = (e: React.MouseEvent, blockId: string) => {
+    if (isCropperOpen) return;
     e.stopPropagation();
     setEditingTextId(blockId);
     onSelectBlock(blockId, 'text');
@@ -246,19 +272,29 @@ export default function StudioCanvas({
     const blockOpacity = block.props?.opacity !== undefined ? block.props.opacity / 100 : 1;
     const textOpacity = block.props?.textOpacity !== undefined ? block.props.textOpacity / 100 : 1;
     
+    // ⭐ Ne pas afficher l'anneau de sélection ni les poignées si le cropper est ouvert
+    const showSelectionRing = isSelected && !isCropperOpen;
+    const showResizeHandles = isSelected && !isCropperOpen;
+    
     const commonProps = {
       shop,
       block,
       customization,
-      isSelected,
+      isSelected: showSelectionRing,
       isEditing,
       textOpacity,
       isResizing,
-      onSelect: () => onSelectBlock(block.id, 'background'),
+      onSelect: () => {
+        if (isCropperOpen) return;
+        onSelectBlock(block.id, 'background');
+      },
       onUpdate: (updates: any) => onUpdateBlock(block.id, updates),
       onDelete: () => onDeleteBlock(block.id),
       onDuplicate: () => onDuplicateBlock(block.id),
-      onDoubleClick: (e: React.MouseEvent) => handleTextDoubleClick(e, block.id),
+      onDoubleClick: (e: React.MouseEvent) => {
+        if (isCropperOpen) return;
+        handleTextDoubleClick(e, block.id);
+      },
       onTextBlur: (content: string) => handleTextBlur(block.id, content),
     };
 
@@ -298,14 +334,15 @@ export default function StudioCanvas({
       <div key={`wrapper-${block.id}`}>
         <div
           style={blockStyle}
-          className={`absolute cursor-grab active:cursor-grabbing ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg z-50' : ''}`}
+          className={`absolute cursor-grab active:cursor-grabbing ${showSelectionRing ? 'ring-2 ring-primary ring-offset-2 rounded-lg z-50' : ''}`}
           onClick={(e) => handleBlockClick(e, block.id, block)}
           onMouseDown={(e) => handleMouseDown(e, block.id, block)}
         >
           {renderContent()}
         </div>
 
-        {isSelected && (
+        {/* ⭐ Poignées de redimensionnement - seulement si sélectionné ET cropper fermé */}
+        {showResizeHandles && (
           <div
             key={`handles-${block.id}`}
             style={{
