@@ -173,6 +173,21 @@ export default function StudioLayout() {
     if (id) loadData();
   }, [id, user, router]);
 
+  // ⭐ Gestionnaire pour ouvrir le sélecteur d'images pour le carrousel
+  useEffect(() => {
+    const handleOpenAssetPickerForCarousel = (event: CustomEvent) => {
+      console.log('🎠 Ouverture du sélecteur d\'images pour le carrousel');
+      // Ouvrir le panel assets et passer à l'onglet "Mes images"
+      setState(prev => ({ ...prev, activePanel: 'assets' }));
+      
+      // Stocker le callback pour l'utiliser quand l'utilisateur sélectionne une image
+      (window as any).pendingCarouselCallback = event.detail.callback;
+    };
+    
+    window.addEventListener('openAssetPickerForCarousel', handleOpenAssetPickerForCarousel as EventListener);
+    return () => window.removeEventListener('openAssetPickerForCarousel', handleOpenAssetPickerForCarousel as EventListener);
+  }, []);
+
   const saveChanges = useCallback(async () => {
     console.log('💾 saveChanges appelée - isDirty:', state.isDirty);
     console.log('💾 saveChanges - backgroundColor:', state.customization?.backgroundColor);
@@ -290,7 +305,6 @@ export default function StudioLayout() {
     }));
   };
 
-  // ⭐ SUPPRESSION DIRECTE SANS CONFIRMATION
   const deleteBlock = (blockId: string) => {
     console.log('🗑️ deleteBlock appelé:', blockId);
     setState(prev => ({

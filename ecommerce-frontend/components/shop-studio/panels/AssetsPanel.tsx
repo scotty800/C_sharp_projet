@@ -58,6 +58,10 @@ export default function AssetsPanel({ onSelectAsset, shopId }: Props) {
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
   const [deletingId, setDeletingId] = useState<number | null>(null);
   
+  // ⭐ État pour le drag & drop
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   // ⭐ État pour le menu contextuel
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
@@ -97,6 +101,53 @@ export default function AssetsPanel({ onSelectAsset, shopId }: Props) {
       toast.error('Erreur lors du chargement des images');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ⭐ Gestion du drag & drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length === 0) {
+      toast.error('Veuillez déposer des images uniquement');
+      return;
+    }
+    
+    for (const file of imageFiles) {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      try {
+        const response = await fetch(`http://127.0.0.1:5019/api/shops/${shopId}/customization/assets/upload?type=image&category=uploaded`, {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (response.ok) {
+          const asset = await response.json();
+          setMyImages(prev => [asset, ...prev]);
+          toast.success(`Image uploadée: ${file.name}`);
+        } else {
+          toast.error(`Erreur lors de l'upload de ${file.name}`);
+        }
+      } catch (error) {
+        console.error('Erreur upload:', error);
+        toast.error(`Erreur lors de l'upload de ${file.name}`);
+      }
     }
   };
 
@@ -187,6 +238,15 @@ export default function AssetsPanel({ onSelectAsset, shopId }: Props) {
     
     const fullUrl = getImageUrl(asset.url);
     
+    // ⭐ Vérifier s'il y a un callback en attente (pour le carrousel)
+    if ((window as any).pendingCarouselCallback) {
+      (window as any).pendingCarouselCallback({ url: fullUrl, name: asset.name });
+      (window as any).pendingCarouselCallback = null;
+      toast.success(`Image "${asset.name}" ajoutée au carrousel`);
+      return;
+    }
+    
+    // Sinon, comportement normal (ajout comme bloc)
     onSelectAsset({
       type: 'image',
       label: asset.name,
@@ -341,21 +401,37 @@ export default function AssetsPanel({ onSelectAsset, shopId }: Props) {
         </div>
       )}
 
-      {/* Upload */}
+      {/* Upload avec drag & drop */}
       {activeTab === 'upload' && (
         <div className="space-y-4">
           {!preview ? (
-            <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors">
-              <FiUpload size={32} className="text-gray-400 mb-2" />
-              <span className="text-gray-400 text-sm">Cliquer ou glisser une image</span>
-              <span className="text-gray-500 text-xs mt-1">PNG, JPG, GIF, WebP (max 10MB)</span>
-              <input
-                type="file"
-                className="hidden"
-                accept="image/*"
-                onChange={handleFileSelect}
-              />
-            </label>
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                isDragOver ? 'border-primary bg-primary/10' : 'border-gray-600 hover:border-primary'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <FiUpload size={40} className={`mx-auto mb-3 ${isDragOver ? 'text-primary' : 'text-gray-500'}`} />
+              <p className="text-gray-400 text-sm mb-2">
+                {isDragOver ? 'Relâchez pour uploader' : 'Glissez-déposez vos images ici'}
+              </p>
+              <p className="text-gray-500 text-xs mb-3">ou</p>
+              <label className="cursor-pointer bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-lg inline-block transition-colors text-sm">
+                Choisir des fichiers
+                <input
+                  type="file"
+                  className="hidden"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  ref={fileInputRef}
+                />
+              </label>
+              <p className="text-gray-500 text-xs mt-3">PNG, JPG, GIF, WebP (max 10MB)</p>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="relative aspect-video bg-gray-800 rounded-lg overflow-hidden">

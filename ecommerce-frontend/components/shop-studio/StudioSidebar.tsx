@@ -39,7 +39,7 @@ interface Props {
 }
 
 const PANELS = [
-  { id: 'sections', label: 'Sections', icon: FiPlusSquare },  // ⭐ NOUVEAU - Ajouter des sections
+  { id: 'sections', label: 'Sections', icon: FiPlusSquare },
   { id: 'colors', label: 'Couleurs', icon: FiDroplet },
   { id: 'fonts', label: 'Polices', icon: FiType },
   { id: 'filters', label: 'Filtres', icon: FiFilter },
@@ -137,13 +137,25 @@ export default function StudioSidebar({
           </div>
 
           <div className="flex-1 p-4 overflow-y-auto">
-            {/* ⭐ NOUVEAU PANEL SECTIONS */}
             {activePanel === 'sections' && <SectionsPanel onAddSection={onAddBlock} />}
             
             {activePanel === 'assets' && <AssetsPanel onSelectAsset={(asset) => onAddBlock(asset.type, asset.defaultProps)} shopId={shopId} />}
-            {activePanel === 'colors' && <ColorsPanel selectedBlock={selectedBlock} selectedTarget={selectedTarget} isBackgroundSelected={isBackgroundSelected} customization={customization} onUpdateBlock={handleUpdateBlock} onUpdateCustomization={onUpdateCustomization} />}
+            
+            {/* ⭐ AJOUT DE shopId DANS ColorsPanel */}
+            {activePanel === 'colors' && (
+              <ColorsPanel 
+                selectedBlock={selectedBlock} 
+                selectedTarget={selectedTarget} 
+                isBackgroundSelected={isBackgroundSelected} 
+                customization={customization} 
+                onUpdateBlock={handleUpdateBlock} 
+                onUpdateCustomization={onUpdateCustomization}
+                shopId={shopId}
+              />
+            )}
+            
             {activePanel === 'fonts' && <FontsPanel selectedBlock={selectedBlock} selectedTarget={selectedTarget} isBackgroundSelected={isBackgroundSelected} customization={customization} onUpdateBlock={handleUpdateBlock} onUpdateCustomization={onUpdateCustomization} />}
-            {activePanel === 'filters' && (
+            {activePanel=== 'filters' && (
               <FiltersPanel 
                 selectedBlock={selectedBlock} 
                 isBackgroundSelected={isBackgroundSelected} 

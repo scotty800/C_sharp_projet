@@ -1,6 +1,11 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { FiUpload } from 'react-icons/fi';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import toast from 'react-hot-toast';
+import { assetsService } from '@/services/api/assets';
+import { getImageUrl } from '@/utils/imageUtils';
 
 interface Props {
   selectedBlock: any;
@@ -9,6 +14,7 @@ interface Props {
   onUpdateBlock: (id: string, updates: any) => void;
   onUpdateCustomization: (updates: any) => void;
   selectedTarget?: 'text' | 'background';
+  shopId?: number;
 }
 
 export default function ColorsPanel({ 
@@ -17,7 +23,8 @@ export default function ColorsPanel({
   customization, 
   onUpdateBlock, 
   onUpdateCustomization,
-  selectedTarget = 'text'
+  selectedTarget = 'text',
+  shopId
 }: Props) {
   const [activeTab, setActiveTab] = useState<'solid' | 'gradient' | 'carousel'>('solid');
 
@@ -146,6 +153,42 @@ export default function ColorsPanel({
       console.log('🌈🌈🌈 Aucune cible valide - aucun appel effectué');
     }
   }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
+
+  // ==================== UPLOAD D'IMAGE AVEC assetsService ====================
+  const handleImageUpload = async (files: FileList) => {
+    if (!shopId) {
+      toast.error('ID de boutique non disponible');
+      return;
+    }
+
+    const fileArray = Array.from(files);
+    for (const file of fileArray) {
+      try {
+        const asset = await assetsService.uploadAsset(shopId, file, 'image', 'carousel');
+        const fullUrl = getImageUrl(asset.url);
+        const newImages = [...images, { url: fullUrl, alt: asset.name }];
+        onUpdateBlock(selectedBlock.id, { images: newImages });
+        toast.success(`Image uploadée: ${asset.name}`);
+      } catch (error) {
+        console.error('Erreur upload:', error);
+        toast.error(`Erreur lors de l'upload de ${file.name}`);
+      }
+    }
+  };
+
+  // ==================== OUVERTURE BIBLIOTHÈQUE ====================
+  const openAssetPicker = () => {
+    const event = new CustomEvent('openAssetPickerForCarousel', { 
+      detail: { 
+        callback: (asset: any) => {
+          const fullUrl = getImageUrl(asset.url);
+          const newImages = [...images, { url: fullUrl, alt: asset.name }];
+          onUpdateBlock(selectedBlock.id, { images: newImages });
+        }
+      } 
+    });
+    window.dispatchEvent(event);
+  };
 
   // ==================== VALEURS ACTUELLES ====================
   
@@ -404,7 +447,7 @@ export default function ColorsPanel({
             {isCarousel && (
               <>
                 <div className="flex justify-between items-center">
-                  <h4 className="text-white text-xs font-semibold">Images du carrousel</h4>
+                  <h4 className="text-white text-xs font-semibold">Images du carrousel ({images.length})</h4>
                   <button
                     onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })}
                     className="text-xs text-red-400 hover:text-red-300"
@@ -413,47 +456,125 @@ export default function ColorsPanel({
                   </button>
                 </div>
 
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {images.map((img: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg">
-                      <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                        <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" />
+                {/* ⭐ DRAG & DROP POUR RÉORGANISER LES IMAGES */}
+                <DragDropContext onDragEnd={(result) => {
+                  if (!result.destination) return;
+                  const newImages = [...images];
+                  const [removed] = newImages.splice(result.source.index, 1);
+                  newImages.splice(result.destination.index, 0, removed);
+                  onUpdateBlock(selectedBlock.id, { images: newImages });
+                }}>
+                  <Droppable droppableId="carousel-images">
+                    {(provided) => (
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 max-h-60 overflow-y-auto">
+                        {images.map((img: any, idx: number) => (
+                          <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${
+                                  snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'
+                                }`}
+                              >
+                                {/* Poignée de drag */}
+                                <div
+                                  {...provided.dragHandleProps}
+                                  className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1"
+                                >
+                                  ⋮⋮
+                                </div>
+                                
+                                {/* Aperçu de l'image */}
+                                <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
+                                  <img 
+                                    src={img.url || 'https://picsum.photos/50/50'} 
+                                    alt={img.alt} 
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }}
+                                  />
+                                </div>
+                                
+                                {/* Champs URL et Alt */}
+                                <div className="flex-1 min-w-0">
+                                  <input
+                                    type="text"
+                                    value={img.url || ''}
+                                    onChange={(e) => {
+                                      const newImages = [...images];
+                                      newImages[idx] = { ...img, url: e.target.value };
+                                      onUpdateBlock(selectedBlock.id, { images: newImages });
+                                    }}
+                                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                                    placeholder="URL de l'image"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={img.alt || ''}
+                                    onChange={(e) => {
+                                      const newImages = [...images];
+                                      newImages[idx] = { ...img, alt: e.target.value };
+                                      onUpdateBlock(selectedBlock.id, { images: newImages });
+                                    }}
+                                    className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                                    placeholder="Texte alternatif"
+                                  />
+                                </div>
+                                
+                                {/* Position/Ordre */}
+                                <div className="text-xs text-gray-500 w-8 text-center">#{idx + 1}</div>
+                                
+                                {/* Bouton supprimer */}
+                                <button
+                                  onClick={() => {
+                                    const newImages = images.filter((_: any, i: number) => i !== idx);
+                                    onUpdateBlock(selectedBlock.id, { images: newImages });
+                                  }}
+                                  className="text-red-400 hover:text-red-300 p-1 flex-shrink-0"
+                                  title="Supprimer"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
                       </div>
-                      <div className="flex-1">
+                    )}
+                  </Droppable>
+                </DragDropContext>
+
+                {/* Upload d'images */}
+                <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 mt-2">
+                  <div className="text-center">
+                    <FiUpload className="mx-auto text-gray-400 mb-2" size={24} />
+                    <p className="text-xs text-gray-400 mb-2">Glissez-déposez vos images ici</p>
+                    <p className="text-xs text-gray-500">ou</p>
+                    <div className="flex gap-2 mt-2 justify-center">
+                      <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">
+                        📁 Parcourir mon ordinateur
                         <input
-                          type="text"
-                          value={img.url || ''}
+                          type="file"
+                          className="hidden"
+                          multiple
+                          accept="image/*"
                           onChange={(e) => {
-                            const newImages = [...images];
-                            newImages[idx] = { ...img, url: e.target.value };
-                            onUpdateBlock(selectedBlock.id, { images: newImages });
+                            if (e.target.files && e.target.files.length > 0) {
+                              handleImageUpload(e.target.files);
+                            }
+                            e.target.value = '';
                           }}
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                          placeholder="URL de l'image"
                         />
-                        <input
-                          type="text"
-                          value={img.alt || ''}
-                          onChange={(e) => {
-                            const newImages = [...images];
-                            newImages[idx] = { ...img, alt: e.target.value };
-                            onUpdateBlock(selectedBlock.id, { images: newImages });
-                          }}
-                          className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                          placeholder="Texte alternatif"
-                        />
-                      </div>
+                      </label>
                       <button
-                        onClick={() => {
-                          const newImages = images.filter((_: any, i: number) => i !== idx);
-                          onUpdateBlock(selectedBlock.id, { images: newImages });
-                        }}
-                        className="text-red-400 hover:text-red-300 p-1"
+                        onClick={openAssetPicker}
+                        className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors"
                       >
-                        🗑️
+                        📚 Bibliothèque d'images
                       </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
                 
                 <button
@@ -463,30 +584,51 @@ export default function ColorsPanel({
                   }}
                   className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1"
                 >
-                  + Ajouter une image
+                  + Ajouter une image par URL
                 </button>
 
+                {/* Options du carrousel */}
                 <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Défilement automatique</label>
-                    <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBlock.props?.autoPlay !== false} 
+                      onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} 
+                    />
                   </div>
                   
                   {selectedBlock.props?.autoPlay !== false && (
                     <div>
                       <label className="text-xs text-gray-400 block mb-1">Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
-                      <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
+                      <input 
+                        type="range" 
+                        min="1000" 
+                        max="10000" 
+                        step="500" 
+                        value={selectedBlock.props?.intervalTime || 5000} 
+                        onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} 
+                        className="w-full" 
+                      />
                     </div>
                   )}
                   
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Afficher les flèches</label>
-                    <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBlock.props?.showArrows !== false} 
+                      onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} 
+                    />
                   </div>
                   
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Afficher les points</label>
-                    <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBlock.props?.showDots !== false} 
+                      onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} 
+                    />
                   </div>
                   
                   <div>
@@ -500,10 +642,6 @@ export default function ColorsPanel({
                       <option value="slide">Glissement</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="text-center text-xs text-gray-500">
-                  {images.length} image(s) dans le carrousel
                 </div>
               </>
             )}
@@ -665,7 +803,7 @@ export default function ColorsPanel({
             {isScreenCarousel && (
               <>
                 <div className="flex justify-between items-center">
-                  <h4 className="text-white text-xs font-semibold">Images du carrousel</h4>
+                  <h4 className="text-white text-xs font-semibold">Images du carrousel ({screenImages.length})</h4>
                   <button
                     onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })}
                     className="text-xs text-red-400 hover:text-red-300"
@@ -674,47 +812,117 @@ export default function ColorsPanel({
                   </button>
                 </div>
 
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {screenImages.map((img: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg">
-                      <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                        <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" />
+                {/* ⭐ DRAG & DROP POUR RÉORGANISER LES IMAGES */}
+                <DragDropContext onDragEnd={(result) => {
+                  if (!result.destination) return;
+                  const newImages = [...screenImages];
+                  const [removed] = newImages.splice(result.source.index, 1);
+                  newImages.splice(result.destination.index, 0, removed);
+                  onUpdateBlock(selectedBlock.id, { images: newImages });
+                }}>
+                  <Droppable droppableId="carousel-images">
+                    {(provided) => (
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 max-h-60 overflow-y-auto">
+                        {screenImages.map((img: any, idx: number) => (
+                          <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${
+                                  snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'
+                                }`}
+                              >
+                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">
+                                  ⋮⋮
+                                </div>
+                                
+                                <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
+                                  <img 
+                                    src={img.url || 'https://picsum.photos/50/50'} 
+                                    alt={img.alt} 
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }}
+                                  />
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                  <input
+                                    type="text"
+                                    value={img.url || ''}
+                                    onChange={(e) => {
+                                      const newImages = [...screenImages];
+                                      newImages[idx] = { ...img, url: e.target.value };
+                                      onUpdateBlock(selectedBlock.id, { images: newImages });
+                                    }}
+                                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                                    placeholder="URL de l'image"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={img.alt || ''}
+                                    onChange={(e) => {
+                                      const newImages = [...screenImages];
+                                      newImages[idx] = { ...img, alt: e.target.value };
+                                      onUpdateBlock(selectedBlock.id, { images: newImages });
+                                    }}
+                                    className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                                    placeholder="Texte alternatif"
+                                  />
+                                </div>
+                                
+                                <div className="text-xs text-gray-500 w-8 text-center">#{idx + 1}</div>
+                                
+                                <button
+                                  onClick={() => {
+                                    const newImages = screenImages.filter((_: any, i: number) => i !== idx);
+                                    onUpdateBlock(selectedBlock.id, { images: newImages });
+                                  }}
+                                  className="text-red-400 hover:text-red-300 p-1 flex-shrink-0"
+                                  title="Supprimer"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
                       </div>
-                      <div className="flex-1">
+                    )}
+                  </Droppable>
+                </DragDropContext>
+
+                {/* Upload d'images */}
+                <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 mt-2">
+                  <div className="text-center">
+                    <FiUpload className="mx-auto text-gray-400 mb-2" size={24} />
+                    <p className="text-xs text-gray-400 mb-2">Glissez-déposez vos images ici</p>
+                    <p className="text-xs text-gray-500">ou</p>
+                    <div className="flex gap-2 mt-2 justify-center">
+                      <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded-transition-colors">
+                        📁 Parcourir mon ordinateur
                         <input
-                          type="text"
-                          value={img.url || ''}
+                          type="file"
+                          className="hidden"
+                          multiple
+                          accept="image/*"
                           onChange={(e) => {
-                            const newImages = [...screenImages];
-                            newImages[idx] = { ...img, url: e.target.value };
-                            onUpdateBlock(selectedBlock.id, { images: newImages });
+                            if (e.target.files && e.target.files.length > 0) {
+                              handleImageUpload(e.target.files);
+                            }
+                            e.target.value = '';
                           }}
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                          placeholder="URL de l'image"
                         />
-                        <input
-                          type="text"
-                          value={img.alt || ''}
-                          onChange={(e) => {
-                            const newImages = [...screenImages];
-                            newImages[idx] = { ...img, alt: e.target.value };
-                            onUpdateBlock(selectedBlock.id, { images: newImages });
-                          }}
-                          className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                          placeholder="Texte alternatif"
-                        />
-                      </div>
+                      </label>
                       <button
-                        onClick={() => {
-                          const newImages = screenImages.filter((_: any, i: number) => i !== idx);
-                          onUpdateBlock(selectedBlock.id, { images: newImages });
-                        }}
-                        className="text-red-400 hover:text-red-300 p-1"
+                        onClick={openAssetPicker}
+                        className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors"
                       >
-                        🗑️
+                        📚 Bibliothèque d'images
                       </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
                 
                 <button
@@ -724,30 +932,51 @@ export default function ColorsPanel({
                   }}
                   className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1"
                 >
-                  + Ajouter une image
+                  + Ajouter une image par URL
                 </button>
 
+                {/* Options du carrousel */}
                 <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Défilement automatique</label>
-                    <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBlock.props?.autoPlay !== false} 
+                      onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} 
+                    />
                   </div>
                   
                   {selectedBlock.props?.autoPlay !== false && (
                     <div>
                       <label className="text-xs text-gray-400 block mb-1">Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
-                      <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
+                      <input 
+                        type="range" 
+                        min="1000" 
+                        max="10000" 
+                        step="500" 
+                        value={selectedBlock.props?.intervalTime || 5000} 
+                        onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} 
+                        className="w-full" 
+                      />
                     </div>
                   )}
                   
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Afficher les flèches</label>
-                    <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBlock.props?.showArrows !== false} 
+                      onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} 
+                    />
                   </div>
                   
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Afficher les points</label>
-                    <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBlock.props?.showDots !== false} 
+                      onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} 
+                    />
                   </div>
                   
                   <div>
@@ -761,10 +990,6 @@ export default function ColorsPanel({
                       <option value="slide">Glissement</option>
                     </select>
                   </div>
-                </div>
-
-                <div className="text-center text-xs text-gray-500">
-                  {screenImages.length} image(s) dans le carrousel
                 </div>
               </>
             )}
