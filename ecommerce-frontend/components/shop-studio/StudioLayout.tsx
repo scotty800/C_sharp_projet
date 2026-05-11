@@ -188,7 +188,6 @@ export default function StudioLayout() {
 
   // ⭐ Gestionnaire pour ouvrir/fermer le cropper
   const handleOpenCropper = useCallback(() => {
-    // Désélectionner le bloc avant d'ouvrir le cropper
     selectBlock(null, 'background');
     setIsCropperOpen(true);
   }, []);
@@ -197,35 +196,31 @@ export default function StudioLayout() {
     setIsCropperOpen(false);
   }, []);
 
-  // ⭐ Désélectionner quand on clique ailleurs sur la page (hors sidebar et toolbar)
-  useEffect(() => {
-    const handleGlobalClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Ne pas désélectionner si on clique dans le cropper
-      if (target.closest('.image-cropper-modal')) {
-        return;
-      }
-      
-      // Ne pas désélectionner si on clique sur un panel ou la toolbar
-      if (target.closest('.studio-sidebar') || target.closest('.studio-toolbar')) {
-        return;
-      }
-      
-      // Ne pas désélectionner si on clique sur un élément éditable (input, textarea, contenteditable)
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        return;
-      }
-      
-      // Désélectionner le bloc
-      if (state.selectedBlockId) {
-        selectBlock(null, 'background');
-      }
-    };
-    
-    window.addEventListener('click', handleGlobalClick);
-    return () => window.removeEventListener('click', handleGlobalClick);
-  }, [state.selectedBlockId]);
+  // ⚠️ CE useEffect EST COMMENTÉ car il désélectionne le bloc quand on clique dans le cropper
+  // useEffect(() => {
+  //   const handleGlobalClick = (e: MouseEvent) => {
+  //     const target = e.target as HTMLElement;
+  //     
+  //     if (target.closest('.image-cropper-modal')) {
+  //       return;
+  //     }
+  //     
+  //     if (target.closest('.studio-sidebar') || target.closest('.studio-toolbar')) {
+  //       return;
+  //     }
+  //     
+  //     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+  //       return;
+  //     }
+  //     
+  //     if (state.selectedBlockId) {
+  //       selectBlock(null, 'background');
+  //     }
+  //   };
+  //   
+  //   window.addEventListener('click', handleGlobalClick);
+  //   return () => window.removeEventListener('click', handleGlobalClick);
+  // }, [state.selectedBlockId]);
 
   const saveChanges = useCallback(async () => {
     console.log('💾 saveChanges appelée - isDirty:', state.isDirty);

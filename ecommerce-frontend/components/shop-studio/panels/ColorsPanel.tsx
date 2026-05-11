@@ -302,161 +302,67 @@ export default function ColorsPanel({
   if (isBanner && target === 'background') {
     return (
       <div className="space-y-3">
-        {/* Titre */}
         <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
 
-        {/* Onglets: Couleur unie / Dégradé / Carrousel */}
         <div className="flex gap-2 border-b border-gray-700 pb-2">
-          <button
-            onClick={() => setActiveTab('solid')}
-            className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}
-          >
-            🎨 Couleur unie
-          </button>
-          <button
-            onClick={() => setActiveTab('gradient')}
-            className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}
-          >
-            🌈 Dégradé
-          </button>
-          <button
-            onClick={() => setActiveTab('carousel')}
-            className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}
-          >
-            🎠 Carrousel
-          </button>
+          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
+          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
+          <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎠 Carrousel</button>
         </div>
 
-        {/* ==================== ONGLET COULEUR UNIE ==================== */}
         {activeTab === 'solid' && (
           <div className="space-y-3">
             <div>
               <label className="text-xs text-gray-400 block mb-1">Couleur de fond</label>
               <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={currentSolidColor}
-                  onChange={(e) => applySolidColor(e.target.value)}
-                  className="w-8 h-8 rounded border-0 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={currentSolidColor}
-                  onChange={(e) => applySolidColor(e.target.value)}
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
-                />
+                <input type="color" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="w-8 h-8 rounded border-0 cursor-pointer" />
+                <input type="text" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
               </div>
             </div>
-
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={currentBackgroundOpacity}
-                onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
             </div>
-
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 30}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={selectedBlock.props?.overlayOpacity || 30}
-                onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 30} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
             </div>
           </div>
         )}
 
-        {/* ==================== ONGLET DÉGRADÉ ==================== */}
         {activeTab === 'gradient' && (
           <div className="space-y-3">
             <div>
               <label className="text-xs text-gray-400 block mb-1">Dégradés pour le fond</label>
               <div className="grid grid-cols-2 gap-1">
                 {gradients.map((grad, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => applyGradient(grad.value)}
-                    className={`h-10 rounded border transition-all hover:scale-105 ${
-                      isGradientActive && currentGradient === grad.value
-                        ? 'border-primary ring-1 ring-primary'
-                        : 'border-gray-700'
-                    }`}
-                    style={{ background: grad.value }}
-                    title={grad.name}
-                  />
+                  <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-10 rounded border transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-1 ring-primary' : 'border-gray-700'}`} style={{ background: grad.value }} title={grad.name} />
                 ))}
               </div>
             </div>
-
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={currentBackgroundOpacity}
-                onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
             </div>
-
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 30}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={selectedBlock.props?.overlayOpacity || 30}
-                onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 30} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
             </div>
           </div>
         )}
 
-        {/* ==================== ONGLET CARROUSEL ==================== */}
         {activeTab === 'carousel' && (
           <div className="space-y-3">
             {!isCarousel && (
-              <button
-                onClick={() => {
-                  onUpdateBlock(selectedBlock.id, { 
-                    isCarousel: true, 
-                    images: [
-                      { url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' },
-                      { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' },
-                      { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }
-                    ] 
-                  });
-                  setActiveTab('carousel');
-                }}
-                className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                🎠 Activer le carrousel
-              </button>
+              <button onClick={() => { onUpdateBlock(selectedBlock.id, { isCarousel: true, images: [{ url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' }, { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' }, { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }] }); setActiveTab('carousel'); }} className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors">🎠 Activer le carrousel</button>
             )}
-
             {isCarousel && (
               <>
                 <div className="flex justify-between items-center">
                   <h4 className="text-white text-xs font-semibold">Images du carrousel ({images.length})</h4>
-                  <button
-                    onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })}
-                    className="text-xs text-red-400 hover:text-red-300"
-                  >
-                    ✕ Désactiver
-                  </button>
+                  <button onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })} className="text-xs text-red-400 hover:text-red-300">✕ Désactiver</button>
                 </div>
 
-                {/* ⭐ DRAG & DROP POUR RÉORGANISER LES IMAGES */}
                 <DragDropContext onDragEnd={(result) => {
                   if (!result.destination) return;
                   const newImages = [...images];
@@ -470,71 +376,17 @@ export default function ColorsPanel({
                         {images.map((img: any, idx: number) => (
                           <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
                             {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${
-                                  snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'
-                                }`}
-                              >
-                                {/* Poignée de drag */}
-                                <div
-                                  {...provided.dragHandleProps}
-                                  className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1"
-                                >
-                                  ⋮⋮
-                                </div>
-                                
-                                {/* Aperçu de l'image */}
+                              <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'}`}>
+                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">⋮⋮</div>
                                 <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                                  <img 
-                                    src={img.url || 'https://picsum.photos/50/50'} 
-                                    alt={img.alt} 
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }}
-                                  />
+                                  <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }} />
                                 </div>
-                                
-                                {/* Champs URL et Alt */}
                                 <div className="flex-1 min-w-0">
-                                  <input
-                                    type="text"
-                                    value={img.url || ''}
-                                    onChange={(e) => {
-                                      const newImages = [...images];
-                                      newImages[idx] = { ...img, url: e.target.value };
-                                      onUpdateBlock(selectedBlock.id, { images: newImages });
-                                    }}
-                                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                                    placeholder="URL de l'image"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={img.alt || ''}
-                                    onChange={(e) => {
-                                      const newImages = [...images];
-                                      newImages[idx] = { ...img, alt: e.target.value };
-                                      onUpdateBlock(selectedBlock.id, { images: newImages });
-                                    }}
-                                    className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                                    placeholder="Texte alternatif"
-                                  />
+                                  <input type="text" value={img.url || ''} onChange={(e) => { const newImages = [...images]; newImages[idx] = { ...img, url: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="URL de l'image" />
+                                  <input type="text" value={img.alt || ''} onChange={(e) => { const newImages = [...images]; newImages[idx] = { ...img, alt: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="Texte alternatif" />
                                 </div>
-                                
-                                {/* Position/Ordre */}
                                 <div className="text-xs text-gray-500 w-8 text-center">#{idx + 1}</div>
-                                
-                                {/* Bouton supprimer */}
-                                <button
-                                  onClick={() => {
-                                    const newImages = images.filter((_: any, i: number) => i !== idx);
-                                    onUpdateBlock(selectedBlock.id, { images: newImages });
-                                  }}
-                                  className="text-red-400 hover:text-red-300 p-1 flex-shrink-0"
-                                  title="Supprimer"
-                                >
-                                  🗑️
-                                </button>
+                                <button onClick={() => { const newImages = images.filter((_: any, i: number) => i !== idx); onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0" title="Supprimer">🗑️</button>
                               </div>
                             )}
                           </Draggable>
@@ -545,7 +397,6 @@ export default function ColorsPanel({
                   </Droppable>
                 </DragDropContext>
 
-                {/* Upload d'images */}
                 <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 mt-2">
                   <div className="text-center">
                     <FiUpload className="mx-auto text-gray-400 mb-2" size={24} />
@@ -554,90 +405,37 @@ export default function ColorsPanel({
                     <div className="flex gap-2 mt-2 justify-center">
                       <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">
                         📁 Parcourir mon ordinateur
-                        <input
-                          type="file"
-                          className="hidden"
-                          multiple
-                          accept="image/*"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                              handleImageUpload(e.target.files);
-                            }
-                            e.target.value = '';
-                          }}
-                        />
+                        <input type="file" className="hidden" multiple accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { handleImageUpload(e.target.files); } e.target.value = ''; }} />
                       </label>
-                      <button
-                        onClick={openAssetPicker}
-                        className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors"
-                      >
-                        📚 Bibliothèque d'images
-                      </button>
+                      <button onClick={openAssetPicker} className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">📚 Bibliothèque d'images</button>
                     </div>
                   </div>
                 </div>
                 
-                <button
-                  onClick={() => {
-                    const newImages = [...images, { url: `https://picsum.photos/1200/500?random=${images.length + 1}`, alt: 'Nouvelle image' }];
-                    onUpdateBlock(selectedBlock.id, { images: newImages });
-                  }}
-                  className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1"
-                >
-                  + Ajouter une image par URL
-                </button>
+                <button onClick={() => { const newImages = [...images, { url: `https://picsum.photos/1200/500?random=${images.length + 1}`, alt: 'Nouvelle image' }]; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1">+ Ajouter une image par URL</button>
 
-                {/* Options du carrousel */}
                 <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Défilement automatique</label>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedBlock.props?.autoPlay !== false} 
-                      onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} 
-                    />
+                    <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
                   </div>
-                  
                   {selectedBlock.props?.autoPlay !== false && (
                     <div>
                       <label className="text-xs text-gray-400 block mb-1">Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
-                      <input 
-                        type="range" 
-                        min="1000" 
-                        max="10000" 
-                        step="500" 
-                        value={selectedBlock.props?.intervalTime || 5000} 
-                        onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} 
-                        className="w-full" 
-                      />
+                      <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
                     </div>
                   )}
-                  
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Afficher les flèches</label>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedBlock.props?.showArrows !== false} 
-                      onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} 
-                    />
+                    <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
                   </div>
-                  
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Afficher les points</label>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedBlock.props?.showDots !== false} 
-                      onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} 
-                    />
+                    <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
                   </div>
-                  
                   <div>
                     <label className="text-xs text-gray-400 block mb-1">Effet de transition</label>
-                    <select
-                      value={selectedBlock.props?.transitionEffect || 'fade'}
-                      onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })}
-                      className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
-                    >
+                    <select value={selectedBlock.props?.transitionEffect || 'fade'} onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
                       <option value="fade">Fondu</option>
                       <option value="slide">Glissement</option>
                     </select>
@@ -651,168 +449,74 @@ export default function ColorsPanel({
     );
   }
 
-  // ⭐ POUR LE BLOC SCREEN-BANNER (AVEC FOND) - MÊME LOGIQUE QUE BANNER
+  // ⭐ POUR LE BLOC SCREEN-BANNER (AVEC FOND + BORDURES) - TEXTE SUPPRIMÉ (déplacé vers FontsPanel)
   if (isScreenBanner && target === 'background') {
     const screenImages = selectedBlock.props?.images || [];
     const isScreenCarousel = selectedBlock.props?.isCarousel || false;
     
     return (
       <div className="space-y-3">
-        {/* Titre */}
         <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
 
-        {/* Onglets: Couleur unie / Dégradé / Carrousel */}
         <div className="flex gap-2 border-b border-gray-700 pb-2">
-          <button
-            onClick={() => setActiveTab('solid')}
-            className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}
-          >
-            🎨 Couleur unie
-          </button>
-          <button
-            onClick={() => setActiveTab('gradient')}
-            className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}
-          >
-            🌈 Dégradé
-          </button>
-          <button
-            onClick={() => setActiveTab('carousel')}
-            className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}
-          >
-            🎠 Carrousel
-          </button>
+          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
+          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
+          <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎠 Carrousel</button>
         </div>
 
-        {/* ==================== ONGLET COULEUR UNIE ==================== */}
         {activeTab === 'solid' && (
           <div className="space-y-3">
             <div>
               <label className="text-xs text-gray-400 block mb-1">Couleur de fond</label>
               <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={currentSolidColor}
-                  onChange={(e) => applySolidColor(e.target.value)}
-                  className="w-8 h-8 rounded border-0 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={currentSolidColor}
-                  onChange={(e) => applySolidColor(e.target.value)}
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
-                />
+                <input type="color" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="w-8 h-8 rounded border-0 cursor-pointer" />
+                <input type="text" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
               </div>
             </div>
-
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={currentBackgroundOpacity}
-                onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
             </div>
-
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 20}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={selectedBlock.props?.overlayOpacity || 20}
-                onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 20} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
             </div>
           </div>
         )}
 
-        {/* ==================== ONGLET DÉGRADÉ ==================== */}
         {activeTab === 'gradient' && (
           <div className="space-y-3">
             <div>
               <label className="text-xs text-gray-400 block mb-1">Dégradés pour le fond</label>
               <div className="grid grid-cols-2 gap-1">
                 {gradients.map((grad, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => applyGradient(grad.value)}
-                    className={`h-10 rounded border transition-all hover:scale-105 ${
-                      isGradientActive && currentGradient === grad.value
-                        ? 'border-primary ring-1 ring-primary'
-                        : 'border-gray-700'
-                    }`}
-                    style={{ background: grad.value }}
-                    title={grad.name}
-                  />
+                  <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-10 rounded border transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-1 ring-primary' : 'border-gray-700'}`} style={{ background: grad.value }} title={grad.name} />
                 ))}
               </div>
             </div>
-
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={currentBackgroundOpacity}
-                onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
             </div>
-
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 20}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={selectedBlock.props?.overlayOpacity || 20}
-                onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 20} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
             </div>
           </div>
         )}
 
-        {/* ==================== ONGLET CARROUSEL ==================== */}
         {activeTab === 'carousel' && (
           <div className="space-y-3">
             {!isScreenCarousel && (
-              <button
-                onClick={() => {
-                  onUpdateBlock(selectedBlock.id, { 
-                    isCarousel: true, 
-                    images: [
-                      { url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' },
-                      { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' },
-                      { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }
-                    ] 
-                  });
-                  setActiveTab('carousel');
-                }}
-                className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors"
-              >
-                🎠 Activer le carrousel
-              </button>
+              <button onClick={() => { onUpdateBlock(selectedBlock.id, { isCarousel: true, images: [{ url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' }, { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' }, { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }] }); setActiveTab('carousel'); }} className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors">🎠 Activer le carrousel</button>
             )}
-
             {isScreenCarousel && (
               <>
                 <div className="flex justify-between items-center">
                   <h4 className="text-white text-xs font-semibold">Images du carrousel ({screenImages.length})</h4>
-                  <button
-                    onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })}
-                    className="text-xs text-red-400 hover:text-red-300"
-                  >
-                    ✕ Désactiver
-                  </button>
+                  <button onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })} className="text-xs text-red-400 hover:text-red-300">✕ Désactiver</button>
                 </div>
 
-                {/* ⭐ DRAG & DROP POUR RÉORGANISER LES IMAGES */}
                 <DragDropContext onDragEnd={(result) => {
                   if (!result.destination) return;
                   const newImages = [...screenImages];
@@ -826,63 +530,17 @@ export default function ColorsPanel({
                         {screenImages.map((img: any, idx: number) => (
                           <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
                             {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${
-                                  snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'
-                                }`}
-                              >
-                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">
-                                  ⋮⋮
-                                </div>
-                                
+                              <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'}`}>
+                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">⋮⋮</div>
                                 <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                                  <img 
-                                    src={img.url || 'https://picsum.photos/50/50'} 
-                                    alt={img.alt} 
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }}
-                                  />
+                                  <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }} />
                                 </div>
-                                
                                 <div className="flex-1 min-w-0">
-                                  <input
-                                    type="text"
-                                    value={img.url || ''}
-                                    onChange={(e) => {
-                                      const newImages = [...screenImages];
-                                      newImages[idx] = { ...img, url: e.target.value };
-                                      onUpdateBlock(selectedBlock.id, { images: newImages });
-                                    }}
-                                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                                    placeholder="URL de l'image"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={img.alt || ''}
-                                    onChange={(e) => {
-                                      const newImages = [...screenImages];
-                                      newImages[idx] = { ...img, alt: e.target.value };
-                                      onUpdateBlock(selectedBlock.id, { images: newImages });
-                                    }}
-                                    className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                                    placeholder="Texte alternatif"
-                                  />
+                                  <input type="text" value={img.url || ''} onChange={(e) => { const newImages = [...screenImages]; newImages[idx] = { ...img, url: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="URL de l'image" />
+                                  <input type="text" value={img.alt || ''} onChange={(e) => { const newImages = [...screenImages]; newImages[idx] = { ...img, alt: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="Texte alternatif" />
                                 </div>
-                                
                                 <div className="text-xs text-gray-500 w-8 text-center">#{idx + 1}</div>
-                                
-                                <button
-                                  onClick={() => {
-                                    const newImages = screenImages.filter((_: any, i: number) => i !== idx);
-                                    onUpdateBlock(selectedBlock.id, { images: newImages });
-                                  }}
-                                  className="text-red-400 hover:text-red-300 p-1 flex-shrink-0"
-                                  title="Supprimer"
-                                >
-                                  🗑️
-                                </button>
+                                <button onClick={() => { const newImages = screenImages.filter((_: any, i: number) => i !== idx); onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0" title="Supprimer">🗑️</button>
                               </div>
                             )}
                           </Draggable>
@@ -893,99 +551,45 @@ export default function ColorsPanel({
                   </Droppable>
                 </DragDropContext>
 
-                {/* Upload d'images */}
                 <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 mt-2">
                   <div className="text-center">
                     <FiUpload className="mx-auto text-gray-400 mb-2" size={24} />
                     <p className="text-xs text-gray-400 mb-2">Glissez-déposez vos images ici</p>
                     <p className="text-xs text-gray-500">ou</p>
                     <div className="flex gap-2 mt-2 justify-center">
-                      <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded-transition-colors">
+                      <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">
                         📁 Parcourir mon ordinateur
-                        <input
-                          type="file"
-                          className="hidden"
-                          multiple
-                          accept="image/*"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files.length > 0) {
-                              handleImageUpload(e.target.files);
-                            }
-                            e.target.value = '';
-                          }}
-                        />
+                        <input type="file" className="hidden" multiple accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { handleImageUpload(e.target.files); } e.target.value = ''; }} />
                       </label>
-                      <button
-                        onClick={openAssetPicker}
-                        className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors"
-                      >
-                        📚 Bibliothèque d'images
-                      </button>
+                      <button onClick={openAssetPicker} className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">📚 Bibliothèque d'images</button>
                     </div>
                   </div>
                 </div>
                 
-                <button
-                  onClick={() => {
-                    const newImages = [...screenImages, { url: `https://picsum.photos/1200/500?random=${screenImages.length + 1}`, alt: 'Nouvelle image' }];
-                    onUpdateBlock(selectedBlock.id, { images: newImages });
-                  }}
-                  className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1"
-                >
-                  + Ajouter une image par URL
-                </button>
+                <button onClick={() => { const newImages = [...screenImages, { url: `https://picsum.photos/1200/500?random=${screenImages.length + 1}`, alt: 'Nouvelle image' }]; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1">+ Ajouter une image par URL</button>
 
-                {/* Options du carrousel */}
                 <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Défilement automatique</label>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedBlock.props?.autoPlay !== false} 
-                      onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} 
-                    />
+                    <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
                   </div>
-                  
                   {selectedBlock.props?.autoPlay !== false && (
                     <div>
                       <label className="text-xs text-gray-400 block mb-1">Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
-                      <input 
-                        type="range" 
-                        min="1000" 
-                        max="10000" 
-                        step="500" 
-                        value={selectedBlock.props?.intervalTime || 5000} 
-                        onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} 
-                        className="w-full" 
-                      />
+                      <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
                     </div>
                   )}
-                  
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Afficher les flèches</label>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedBlock.props?.showArrows !== false} 
-                      onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} 
-                    />
+                    <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
                   </div>
-                  
                   <div className="flex items-center justify-between">
                     <label className="text-xs text-gray-400">Afficher les points</label>
-                    <input 
-                      type="checkbox" 
-                      checked={selectedBlock.props?.showDots !== false} 
-                      onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} 
-                    />
+                    <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
                   </div>
-                  
                   <div>
                     <label className="text-xs text-gray-400 block mb-1">Effet de transition</label>
-                    <select
-                      value={selectedBlock.props?.transitionEffect || 'fade'}
-                      onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })}
-                      className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
-                    >
+                    <select value={selectedBlock.props?.transitionEffect || 'fade'} onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
                       <option value="fade">Fondu</option>
                       <option value="slide">Glissement</option>
                     </select>
@@ -995,6 +599,67 @@ export default function ColorsPanel({
             )}
           </div>
         )}
+
+        {/* ⭐ OPTIONS DE BORDURE POUR SCREEN-BANNER */}
+        <div className="border-t border-gray-700 pt-3 mt-2 space-y-3">
+          <h4 className="text-white text-xs font-semibold">🖼️ Bordure</h4>
+          
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Épaisseur: {selectedBlock.props?.borderWidth || 4}px</label>
+            <input
+              type="range"
+              min="0"
+              max="20"
+              value={selectedBlock.props?.borderWidth || 4}
+              onChange={(e) => onUpdateBlock(selectedBlock.id, { borderWidth: parseInt(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+          
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Couleur de la bordure</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={selectedBlock.props?.borderColor || '#ffffff'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })}
+                className="w-8 h-8 rounded border-0 cursor-pointer"
+              />
+              <input
+                type="text"
+                value={selectedBlock.props?.borderColor || '#ffffff'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })}
+                className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Style de bordure</label>
+            <select
+              value={selectedBlock.props?.borderStyle || 'solid'}
+              onChange={(e) => onUpdateBlock(selectedBlock.id, { borderStyle: e.target.value })}
+              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+            >
+              <option value="solid">Plein (solid)</option>
+              <option value="dashed">Tirets (dashed)</option>
+              <option value="dotted">Points (dotted)</option>
+              <option value="double">Double (double)</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Arrondi: {selectedBlock.props?.borderRadius || 16}px</label>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              value={selectedBlock.props?.borderRadius || 16}
+              onChange={(e) => onUpdateBlock(selectedBlock.id, { borderRadius: parseInt(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+        </div>
       </div>
     );
   }
@@ -1004,64 +669,29 @@ export default function ColorsPanel({
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
-        <span className="text-xs text-gray-500">
-          {isGradientActive ? 'Dégradé' : 'Couleur unie'}
-        </span>
+        <span className="text-xs text-gray-500">{isGradientActive ? 'Dégradé' : 'Couleur unie'}</span>
       </div>
 
-      {/* Onglets Couleur unie / Dégradé */}
       <div className="flex gap-2 border-b border-gray-700 pb-2">
-        <button
-          onClick={() => setActiveTab('solid')}
-          className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}
-        >
-          🎨 Couleur unie
-        </button>
-        <button
-          onClick={() => setActiveTab('gradient')}
-          className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}
-        >
-          🌈 Dégradé
-        </button>
+        <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
+        <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
       </div>
 
-      {/* Couleur unie */}
       {activeTab === 'solid' && (
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-gray-400 block mb-1">
-              {target === 'text' ? 'Couleur du texte' : 'Couleur'}
-            </label>
+            <label className="text-xs text-gray-400 block mb-1">{target === 'text' ? 'Couleur du texte' : 'Couleur'}</label>
             <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={currentSolidColor}
-                onChange={(e) => applySolidColor(e.target.value)}
-                className="w-8 h-8 rounded border-0 cursor-pointer"
-              />
-              <input
-                type="text"
-                value={currentSolidColor}
-                onChange={(e) => applySolidColor(e.target.value)}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
-              />
+              <input type="color" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="w-8 h-8 rounded border-0 cursor-pointer" />
+              <input type="text" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
             </div>
-            {isGradientActive && (
-              <p className="text-xs text-green-400 mt-1">✓ Dégradé actif - cliquez sur une couleur unie pour le remplacer</p>
-            )}
+            {isGradientActive && <p className="text-xs text-green-400 mt-1">✓ Dégradé actif - cliquez sur une couleur unie pour le remplacer</p>}
           </div>
 
           {target === 'text' && (
             <div className="border-t border-gray-700 pt-3 mt-2">
               <label className="text-xs text-gray-400 block mb-1">Opacité du texte: {currentTextOpacity}%</label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={currentTextOpacity}
-                onChange={(e) => handleTextOpacityChange(parseInt(e.target.value))}
-                className="w-full"
-              />
+              <input type="range" min="0" max="100" value={currentTextOpacity} onChange={(e) => handleTextOpacityChange(parseInt(e.target.value))} className="w-full" />
             </div>
           )}
 
@@ -1070,61 +700,26 @@ export default function ColorsPanel({
               <label className="text-xs text-gray-400 block mb-1">Dégradés</label>
               <div className="grid grid-cols-2 gap-1">
                 {gradients.map((grad, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => applyGradient(grad.value)}
-                    className={`h-8 rounded border transition-all hover:scale-105 ${
-                      isGradientActive && currentGradient === grad.value
-                        ? 'border-primary ring-1 ring-primary'
-                        : 'border-gray-700'
-                    }`}
-                    style={{ background: grad.value }}
-                    title={grad.name}
-                  />
+                  <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-8 rounded border transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-1 ring-primary' : 'border-gray-700'}`} style={{ background: grad.value }} title={grad.name} />
                 ))}
               </div>
-              <button
-                onClick={() => applySolidColor(currentSolidColor)}
-                className="w-full mt-2 text-xs text-gray-400 hover:text-white"
-              >
-                Réinitialiser
-              </button>
+              <button onClick={() => applySolidColor(currentSolidColor)} className="w-full mt-2 text-xs text-gray-400 hover:text-white">Réinitialiser</button>
             </div>
           )}
         </div>
       )}
 
-      {/* Dégradé */}
       {activeTab === 'gradient' && (
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-gray-400 block mb-1">
-              {target === 'text' ? 'Dégradés pour le texte' : 'Dégradés'}
-            </label>
+            <label className="text-xs text-gray-400 block mb-1">{target === 'text' ? 'Dégradés pour le texte' : 'Dégradés'}</label>
             <div className="grid grid-cols-2 gap-1">
               {gradients.map((grad, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => applyGradient(grad.value)}
-                  className={`h-10 rounded border transition-all hover:scale-105 ${
-                    isGradientActive && currentGradient === grad.value
-                      ? 'border-primary ring-1 ring-primary'
-                      : 'border-gray-700'
-                  }`}
-                  style={{ background: grad.value }}
-                  title={grad.name}
-                />
+                <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-10 rounded border transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-1 ring-primary' : 'border-gray-700'}`} style={{ background: grad.value }} title={grad.name} />
               ))}
             </div>
-            {!isGradientActive && (
-              <p className="text-xs text-blue-400 mt-1">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>
-            )}
-            <button
-              onClick={() => applySolidColor(currentSolidColor)}
-              className="w-full mt-2 text-xs text-gray-400 hover:text-white"
-            >
-              Réinitialiser
-            </button>
+            {!isGradientActive && <p className="text-xs text-blue-400 mt-1">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
+            <button onClick={() => applySolidColor(currentSolidColor)} className="w-full mt-2 text-xs text-gray-400 hover:text-white">Réinitialiser</button>
           </div>
         </div>
       )}

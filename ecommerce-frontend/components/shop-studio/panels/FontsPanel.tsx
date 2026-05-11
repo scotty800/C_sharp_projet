@@ -4,320 +4,807 @@ import { useState, useEffect } from 'react';
 
 interface Props {
   selectedBlock: any;
-  selectedTarget?: 'text' | 'background';
   isBackgroundSelected: boolean;
   customization: any;
   onUpdateBlock: (id: string, updates: any) => void;
   onUpdateCustomization: (updates: any) => void;
+  selectedTarget?: 'text' | 'background';
 }
-
-// Liste étendue des polices Google Fonts qui fonctionnent
-const POPULAR_FONTS = [
-  { name: 'Inter', category: 'Sans-Serif', import: 'Inter' },
-  { name: 'Poppins', category: 'Sans-Serif', import: 'Poppins' },
-  { name: 'Roboto', category: 'Sans-Serif', import: 'Roboto' },
-  { name: 'Open Sans', category: 'Sans-Serif', import: 'Open+Sans' },
-  { name: 'Montserrat', category: 'Sans-Serif', import: 'Montserrat' },
-  { name: 'Nunito', category: 'Sans-Serif', import: 'Nunito' },
-  { name: 'Playfair Display', category: 'Serif', import: 'Playfair+Display' },
-  { name: 'Merriweather', category: 'Serif', import: 'Merriweather' },
-  { name: 'Lora', category: 'Serif', import: 'Lora' },
-  { name: 'Cormorant', category: 'Serif', import: 'Cormorant' },
-  { name: 'Pacifico', category: 'Display', import: 'Pacifico' },
-  { name: 'Lobster', category: 'Display', import: 'Lobster' },
-  { name: 'Bebas Neue', category: 'Display', import: 'Bebas+Neue' },
-  { name: 'Anton', category: 'Display', import: 'Anton' },
-  { name: 'JetBrains Mono', category: 'Monospace', import: 'JetBrains+Mono' },
-  { name: 'Fira Code', category: 'Monospace', import: 'Fira+Code' },
-  { name: 'DM Sans', category: 'Sans-Serif', import: 'DM+Sans' },
-  { name: 'Work Sans', category: 'Sans-Serif', import: 'Work+Sans' },
-  { name: 'Raleway', category: 'Sans-Serif', import: 'Raleway' },
-  { name: 'Oswald', category: 'Sans-Serif', import: 'Oswald' },
-  { name: 'Quicksand', category: 'Sans-Serif', import: 'Quicksand' },
-  { name: 'Crimson Text', category: 'Serif', import: 'Crimson+Text' },
-  { name: 'PT Serif', category: 'Serif', import: 'PT+Serif' },
-];
 
 export default function FontsPanel({ 
   selectedBlock, 
-  selectedTarget,
   isBackgroundSelected, 
   customization, 
-  onUpdateBlock,
+  onUpdateBlock, 
+  onUpdateCustomization,
+  selectedTarget = 'text'
 }: Props) {
-  // ⭐ TOUS LES HOOKS ICI - AVANT LE RETURN
-  const [search, setSearch] = useState('');
-  const [target, setTarget] = useState<'text' | 'background'>(selectedTarget || 'text');
+  const [activeTab, setActiveTab] = useState<'fonts' | 'text-effects'>('fonts');
 
-  // ⭐ Mettre à jour quand props.selectedTarget change
-  useEffect(() => {
-    if (selectedTarget) {
-      setTarget(selectedTarget);
-    }
-  }, [selectedTarget]);
-
-  // ⭐ Vérifier si le bloc a du texte modifiable
-  const hasText = selectedBlock && ['text', 'title', 'banner', 'button', 'products'].includes(selectedBlock.type);
+  const isBanner = selectedBlock?.type === 'banner';
+  const isScreenBanner = selectedBlock?.type === 'screen-banner';
+  const isCarouselBanner = selectedBlock?.type === 'carousel-banner';
+  const isTextBlock = selectedBlock?.type === 'text';
+  const isTitleBlock = selectedBlock?.type === 'title';
+  const isButtonBlock = selectedBlock?.type === 'button';
   
-  // ⭐ Vérifier si le bloc a du fond modifiable
-  const hasBackground = selectedBlock && ['banner', 'button', 'shape', 'section', 'products'].includes(selectedBlock.type);
+  const isCanvasSelected = isBackgroundSelected;
+  const isBlockSelected = !isCanvasSelected && selectedBlock !== null;
+  const target = selectedTarget;
 
-  // ⭐ Forcer la cible si nécessaire
-  useEffect(() => {
-    if (selectedBlock) {
-      if (!hasText && hasBackground) setTarget('background');
-      else if (hasText && !hasBackground) setTarget('text');
-    }
-  }, [selectedBlock, hasText, hasBackground]);
+  // Polices disponibles
+  const fonts = [
+    'Inter', 'Poppins', 'Montserrat', 'Roboto', 'Open Sans', 
+    'Playfair Display', 'Pacifico', 'Dancing Script', 'Lato', 'Raleway'
+  ];
 
-  // ⭐ Fonction pour charger une police Google Font
-  const loadGoogleFont = (fontName: string) => {
-    if (!fontName || fontName === 'Inter') return;
-    
-    const font = POPULAR_FONTS.find(f => f.name === fontName);
-    if (font && font.import) {
-      const linkId = `google-font-${font.name.replace(/ /g, '-')}`;
-      if (!document.getElementById(linkId)) {
-        const link = document.createElement('link');
-        link.id = linkId;
-        link.href = `https://fonts.googleapis.com/css2?family=${font.import}:wght@300;400;500;600;700;800&display=swap`;
-        link.rel = 'stylesheet';
-        document.head.appendChild(link);
-      }
-    }
-  };
+  const fontWeights = [
+    { value: '300', label: 'Léger (300)' },
+    { value: '400', label: 'Normal (400)' },
+    { value: '500', label: 'Moyen (500)' },
+    { value: '600', label: 'Semi-gras (600)' },
+    { value: '700', label: 'Gras (700)' },
+    { value: '800', label: 'Extra-gras (800)' },
+  ];
 
-  // ⭐ Charger les polices globales si nécessaire
-  useEffect(() => {
-    const fontsToLoad = [
-      customization?.primaryFont,
-      customization?.headingFont,
-      customization?.bodyFont,
-    ].filter(Boolean);
-    
-    fontsToLoad.forEach(loadGoogleFont);
-  }, [customization?.primaryFont, customization?.headingFont, customization?.bodyFont]);
-
-  // ⭐ Charger la police du bloc si nécessaire
-  useEffect(() => {
-    if (selectedBlock) {
-      const currentFont = getCurrentFont();
-      if (currentFont && currentFont !== 'Inter') {
-        loadGoogleFont(currentFont);
-      }
-    }
-  }, [selectedBlock, target]);
-
-  // ⭐ Fonctions de mise à jour
-  const handleFontChange = (font: string) => {
-    if (!selectedBlock) return;
-    
-    const updates: any = {};
-    
-    switch (selectedBlock.type) {
-      case 'text':
-        updates.fontFamily = font;
-        break;
-      case 'title':
-        updates.fontFamily = font;
-        break;
-      case 'banner':
-        if (target === 'text') updates.titleFont = font;
-        break;
-      case 'button':
-        updates.fontFamily = font;
-        break;
-      case 'products':
-        if (target === 'text') updates.titleFont = font;
-        break;
-      default:
-        updates.fontFamily = font;
-    }
-    
-    onUpdateBlock(selectedBlock.id, updates);
-    loadGoogleFont(font);
-  };
-
-  const handleSizeChange = (size: number) => {
-    if (!selectedBlock) return;
-    
-    const updates: any = {};
-    
-    switch (selectedBlock.type) {
-      case 'text':
-        updates.fontSize = size;
-        break;
-      case 'title':
-        updates.fontSize = size;
-        break;
-      case 'banner':
-        if (target === 'text') updates.titleFontSize = size;
-        break;
-      case 'button':
-        updates.fontSize = size;
-        break;
-      case 'products':
-        if (target === 'text') updates.titleFontSize = size;
-        break;
-      default:
-        updates.fontSize = size;
-    }
-    
-    onUpdateBlock(selectedBlock.id, updates);
-  };
-
-  // ⭐ Récupérer la police actuelle
-  const getCurrentFont = () => {
-    if (!selectedBlock) return 'Inter';
-    
-    switch (selectedBlock.type) {
-      case 'text': return selectedBlock.props?.fontFamily || 'Inter';
-      case 'title': return selectedBlock.props?.fontFamily || 'Poppins';
-      case 'banner': return target === 'text' 
-        ? (selectedBlock.props?.titleFont || 'Poppins')
-        : (selectedBlock.props?.fontFamily || 'Inter');
-      case 'button': return selectedBlock.props?.fontFamily || 'Inter';
-      case 'products': return target === 'text' 
-        ? (selectedBlock.props?.titleFont || 'Poppins')
-        : (selectedBlock.props?.fontFamily || 'Inter');
-      default: return 'Inter';
-    }
-  };
-
-  const getCurrentSize = () => {
-    if (!selectedBlock) return 16;
-    
-    switch (selectedBlock.type) {
-      case 'text': return selectedBlock.props?.fontSize || 16;
-      case 'title': return selectedBlock.props?.fontSize || 36;
-      case 'banner': return selectedBlock.props?.titleFontSize || 48;
-      case 'button': return selectedBlock.props?.fontSize || 16;
-      case 'products': return selectedBlock.props?.titleFontSize || 36;
-      default: return 16;
-    }
-  };
-
-  const filteredFonts = POPULAR_FONTS.filter(font =>
-    font.name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const getTitle = () => {
-    if (!selectedBlock) return 'Polices';
-    if (target === 'text') return `Police du texte (${selectedBlock?.type})`;
-    return `Police (${selectedBlock?.type})`;
-  };
-
-  // ⭐ RETOURS CONDITIONNELS - APRÈS TOUS LES HOOKS
-  if (isBackgroundSelected) {
+  // ==================== POUR LE CANVAS (fond de page) ====================
+  if (isCanvasSelected) {
     return (
       <div className="space-y-4">
-        <h3 className="text-white font-semibold text-sm">Polices globales</h3>
-        <p className="text-gray-400 text-xs">Sélectionnez un élément pour modifier ses polices</p>
-      </div>
-    );
-  }
-
-  if (!selectedBlock) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-400 text-xs">Sélectionnez un élément pour modifier ses polices</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
-        <span className="text-xs text-gray-500">{selectedBlock.type}</span>
-      </div>
-
-      {/* Sélecteur Texte/Fond pour les blocs qui ont les deux */}
-      {hasText && hasBackground && (
-        <div className="flex gap-2 bg-gray-800 rounded-lg p-1">
-          <button
-            onClick={() => setTarget('text')}
-            className={`flex-1 py-1 text-xs rounded transition-colors ${
-              target === 'text' ? 'bg-primary text-white' : 'text-gray-400'
-            }`}
-          >
-            📝 Texte
-          </button>
-          <button
-            onClick={() => setTarget('background')}
-            className={`flex-1 py-1 text-xs rounded transition-colors ${
-              target === 'background' ? 'bg-primary text-white' : 'text-gray-400'
-            }`}
-          >
-            🖼️ Fond
-          </button>
-        </div>
-      )}
-
-      {/* Recherche */}
-      <div>
-        <label className="text-xs text-gray-400 block mb-1">Rechercher une police</label>
-        <input
-          type="text"
-          placeholder="Rechercher..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
-        />
-      </div>
-
-      {/* Police */}
-      <div>
-        <label className="text-xs text-gray-400 block mb-1">Police</label>
-        <select
-          value={getCurrentFont()}
-          onChange={(e) => handleFontChange(e.target.value)}
-          className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
-        >
-          {filteredFonts.map(font => (
-            <option key={font.name} value={font.name}>
-              {font.name} ({font.category})
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Taille - uniquement pour le texte */}
-      {target === 'text' && (
         <div>
-          <label className="text-xs text-gray-400 block mb-1">Taille: {getCurrentSize()}px</label>
-          <input
-            type="range"
-            min="12"
-            max="72"
-            value={getCurrentSize()}
-            onChange={(e) => handleSizeChange(parseInt(e.target.value))}
-            className="w-full"
-          />
-        </div>
-      )}
-
-      {/* Alignement pour les textes */}
-      {target === 'text' && (selectedBlock.type === 'text' || selectedBlock.type === 'title') && (
-        <div>
-          <label className="text-xs text-gray-400 block mb-1">Alignement</label>
-          <div className="flex gap-1">
-            {['left', 'center', 'right'].map(align => (
-              <button
-                key={align}
-                onClick={() => onUpdateBlock(selectedBlock.id, { textAlign: align })}
-                className={`flex-1 py-1 text-xs rounded ${
-                  selectedBlock.props?.textAlign === align
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-800 text-gray-400'
-                }`}
-              >
-                {align === 'left' ? '←' : align === 'center' ? '↔' : '→'}
-              </button>
+          <label className="text-xs text-gray-400 block mb-1">Police par défaut</label>
+          <select
+            value={customization?.primaryFont || 'Inter'}
+            onChange={(e) => onUpdateCustomization({ primaryFont: e.target.value })}
+            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+          >
+            {fonts.map(font => (
+              <option key={font} value={font}>{font}</option>
             ))}
-          </div>
+          </select>
         </div>
-      )}
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Police des titres</label>
+          <select
+            value={customization?.headingFont || 'Poppins'}
+            onChange={(e) => onUpdateCustomization({ headingFont: e.target.value })}
+            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+          >
+            {fonts.map(font => (
+              <option key={font} value={font}>{font}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Police du texte</label>
+          <select
+            value={customization?.bodyFont || 'Inter'}
+            onChange={(e) => onUpdateCustomization({ bodyFont: e.target.value })}
+            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+          >
+            {fonts.map(font => (
+              <option key={font} value={font}>{font}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== POUR LE BLOC BANNER CLASSIQUE (TEXTE) ====================
+  if ((isBanner || isCarouselBanner) && target === 'text') {
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2 border-b border-gray-700 pb-2">
+          <button
+            onClick={() => setActiveTab('fonts')}
+            className={`flex-1 py-1 text-xs rounded ${activeTab === 'fonts' ? 'bg-primary text-white' : 'text-gray-400'}`}
+          >
+            📝 Polices
+          </button>
+          <button
+            onClick={() => setActiveTab('text-effects')}
+            className={`flex-1 py-1 text-xs rounded ${activeTab === 'text-effects' ? 'bg-primary text-white' : 'text-gray-400'}`}
+          >
+            ✨ Effets texte
+          </button>
+        </div>
+
+        {activeTab === 'fonts' && (
+          <>
+            {/* Police du titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Police du titre</label>
+              <select
+                value={selectedBlock.props?.titleFont || 'Poppins'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFont: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+              >
+                {fonts.map(font => (
+                  <option key={font} value={font}>{font}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Taille du titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Taille du titre: {selectedBlock.props?.titleFontSize || 48}px</label>
+              <input
+                type="range"
+                min="24"
+                max="96"
+                step="1"
+                value={selectedBlock.props?.titleFontSize || 48}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFontSize: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+
+            {/* Poids du titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Poids du titre</label>
+              <select
+                value={selectedBlock.props?.titleFontWeight || '700'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFontWeight: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+              >
+                {fontWeights.map(w => (
+                  <option key={w.value} value={w.value}>{w.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="border-t border-gray-700 pt-3 mt-2">
+              <h4 className="text-white text-xs font-semibold mb-2">Sous-titre</h4>
+              
+              {/* Police du sous-titre */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Police du sous-titre</label>
+                <select
+                  value={selectedBlock.props?.subtitleFont || 'Inter'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFont: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fonts.map(font => (
+                    <option key={font} value={font}>{font}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Taille du sous-titre */}
+              <div className="mt-2">
+                <label className="text-xs text-gray-400 block mb-1">Taille du sous-titre: {selectedBlock.props?.subtitleFontSize || 18}px</label>
+                <input
+                  type="range"
+                  min="12"
+                  max="48"
+                  step="1"
+                  value={selectedBlock.props?.subtitleFontSize || 18}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFontSize: parseInt(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Poids du sous-titre */}
+              <div className="mt-2">
+                <label className="text-xs text-gray-400 block mb-1">Poids du sous-titre</label>
+                <select
+                  value={selectedBlock.props?.subtitleFontWeight || '400'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFontWeight: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fontWeights.map(w => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-700 pt-3 mt-2">
+              <h4 className="text-white text-xs font-semibold mb-2">Bouton</h4>
+              
+              {/* Police du bouton */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Police du bouton</label>
+                <select
+                  value={selectedBlock.props?.buttonFont || 'Inter'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFont: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fonts.map(font => (
+                    <option key={font} value={font}>{font}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Taille du bouton */}
+              <div className="mt-2">
+                <label className="text-xs text-gray-400 block mb-1">Taille du bouton: {selectedBlock.props?.buttonFontSize || 16}px</label>
+                <input
+                  type="range"
+                  min="12"
+                  max="32"
+                  step="1"
+                  value={selectedBlock.props?.buttonFontSize || 16}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFontSize: parseInt(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Poids du bouton */}
+              <div className="mt-2">
+                <label className="text-xs text-gray-400 block mb-1">Poids du bouton</label>
+                <select
+                  value={selectedBlock.props?.buttonFontWeight || '500'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFontWeight: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fontWeights.map(w => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'text-effects' && (
+          <>
+            {/* Couleur du titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Couleur du titre</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={selectedBlock.props?.titleColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { titleColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={selectedBlock.props?.titleColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { titleColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Dégradé pour le titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Dégradé pour le titre</label>
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                  'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+                ].map((grad, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => onUpdateBlock(selectedBlock.id, { titleGradient: grad, titleColor: null })}
+                    className={`h-8 rounded border transition-all hover:scale-105 ${
+                      selectedBlock.props?.titleGradient === grad
+                        ? 'border-primary ring-1 ring-primary'
+                        : 'border-gray-700'
+                    }`}
+                    style={{ background: grad }}
+                    title={`Dégradé ${idx + 1}`}
+                  />
+                ))}
+              </div>
+              {selectedBlock.props?.titleGradient && (
+                <button
+                  onClick={() => onUpdateBlock(selectedBlock.id, { titleGradient: null, titleColor: '#ffffff' })}
+                  className="w-full mt-2 text-xs text-gray-400 hover:text-white"
+                >
+                  ✕ Supprimer le dégradé
+                </button>
+              )}
+            </div>
+
+            {/* Couleur du sous-titre */}
+            <div className="border-t border-gray-700 pt-3 mt-2">
+              <label className="text-xs text-gray-400 block mb-1">Couleur du sous-titre</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={selectedBlock.props?.subtitleColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={selectedBlock.props?.subtitleColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Couleur du fond du bouton */}
+            <div className="border-t border-gray-700 pt-3 mt-2">
+              <label className="text-xs text-gray-400 block mb-1">Couleur du bouton</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={selectedBlock.props?.buttonBackgroundColor || '#2563EB'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonBackgroundColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={selectedBlock.props?.buttonBackgroundColor || '#2563EB'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonBackgroundColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Couleur du texte du bouton */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Texte du bouton</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={selectedBlock.props?.buttonTextColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonTextColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={selectedBlock.props?.buttonTextColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonTextColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Arrondi du bouton */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Arrondi du bouton: {selectedBlock.props?.buttonBorderRadius || 8}px</label>
+              <input
+                type="range"
+                min="0"
+                max="50"
+                value={selectedBlock.props?.buttonBorderRadius || 8}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonBorderRadius: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+
+            {/* Opacité du texte */}
+            <div className="border-t border-gray-700 pt-3 mt-2">
+              <label className="text-xs text-gray-400 block mb-1">Opacité du texte: {selectedBlock.props?.textOpacity || 100}%</label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={selectedBlock.props?.textOpacity || 100}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { textOpacity: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+
+            {/* Position du texte */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Position du texte</label>
+              <div className="flex gap-2">
+                {['left', 'center', 'right'].map(pos => (
+                  <button
+                    key={pos}
+                    onClick={() => onUpdateBlock(selectedBlock.id, { textPosition: pos })}
+                    className={`flex-1 py-1 rounded text-xs ${selectedBlock.props?.textPosition === pos ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}
+                  >
+                    {pos === 'left' ? '← Gauche' : pos === 'center' ? '↔ Centre' : '→ Droite'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ==================== POUR LE BLOC SCREEN-BANNER (TEXTE) ====================
+  if (isScreenBanner && target === 'text') {
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2 border-b border-gray-700 pb-2">
+          <button
+            onClick={() => setActiveTab('fonts')}
+            className={`flex-1 py-1 text-xs rounded ${activeTab === 'fonts' ? 'bg-primary text-white' : 'text-gray-400'}`}
+          >
+            📝 Polices
+          </button>
+          <button
+            onClick={() => setActiveTab('text-effects')}
+            className={`flex-1 py-1 text-xs rounded ${activeTab === 'text-effects' ? 'bg-primary text-white' : 'text-gray-400'}`}
+          >
+            ✨ Effets texte
+          </button>
+        </div>
+
+        {activeTab === 'fonts' && (
+          <>
+            {/* Police du titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Police du titre</label>
+              <select
+                value={selectedBlock.props?.titleFont || 'Poppins'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFont: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+              >
+                {fonts.map(font => (
+                  <option key={font} value={font}>{font}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Taille du titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Taille du titre: {selectedBlock.props?.titleFontSize || 48}px</label>
+              <input
+                type="range"
+                min="24"
+                max="96"
+                step="1"
+                value={selectedBlock.props?.titleFontSize || 48}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFontSize: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+
+            {/* Poids du titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Poids du titre</label>
+              <select
+                value={selectedBlock.props?.titleFontWeight || '700'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFontWeight: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+              >
+                {fontWeights.map(w => (
+                  <option key={w.value} value={w.value}>{w.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="border-t border-gray-700 pt-3 mt-2">
+              <h4 className="text-white text-xs font-semibold mb-2">Sous-titre</h4>
+              
+              {/* Taille du sous-titre */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Taille du sous-titre: {selectedBlock.props?.subtitleFontSize || 18}px</label>
+                <input
+                  type="range"
+                  min="12"
+                  max="48"
+                  step="1"
+                  value={selectedBlock.props?.subtitleFontSize || 18}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFontSize: parseInt(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Police du sous-titre */}
+              <div className="mt-2">
+                <label className="text-xs text-gray-400 block mb-1">Police du sous-titre</label>
+                <select
+                  value={selectedBlock.props?.subtitleFont || 'Inter'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFont: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fonts.map(font => (
+                    <option key={font} value={font}>{font}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Poids du sous-titre */}
+              <div className="mt-2">
+                <label className="text-xs text-gray-400 block mb-1">Poids du sous-titre</label>
+                <select
+                  value={selectedBlock.props?.subtitleFontWeight || '400'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFontWeight: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fontWeights.map(w => (
+                    <option key={w.value} value={w.value}>{w.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-700 pt-3 mt-2">
+              <h4 className="text-white text-xs font-semibold mb-2">Bouton</h4>
+              
+              {/* Police du bouton */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Police du bouton</label>
+                <select
+                  value={selectedBlock.props?.buttonFont || 'Inter'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFont: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fonts.map(font => (
+                    <option key={font} value={font}>{font}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Taille du bouton */}
+              <div className="mt-2">
+                <label className="text-xs text-gray-400 block mb-1">Taille du bouton: {selectedBlock.props?.buttonFontSize || 16}px</label>
+                <input
+                  type="range"
+                  min="12"
+                  max="32"
+                  step="1"
+                  value={selectedBlock.props?.buttonFontSize || 16}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFontSize: parseInt(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'text-effects' && (
+          <>
+            {/* Couleur du titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Couleur du titre</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={selectedBlock.props?.titleColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { titleColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={selectedBlock.props?.titleColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { titleColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Dégradé pour le titre */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Dégradé pour le titre</label>
+              <div className="grid grid-cols-3 gap-1">
+                {[
+                  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                  'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
+                ].map((grad, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => onUpdateBlock(selectedBlock.id, { titleGradient: grad, titleColor: null })}
+                    className={`h-8 rounded border transition-all hover:scale-105 ${
+                      selectedBlock.props?.titleGradient === grad
+                        ? 'border-primary ring-1 ring-primary'
+                        : 'border-gray-700'
+                    }`}
+                    style={{ background: grad }}
+                    title={`Dégradé ${idx + 1}`}
+                  />
+                ))}
+              </div>
+              {selectedBlock.props?.titleGradient && (
+                <button
+                  onClick={() => onUpdateBlock(selectedBlock.id, { titleGradient: null, titleColor: '#ffffff' })}
+                  className="w-full mt-2 text-xs text-gray-400 hover:text-white"
+                >
+                  ✕ Supprimer le dégradé
+                </button>
+              )}
+            </div>
+
+            {/* Contour du texte (stroke) */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Contour du texte: {selectedBlock.props?.textStrokeWidth || 0}px</label>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.5"
+                value={selectedBlock.props?.textStrokeWidth || 0}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { textStrokeWidth: parseFloat(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+
+            {selectedBlock.props?.textStrokeWidth > 0 && (
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Couleur du contour</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={selectedBlock.props?.textStrokeColor || '#000000'}
+                    onChange={(e) => onUpdateBlock(selectedBlock.id, { textStrokeColor: e.target.value })}
+                    className="w-8 h-8 rounded border-0 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    value={selectedBlock.props?.textStrokeColor || '#000000'}
+                    onChange={(e) => onUpdateBlock(selectedBlock.id, { textStrokeColor: e.target.value })}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Ombre du texte */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Ombre du texte</label>
+              <select
+                value={selectedBlock.props?.textShadow || 'none'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { textShadow: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+              >
+                <option value="none">Aucune</option>
+                <option value="2px 2px 4px rgba(0,0,0,0.3)">Légère</option>
+                <option value="0px 0px 10px rgba(0,0,0,0.5)">Lueur</option>
+                <option value="4px 4px 8px rgba(0,0,0,0.4)">Forte</option>
+              </select>
+            </div>
+
+            {/* Opacité du texte */}
+            <div className="border-t border-gray-700 pt-3 mt-2">
+              <label className="text-xs text-gray-400 block mb-1">Opacité du texte: {selectedBlock.props?.textOpacity || 100}%</label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={selectedBlock.props?.textOpacity || 100}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { textOpacity: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+
+            {/* Position du texte */}
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Position du texte</label>
+              <div className="flex gap-2">
+                {['left', 'center', 'right'].map(pos => (
+                  <button
+                    key={pos}
+                    onClick={() => onUpdateBlock(selectedBlock.id, { textPosition: pos })}
+                    className={`flex-1 py-1 rounded text-xs ${selectedBlock.props?.textPosition === pos ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}
+                  >
+                    {pos === 'left' ? '← Gauche' : pos === 'center' ? '↔ Centre' : '→ Droite'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ==================== POUR LES BLOCS TEXTE, TITRE, BOUTON ====================
+  if (isBlockSelected && (isTextBlock || isTitleBlock || isButtonBlock) && target === 'text') {
+    const blockProps = selectedBlock.props || {};
+    
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2 border-b border-gray-700 pb-2">
+          <button
+            onClick={() => setActiveTab('fonts')}
+            className={`flex-1 py-1 text-xs rounded ${activeTab === 'fonts' ? 'bg-primary text-white' : 'text-gray-400'}`}
+          >
+            📝 Police
+          </button>
+          <button
+            onClick={() => setActiveTab('text-effects')}
+            className={`flex-1 py-1 text-xs rounded ${activeTab === 'text-effects' ? 'bg-primary text-white' : 'text-gray-400'}`}
+          >
+            ✨ Effets
+          </button>
+        </div>
+
+        {activeTab === 'fonts' && (
+          <>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Police</label>
+              <select
+                value={blockProps.fontFamily || customization?.bodyFont || 'Inter'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { fontFamily: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+              >
+                {fonts.map(font => (
+                  <option key={font} value={font}>{font}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Taille: {blockProps.fontSize || 16}px</label>
+              <input
+                type="range"
+                min="12"
+                max="72"
+                value={blockProps.fontSize || 16}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { fontSize: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Poids</label>
+              <select
+                value={blockProps.fontWeight || '400'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { fontWeight: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+              >
+                {fontWeights.map(w => (
+                  <option key={w.value} value={w.value}>{w.label}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'text-effects' && (
+          <>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Couleur</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={blockProps.textColor || '#000000'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { textColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={blockProps.textColor || '#000000'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { textColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Alignement</label>
+              <div className="flex gap-2">
+                {['left', 'center', 'right'].map(align => (
+                  <button
+                    key={align}
+                    onClick={() => onUpdateBlock(selectedBlock.id, { textAlign: align })}
+                    className={`flex-1 py-1 rounded text-xs ${blockProps.textAlign === align ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}
+                  >
+                    {align === 'left' ? '← Gauche' : align === 'center' ? '↔ Centre' : '→ Droite'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Opacité: {blockProps.textOpacity || 100}%</label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={blockProps.textOpacity || 100}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { textOpacity: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ==================== RENDU NORMAL POUR LES AUTRES BLOCS ====================
+  return (
+    <div className="text-center py-8">
+      <p className="text-gray-400 text-xs">Sélectionnez un élément pour modifier sa police</p>
     </div>
   );
 }
