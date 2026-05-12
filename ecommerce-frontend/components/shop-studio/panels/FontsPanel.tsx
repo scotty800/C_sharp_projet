@@ -292,7 +292,38 @@ export default function FontsPanel({
                 )}
 
                 <div className="border-t border-gray-700 pt-3 mt-2"><label className="text-xs text-gray-400 block mb-1">Opacité du texte: {selectedBlock.props?.textOpacity || 100}%</label><input type="range" min="0" max="100" value={selectedBlock.props?.textOpacity || 100} onChange={(e) => onUpdateBlock(selectedBlock.id, { textOpacity: parseInt(e.target.value) })} className="w-full" /></div>
-                <div><label className="text-xs text-gray-400 block mb-1">Position du texte</label><div className="flex gap-2">{['left', 'center', 'right'].map(pos => (<button key={pos} onClick={() => onUpdateBlock(selectedBlock.id, { textPosition: pos })} className={`flex-1 py-1 rounded text-xs ${selectedBlock.props?.textPosition === pos ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}>{pos === 'left' ? '← Gauche' : pos === 'center' ? '↔ Centre' : '→ Droite'}</button>))}</div></div>
+                
+                {/* ⭐ Position du texte améliorée */}
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Position du texte</label>
+                  <div className="flex gap-2">
+                    {['left', 'center', 'right'].map(pos => {
+                      let xValue = pos === 'left' ? 15 : pos === 'center' ? 50 : 85;
+                      return (
+                        <button
+                          key={pos}
+                          onClick={() => {
+                            const updates: any = {};
+                            if (selectedBlock.props?.showTitle !== false) {
+                              updates.titlePosition = { x: xValue, y: selectedBlock.props?.titlePosition?.y || 30 };
+                            }
+                            if (selectedBlock.props?.showSubtitle !== false) {
+                              updates.subtitlePosition = { x: xValue, y: selectedBlock.props?.subtitlePosition?.y || 50 };
+                            }
+                            if (selectedBlock.props?.showButton !== false) {
+                              updates.buttonPosition = { x: xValue, y: selectedBlock.props?.buttonPosition?.y || 70 };
+                            }
+                            updates.textPosition = pos;
+                            onUpdateBlock(selectedBlock.id, updates);
+                          }}
+                          className={`flex-1 py-1 rounded text-xs ${selectedBlock.props?.textPosition === pos ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}
+                        >
+                          {pos === 'left' ? '← Gauche' : pos === 'center' ? '↔ Centre' : '→ Droite'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </>
             )}
           </>
@@ -408,7 +439,38 @@ export default function FontsPanel({
                 {selectedBlock.props?.textStrokeWidth > 0 && (<div><label className="text-xs text-gray-400 block mb-1">Couleur du contour</label><div className="flex items-center gap-2"><input type="color" value={selectedBlock.props?.textStrokeColor || '#000000'} onChange={(e) => onUpdateBlock(selectedBlock.id, { textStrokeColor: e.target.value })} className="w-8 h-8 rounded border-0 cursor-pointer" /><input type="text" value={selectedBlock.props?.textStrokeColor || '#000000'} onChange={(e) => onUpdateBlock(selectedBlock.id, { textStrokeColor: e.target.value })} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" /></div></div>)}
                 <div><label className="text-xs text-gray-400 block mb-1">Ombre du texte</label><select value={selectedBlock.props?.textShadow || 'none'} onChange={(e) => onUpdateBlock(selectedBlock.id, { textShadow: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"><option value="none">Aucune</option><option value="2px 2px 4px rgba(0,0,0,0.3)">Légère</option><option value="0px 0px 10px rgba(0,0,0,0.5)">Lueur</option><option value="4px 4px 8px rgba(0,0,0,0.4)">Forte</option></select></div>
                 <div className="border-t border-gray-700 pt-3 mt-2"><label className="text-xs text-gray-400 block mb-1">Opacité du texte: {selectedBlock.props?.textOpacity || 100}%</label><input type="range" min="0" max="100" value={selectedBlock.props?.textOpacity || 100} onChange={(e) => onUpdateBlock(selectedBlock.id, { textOpacity: parseInt(e.target.value) })} className="w-full" /></div>
-                <div><label className="text-xs text-gray-400 block mb-1">Position du texte</label><div className="flex gap-2">{['left', 'center', 'right'].map(pos => (<button key={pos} onClick={() => onUpdateBlock(selectedBlock.id, { textPosition: pos })} className={`flex-1 py-1 rounded text-xs ${selectedBlock.props?.textPosition === pos ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}>{pos === 'left' ? '← Gauche' : pos === 'center' ? '↔ Centre' : '→ Droite'}</button>))}</div></div>
+                
+                {/* ⭐ Position du texte améliorée */}
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Position du texte</label>
+                  <div className="flex gap-2">
+                    {['left', 'center', 'right'].map(pos => {
+                      let xValue = pos === 'left' ? 15 : pos === 'center' ? 50 : 85;
+                      return (
+                        <button
+                          key={pos}
+                          onClick={() => {
+                            const updates: any = {};
+                            if (selectedBlock.props?.showTitle !== false) {
+                              updates.titlePosition = { x: xValue, y: selectedBlock.props?.titlePosition?.y || 30 };
+                            }
+                            if (selectedBlock.props?.showSubtitle !== false) {
+                              updates.subtitlePosition = { x: xValue, y: selectedBlock.props?.subtitlePosition?.y || 50 };
+                            }
+                            if (selectedBlock.props?.showButton !== false) {
+                              updates.buttonPosition = { x: xValue, y: selectedBlock.props?.buttonPosition?.y || 70 };
+                            }
+                            updates.textPosition = pos;
+                            onUpdateBlock(selectedBlock.id, updates);
+                          }}
+                          className={`flex-1 py-1 rounded text-xs ${selectedBlock.props?.textPosition === pos ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}
+                        >
+                          {pos === 'left' ? '← Gauche' : pos === 'center' ? '↔ Centre' : '→ Droite'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </>
             )}
           </>
