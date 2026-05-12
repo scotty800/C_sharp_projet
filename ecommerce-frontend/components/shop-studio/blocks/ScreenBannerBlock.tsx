@@ -20,6 +20,11 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
   
+  // ⭐ États pour l'affichage du titre, sous-titre et bouton
+  const [showTitle, setShowTitle] = useState(props.showTitle !== undefined ? props.showTitle : true);
+  const [showSubtitle, setShowSubtitle] = useState(props.showSubtitle !== undefined ? props.showSubtitle : false);
+  const [showButton, setShowButton] = useState(props.showButton !== undefined ? props.showButton : false);
+  
   // ⭐ Référence du numéro d'image en cours d'édition
   const editingImageIndexRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,6 +36,32 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
   const [editZoom, setEditZoom] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
+
+  // ⭐ Synchroniser avec les props
+  useEffect(() => {
+    setShowTitle(props.showTitle !== undefined ? props.showTitle : true);
+    setShowSubtitle(props.showSubtitle !== undefined ? props.showSubtitle : false);
+    setShowButton(props.showButton !== undefined ? props.showButton : false);
+  }, [props.showTitle, props.showSubtitle, props.showButton]);
+
+  // ⭐ Fonctions pour basculer l'affichage
+  const toggleTitle = () => {
+    const newValue = !showTitle;
+    setShowTitle(newValue);
+    onUpdate({ showTitle: newValue });
+  };
+
+  const toggleSubtitle = () => {
+    const newValue = !showSubtitle;
+    setShowSubtitle(newValue);
+    onUpdate({ showSubtitle: newValue });
+  };
+
+  const toggleButton = () => {
+    const newValue = !showButton;
+    setShowButton(newValue);
+    onUpdate({ showButton: newValue });
+  };
 
   // ⭐ Valeurs sauvegardées par image - initialisation directe depuis props
   const [savedCrops, setSavedCrops] = useState<Record<number, { x: number; y: number; scale: number }>>(() => {
@@ -344,6 +375,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     fontWeight: props.subtitleFontWeight || '400',
     color: props.subtitleColor || '#ffffff',
     textShadow: '1px 1px 2px rgba(0,0,0,0.3)',
+    opacity: textOpacity,
   };
 
   const buttonStyle = {
@@ -358,6 +390,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     cursor: 'pointer',
     transition: 'transform 0.2s ease, background 0.2s ease',
     boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+    opacity: textOpacity,
   };
 
   const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => {
@@ -496,44 +529,71 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
           </div>
         )}
 
-        {/* ⭐ Contenu texte - CORRIGÉ : pointer-events-none seulement si non sélectionné */}
+        {/* ⭐ Contenu texte avec toggles */}
         {!isEditing && !isResizing && (
           <div className={`relative z-10 flex flex-col ${paddingClass} justify-center items-${props.textPosition === 'center' ? 'center' : 'start'} h-full px-8 ${isSelected ? '' : 'pointer-events-none'}`}>
-            <h1
-              className="mb-4"
-              style={titleStyle}
-              contentEditable={isSelected}
-              onBlur={handleTitleBlur}
-              suppressContentEditableWarning
-            >
-              {props.title || shop?.name || 'Bienvenue'}
-            </h1>
-            <p
-              className="mb-6 max-w-2xl"
-              style={subtitleStyle}
-              contentEditable={isSelected}
-              onBlur={handleSubtitleBlur}
-              suppressContentEditableWarning
-            >
-              {props.subtitle || shop?.description || 'Découvrez notre collection exclusive'}
-            </p>
-            <button
-              className="inline-block"
-              style={buttonStyle}
-              contentEditable={isSelected}
-              onBlur={handleButtonTextBlur}
-              suppressContentEditableWarning
-            >
-              {props.buttonText || 'Explorer'}
-            </button>
+            {showTitle && (
+              <h1
+                className="mb-4"
+                style={titleStyle}
+                contentEditable={isSelected}
+                onBlur={handleTitleBlur}
+                suppressContentEditableWarning
+              >
+                {props.title || shop?.name || 'Bienvenue'}
+              </h1>
+            )}
+            {showSubtitle && (
+              <p
+                className="mb-6 max-w-2xl"
+                style={subtitleStyle}
+                contentEditable={isSelected}
+                onBlur={handleSubtitleBlur}
+                suppressContentEditableWarning
+              >
+                {props.subtitle || shop?.description || 'Découvrez notre collection exclusive'}
+              </p>
+            )}
+            {showButton && (
+              <button
+                className="inline-block"
+                style={buttonStyle}
+                contentEditable={isSelected}
+                onBlur={handleButtonTextBlur}
+                suppressContentEditableWarning
+              >
+                {props.buttonText || 'Explorer'}
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Badge "Écran" pour différencier */}
+      {/* Badge "Écran" avec toggles */}
       {isSelected && !isEditing && !isResizing && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap flex items-center gap-1">
-          🖥️ Écran {isCarousel ? `🎠 (${images.length} images)` : (singleImage ? '🖼️' : '🎨')}
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap flex items-center gap-2">
+          <span
+            className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30 transition-colors"
+            onClick={(e) => { e.stopPropagation(); toggleTitle(); }}
+            title="Afficher/Masquer le titre"
+          >
+            {showTitle ? '📝 Titre' : '📝 (masqué)'}
+          </span>
+          <span
+            className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30 transition-colors"
+            onClick={(e) => { e.stopPropagation(); toggleSubtitle(); }}
+            title="Afficher/Masquer le sous-titre"
+          >
+            {showSubtitle ? '📄 Sous-titre' : '📄 (masqué)'}
+          </span>
+          <span
+            className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30 transition-colors"
+            onClick={(e) => { e.stopPropagation(); toggleButton(); }}
+            title="Afficher/Masquer le bouton"
+          >
+            {showButton ? '🔘 Bouton' : '🔘 (masqué)'}
+          </span>
+          <span className="ml-1">🖥️ Écran {isCarousel ? `🎠 (${images.length} images)` : (singleImage ? '🖼️' : '🎨')}</span>
           {currentCrop.scale !== 1 && <span className="ml-1 text-yellow-300">(Zoomé {Math.round(currentCrop.scale * 100)}%)</span>}
           <span className="ml-1 text-yellow-300">(Double-clic)</span>
         </div>

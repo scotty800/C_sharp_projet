@@ -28,7 +28,6 @@ interface Props {
   onReorderBlocks: (startIndex: number, endIndex: number) => void;
   onDeleteBlock: (id: string) => void;
   onDuplicateBlock: (id: string) => void;
-  // ⭐ Props pour le cropper
   isCropperOpen?: boolean;
 }
 
@@ -91,9 +90,9 @@ export default function StudioCanvas({
     }
   }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition, isCropperOpen]);
 
-  // ⭐ RESIZE MOVE - correction : ajouter isCropperOpen dans les dépendances pour éviter les appels fantômes
+  // ⭐ RESIZE MOVE
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
-    if (isCropperOpen) return; // ⭐ AJOUT : ne pas redimensionner si cropper ouvert
+    if (isCropperOpen) return;
     if (resizeRafId.current) return;
     
     resizeRafId.current = requestAnimationFrame(() => {
@@ -176,13 +175,30 @@ export default function StudioCanvas({
     }
   }, [draggingBlock, handleMouseMove, handleMouseUp, isCropperOpen]);
 
-  // ⭐ HANDLE BLOCK CLICK - désactivé si cropper ouvert
+  // ⭐ HANDLE BLOCK CLICK - CORRIGÉ : Détection texte/fond pour les bannières
   const handleBlockClick = (e: React.MouseEvent, blockId: string, block: any) => {
     if (isCropperOpen) {
       e.stopPropagation();
       return;
     }
     e.stopPropagation();
+    
+    // Pour les blocs de type banner, screen-banner, carousel-banner
+    const isBannerType = block.type === 'banner' || block.type === 'screen-banner' || block.type === 'carousel-banner';
+    
+    if (isBannerType) {
+      // On vérifie si l'élément cliqué est du texte
+      const target = e.target as HTMLElement;
+      const isTextClick = target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3' || 
+                          target.tagName === 'H4' || target.tagName === 'P' || target.tagName === 'BUTTON' ||
+                          target.classList?.contains('text-content') || target.classList?.contains('prose');
+      
+      // Si on clique sur le texte → 'text', sinon → 'background'
+      onSelectBlock(blockId, isTextClick ? 'text' : 'background');
+      return;
+    }
+    
+    // Pour les autres blocs
     const target = e.target as HTMLElement;
     const isTextClick = target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3' || 
                         target.tagName === 'H4' || target.tagName === 'P' || target.tagName === 'BUTTON' ||
@@ -272,7 +288,6 @@ export default function StudioCanvas({
     const blockOpacity = block.props?.opacity !== undefined ? block.props.opacity / 100 : 1;
     const textOpacity = block.props?.textOpacity !== undefined ? block.props.textOpacity / 100 : 1;
     
-    // ⭐ Ne pas afficher l'anneau de sélection ni les poignées si le cropper est ouvert
     const showSelectionRing = isSelected && !isCropperOpen;
     const showResizeHandles = isSelected && !isCropperOpen;
     
@@ -341,7 +356,6 @@ export default function StudioCanvas({
           {renderContent()}
         </div>
 
-        {/* ⭐ Poignées de redimensionnement - seulement si sélectionné ET cropper fermé */}
         {showResizeHandles && (
           <div
             key={`handles-${block.id}`}
