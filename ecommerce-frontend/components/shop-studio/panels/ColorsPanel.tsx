@@ -17,6 +17,25 @@ interface Props {
   shopId?: number;
 }
 
+// ⭐ 60 couleurs organisées par famille
+const QUICK_COLORS = [
+  '#FFFFFF', '#F3F4F6', '#E5E7EB', '#D1D5DB', '#9CA3AF', '#6B7280', '#4B5563', '#374151', '#1F2937', '#000000',
+  '#FEE2E2', '#FECACA', '#FCA5A5', '#F87171', '#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#450A0A',
+  '#FEF3C7', '#FDE68A', '#FCD34D', '#FBBF24', '#F59E0B', '#D97706', '#B45309', '#92400E', '#78350F', '#451A03',
+  '#D1FAE5', '#A7F3D0', '#6EE7B7', '#34D399', '#10B981', '#059669', '#047857', '#065F46', '#064E3B', '#022C22',
+  '#DBEAFE', '#BFDBFE', '#93C5FD', '#60A5FA', '#3B82F6', '#2563EB', '#1D4ED8', '#1E40AF', '#1E3A8A', '#172554',
+  '#E9D5FF', '#D8B4FE', '#C084FC', '#A855F7', '#8B5CF6', '#7C3AED', '#6D28D9', '#5B21B6', '#4C1D95', '#2E1065',
+];
+
+const GRADIENTS = [
+  { name: 'Violet', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  { name: 'Rose', value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { name: 'Bleu', value: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+  { name: 'Vert', value: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+  { name: 'Orange', value: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+  { name: 'Nuit', value: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)' },
+];
+
 export default function ColorsPanel({ 
   selectedBlock, 
   isBackgroundSelected, 
@@ -27,18 +46,8 @@ export default function ColorsPanel({
   shopId
 }: Props) {
   const [activeTab, setActiveTab] = useState<'solid' | 'gradient' | 'carousel'>('solid');
+  const [showExtendedColors, setShowExtendedColors] = useState(false);
 
-  const gradients = [
-    { name: 'Violet', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-    { name: 'Rose', value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
-    { name: 'Bleu', value: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
-    { name: 'Vert', value: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
-    { name: 'Orange', value: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
-    { name: 'Nuit', value: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)' },
-  ];
-
-  // ==================== SAVOIR CE QUI EST SÉLECTIONNÉ ====================
-  
   const isCanvasSelected = isBackgroundSelected;
   const isBlockSelected = !isCanvasSelected && selectedBlock !== null;
   const target = selectedTarget;
@@ -47,23 +56,8 @@ export default function ColorsPanel({
   const isCarousel = selectedBlock?.props?.isCarousel || false;
   const images = selectedBlock?.props?.images || [];
 
-  // ==================== GESTIONNAIRES AVEC LOGS ====================
-  
   const applySolidColor = useCallback((color: string) => {
-    console.log('🟢🟢🟢 applySolidColor appelée avec:', color);
-    console.log('🟢🟢🟢 isCanvasSelected:', isCanvasSelected);
-    console.log('🟢🟢🟢 isBlockSelected:', isBlockSelected);
-    console.log('🟢🟢🟢 target:', target);
-    console.log('🟢🟢🟢 selectedBlock:', selectedBlock?.type);
-    console.log('🟢🟢🟢 onUpdateCustomization existe?', !!onUpdateCustomization);
-    console.log('🟢🟢🟢 onUpdateBlock existe?', !!onUpdateBlock);
-    
     if (isCanvasSelected) {
-      console.log('🟢🟢🟢 Appel de onUpdateCustomization (canvas) avec:', { 
-        backgroundColor: color,
-        backgroundType: 'solid',
-        backgroundValue: null
-      });
       onUpdateCustomization({ 
         backgroundColor: color,
         backgroundType: 'solid',
@@ -71,7 +65,6 @@ export default function ColorsPanel({
       });
     } else if (isBlockSelected) {
       if (target === 'text') {
-        console.log('🟢🟢🟢 Cible: TEXTE du bloc');
         const updates: any = {};
         switch (selectedBlock.type) {
           case 'text': updates.textColor = color; updates.textGradient = null; break;
@@ -83,38 +76,19 @@ export default function ColorsPanel({
           case 'products': updates.titleColor = color; updates.titleGradient = null; break;
           default: updates.textColor = color;
         }
-        console.log('🟢🟢🟢 Appel de onUpdateBlock avec updates:', updates);
         onUpdateBlock(selectedBlock.id, updates);
       } else if (target === 'background') {
-        console.log('🟢🟢🟢 Cible: BACKGROUND du bloc');
-        console.log('🟢🟢🟢 Appel de onUpdateBlock avec:', { 
-          backgroundColor: color,
-          backgroundType: 'solid',
-          backgroundValue: null
-        });
         onUpdateBlock(selectedBlock.id, { 
           backgroundColor: color,
           backgroundType: 'solid',
           backgroundValue: null
         });
       }
-    } else {
-      console.log('🟢🟢🟢 Aucune cible valide - aucun appel effectué');
     }
   }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
 
   const applyGradient = useCallback((gradient: string) => {
-    console.log('🌈🌈🌈 applyGradient appelée avec:', gradient);
-    console.log('🌈🌈🌈 isCanvasSelected:', isCanvasSelected);
-    console.log('🌈🌈🌈 isBlockSelected:', isBlockSelected);
-    console.log('🌈🌈🌈 target:', target);
-    
     if (isCanvasSelected) {
-      console.log('🌈🌈🌈 Appel de onUpdateCustomization (canvas) avec:', { 
-        backgroundType: 'gradient',
-        backgroundValue: gradient,
-        backgroundColor: null
-      });
       onUpdateCustomization({ 
         backgroundType: 'gradient',
         backgroundValue: gradient,
@@ -122,7 +96,6 @@ export default function ColorsPanel({
       });
     } else if (isBlockSelected) {
       if (target === 'text') {
-        console.log('🌈🌈🌈 Cible: TEXTE du bloc');
         const updates: any = {};
         switch (selectedBlock.type) {
           case 'text': updates.textGradient = gradient; updates.textColor = null; break;
@@ -134,27 +107,17 @@ export default function ColorsPanel({
           case 'products': updates.titleGradient = gradient; updates.titleColor = null; break;
           default: updates.textGradient = gradient;
         }
-        console.log('🌈🌈🌈 Appel de onUpdateBlock avec updates:', updates);
         onUpdateBlock(selectedBlock.id, updates);
       } else if (target === 'background') {
-        console.log('🌈🌈🌈 Cible: BACKGROUND du bloc');
-        console.log('🌈🌈🌈 Appel de onUpdateBlock avec:', { 
-          backgroundType: 'gradient',
-          backgroundValue: gradient,
-          backgroundColor: null
-        });
         onUpdateBlock(selectedBlock.id, { 
           backgroundType: 'gradient',
           backgroundValue: gradient,
           backgroundColor: null
         });
       }
-    } else {
-      console.log('🌈🌈🌈 Aucune cible valide - aucun appel effectué');
     }
   }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
 
-  // ==================== UPLOAD D'IMAGE AVEC assetsService ====================
   const handleImageUpload = async (files: FileList) => {
     if (!shopId) {
       toast.error('ID de boutique non disponible');
@@ -176,7 +139,6 @@ export default function ColorsPanel({
     }
   };
 
-  // ==================== OUVERTURE BIBLIOTHÈQUE ====================
   const openAssetPicker = () => {
     const event = new CustomEvent('openAssetPickerForCarousel', { 
       detail: { 
@@ -190,8 +152,6 @@ export default function ColorsPanel({
     window.dispatchEvent(event);
   };
 
-  // ==================== VALEURS ACTUELLES ====================
-  
   const currentSolidColor = useMemo(() => {
     if (isCanvasSelected) {
       return customization?.backgroundColor || '#ffffff';
@@ -205,7 +165,7 @@ export default function ColorsPanel({
         case 'carousel-banner': return selectedBlock.props?.titleColor || '#ffffff';
         case 'button': return selectedBlock.props?.textColor || '#ffffff';
         case 'products': return selectedBlock.props?.titleColor || '#1F2937';
-        case 'image': return selectedBlock.props?.backgroundColor || '#000000';
+        case 'image': return selectedBlock.props?.backgroundColor || 'transparent';
         default: return '#000000';
       }
     }
@@ -215,7 +175,7 @@ export default function ColorsPanel({
          selectedBlock.type === 'screen-banner' ? '#1e1e2f' :
          selectedBlock.type === 'carousel-banner' ? '#1e1e2f' :
          selectedBlock.type === 'button' ? '#2563EB' : 
-         selectedBlock.type === 'image' ? '#f3f4f6' : '#ffffff');
+         selectedBlock.type === 'image' ? 'transparent' : '#ffffff');
     }
     return '#000000';
   }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization]);
@@ -244,8 +204,6 @@ export default function ColorsPanel({
 
   const isGradientActive = currentGradient !== null && currentGradient !== undefined;
 
-  // ==================== OPACITÉ ====================
-  
   const currentBackgroundOpacity = useMemo(() => {
     if (isCanvasSelected) {
       return customization?.backgroundOpacity !== undefined ? customization.backgroundOpacity : 100;
@@ -264,7 +222,6 @@ export default function ColorsPanel({
   }, [isBlockSelected, target, selectedBlock]);
 
   const handleBackgroundOpacityChange = useCallback((opacity: number) => {
-    console.log('📊 handleBackgroundOpacityChange:', opacity);
     if (isCanvasSelected) {
       onUpdateCustomization({ backgroundOpacity: opacity });
     } else if (isBlockSelected && target === 'background') {
@@ -273,14 +230,11 @@ export default function ColorsPanel({
   }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
 
   const handleTextOpacityChange = useCallback((opacity: number) => {
-    console.log('📊 handleTextOpacityChange:', opacity);
     if (isBlockSelected && target === 'text') {
       onUpdateBlock(selectedBlock.id, { textOpacity: opacity });
     }
   }, [isBlockSelected, target, selectedBlock, onUpdateBlock]);
 
-  // ==================== TITRE DYNAMIQUE ====================
-  
   const getTitle = () => {
     if (isCanvasSelected) return 'Fond du canvas';
     if (target === 'text') return `Couleur du texte (${selectedBlock?.type})`;
@@ -288,8 +242,8 @@ export default function ColorsPanel({
     return 'Couleurs';
   };
 
-  // ==================== RENDU ====================
-  
+  const displayedColors = showExtendedColors ? QUICK_COLORS : QUICK_COLORS.slice(0, 12);
+
   if (!isCanvasSelected && !isBlockSelected) {
     return (
       <div className="text-center py-8">
@@ -298,7 +252,134 @@ export default function ColorsPanel({
     );
   }
 
-  // ⭐ POUR LE BLOC BANNER CLASSIQUE (AVEC FOND)
+  // ⭐ RENDU COMMUN POUR TOUS LES CAS (couleurs unies)
+  const renderSolidColors = () => (
+    <div className="space-y-3">
+      {/* ⭐ Sélecteur personnalisé EN HAUT (à sa place d'origine) */}
+      <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-8 h-8 rounded-lg border-2 border-gray-600 shadow-md cursor-pointer flex-shrink-0"
+            style={{ backgroundColor: currentSolidColor === 'transparent' ? '#e5e7eb' : currentSolidColor }}
+            onClick={(e) => {
+              const rect = (e.target as HTMLElement).getBoundingClientRect();
+              const input = document.createElement('input');
+              input.type = 'color';
+              input.value = currentSolidColor === 'transparent' ? '#ffffff' : currentSolidColor;
+              // ⭐ Positionner le popup plus bas
+              input.style.position = 'fixed';
+              input.style.left = `${rect.left}px`;
+              input.style.top = `${rect.bottom + 10}px`;
+              input.style.width = '0';
+              input.style.height = '0';
+              input.style.opacity = '0';
+              input.style.pointerEvents = 'none';
+              document.body.appendChild(input);
+              input.addEventListener('input', (event) => {
+                applySolidColor((event.target as HTMLInputElement).value);
+              });
+              input.addEventListener('blur', () => {
+                document.body.removeChild(input);
+              });
+              input.click();
+            }}
+          />
+          <input
+            type="text"
+            value={currentSolidColor === 'transparent' ? 'transparent' : currentSolidColor}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === 'transparent') {
+                applySolidColor('transparent');
+              } else if (val.match(/^#[0-9A-Fa-f]{6}$/)) {
+                applySolidColor(val);
+              }
+            }}
+            className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs font-mono"
+            placeholder="#000000"
+          />
+          <button
+            onClick={() => applySolidColor('transparent')}
+            className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs text-gray-300"
+            title="Transparent"
+          >
+            🔲
+          </button>
+        </div>
+      </div>
+
+      <div className="flex justify-end mb-1">
+        <button
+          onClick={() => setShowExtendedColors(!showExtendedColors)}
+          className="text-xs text-primary hover:text-primary/80 transition-colors"
+        >
+          {showExtendedColors ? 'Voir moins' : 'Voir plus (+' + (QUICK_COLORS.length - 12) + ')'}
+        </button>
+      </div>
+      <div className="grid grid-cols-6 gap-1.5">
+        {displayedColors.map((color: string) => (
+          <button
+            key={color}
+            className="w-7 h-7 rounded-lg border border-gray-600 hover:scale-110 transition-transform shadow-sm"
+            style={{ backgroundColor: color }}
+            onClick={() => applySolidColor(color)}
+            title={color}
+          />
+        ))}
+      </div>
+      
+      {isGradientActive && <p className="text-xs text-green-400 mt-2">✓ Dégradé actif - cliquez sur une couleur unie pour le remplacer</p>}
+    </div>
+  );
+
+  // ⭐ POUR LE BLOC IMAGE
+  if (selectedBlock?.type === 'image' && target === 'background') {
+    return (
+      <div className="space-y-3">
+        <h3 className="text-white font-semibold text-sm">🎨 Fond de l'image</h3>
+        <p className="text-xs text-gray-400 mb-2">Utile pour les images PNG transparentes</p>
+
+        <div className="flex gap-2 border-b border-gray-700 pb-2">
+          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
+          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
+        </div>
+
+        {activeTab === 'solid' && renderSolidColors()}
+
+        {activeTab === 'gradient' && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
+              <div className="grid grid-cols-2 gap-2">
+                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => applyGradient(grad.value)}
+                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
+                      isGradientActive && currentGradient === grad.value
+                        ? 'border-primary ring-2 ring-primary/50'
+                        : 'border-gray-600'
+                    }`}
+                    style={{ background: grad.value }}
+                    title={grad.name}
+                  >
+                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
+                  </button>
+                ))}
+              </div>
+              {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
+            </div>
+            <div className="pt-2">
+              <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
+              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ⭐ POUR LE BLOC BANNER
   if (isBanner && target === 'background') {
     return (
       <div className="space-y-3">
@@ -310,35 +391,30 @@ export default function ColorsPanel({
           <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎠 Carrousel</button>
         </div>
 
-        {activeTab === 'solid' && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Couleur de fond</label>
-              <div className="flex items-center gap-2">
-                <input type="color" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="w-8 h-8 rounded border-0 cursor-pointer" />
-                <input type="text" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 30}%</label>
-              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 30} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
-            </div>
-          </div>
-        )}
+        {activeTab === 'solid' && renderSolidColors()}
 
         {activeTab === 'gradient' && (
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-gray-400 block mb-1">Dégradés pour le fond</label>
-              <div className="grid grid-cols-2 gap-1">
-                {gradients.map((grad, idx) => (
-                  <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-10 rounded border transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-1 ring-primary' : 'border-gray-700'}`} style={{ background: grad.value }} title={grad.name} />
+              <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
+              <div className="grid grid-cols-2 gap-2">
+                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => applyGradient(grad.value)}
+                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
+                      isGradientActive && currentGradient === grad.value
+                        ? 'border-primary ring-2 ring-primary/50'
+                        : 'border-gray-600'
+                    }`}
+                    style={{ background: grad.value }}
+                    title={grad.name}
+                  >
+                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
+                  </button>
                 ))}
               </div>
+              {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
             </div>
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
@@ -449,7 +525,7 @@ export default function ColorsPanel({
     );
   }
 
-  // ⭐ POUR LE BLOC SCREEN-BANNER (AVEC FOND + BORDURES) - TEXTE SUPPRIMÉ (déplacé vers FontsPanel)
+  // ⭐ POUR LE BLOC SCREEN-BANNER
   if (isScreenBanner && target === 'background') {
     const screenImages = selectedBlock.props?.images || [];
     const isScreenCarousel = selectedBlock.props?.isCarousel || false;
@@ -464,35 +540,30 @@ export default function ColorsPanel({
           <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎠 Carrousel</button>
         </div>
 
-        {activeTab === 'solid' && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Couleur de fond</label>
-              <div className="flex items-center gap-2">
-                <input type="color" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="w-8 h-8 rounded border-0 cursor-pointer" />
-                <input type="text" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 20}%</label>
-              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 20} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
-            </div>
-          </div>
-        )}
+        {activeTab === 'solid' && renderSolidColors()}
 
         {activeTab === 'gradient' && (
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-gray-400 block mb-1">Dégradés pour le fond</label>
-              <div className="grid grid-cols-2 gap-1">
-                {gradients.map((grad, idx) => (
-                  <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-10 rounded border transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-1 ring-primary' : 'border-gray-700'}`} style={{ background: grad.value }} title={grad.name} />
+              <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
+              <div className="grid grid-cols-2 gap-2">
+                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => applyGradient(grad.value)}
+                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
+                      isGradientActive && currentGradient === grad.value
+                        ? 'border-primary ring-2 ring-primary/50'
+                        : 'border-gray-600'
+                    }`}
+                    style={{ background: grad.value }}
+                    title={grad.name}
+                  >
+                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
+                  </button>
                 ))}
               </div>
+              {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
             </div>
             <div>
               <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
@@ -600,47 +671,25 @@ export default function ColorsPanel({
           </div>
         )}
 
-        {/* ⭐ OPTIONS DE BORDURE POUR SCREEN-BANNER */}
         <div className="border-t border-gray-700 pt-3 mt-2 space-y-3">
           <h4 className="text-white text-xs font-semibold">🖼️ Bordure</h4>
           
           <div>
             <label className="text-xs text-gray-400 block mb-1">Épaisseur: {selectedBlock.props?.borderWidth || 4}px</label>
-            <input
-              type="range"
-              min="0"
-              max="20"
-              value={selectedBlock.props?.borderWidth || 4}
-              onChange={(e) => onUpdateBlock(selectedBlock.id, { borderWidth: parseInt(e.target.value) })}
-              className="w-full"
-            />
+            <input type="range" min="0" max="20" value={selectedBlock.props?.borderWidth || 4} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderWidth: parseInt(e.target.value) })} className="w-full" />
           </div>
           
           <div>
             <label className="text-xs text-gray-400 block mb-1">Couleur de la bordure</label>
             <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={selectedBlock.props?.borderColor || '#ffffff'}
-                onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })}
-                className="w-8 h-8 rounded border-0 cursor-pointer"
-              />
-              <input
-                type="text"
-                value={selectedBlock.props?.borderColor || '#ffffff'}
-                onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
-              />
+              <input type="color" value={selectedBlock.props?.borderColor || '#ffffff'} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })} className="w-8 h-8 rounded border-0 cursor-pointer" />
+              <input type="text" value={selectedBlock.props?.borderColor || '#ffffff'} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
             </div>
           </div>
           
           <div>
             <label className="text-xs text-gray-400 block mb-1">Style de bordure</label>
-            <select
-              value={selectedBlock.props?.borderStyle || 'solid'}
-              onChange={(e) => onUpdateBlock(selectedBlock.id, { borderStyle: e.target.value })}
-              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
-            >
+            <select value={selectedBlock.props?.borderStyle || 'solid'} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderStyle: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
               <option value="solid">Plein (solid)</option>
               <option value="dashed">Tirets (dashed)</option>
               <option value="dotted">Points (dotted)</option>
@@ -650,21 +699,14 @@ export default function ColorsPanel({
           
           <div>
             <label className="text-xs text-gray-400 block mb-1">Arrondi: {selectedBlock.props?.borderRadius || 16}px</label>
-            <input
-              type="range"
-              min="0"
-              max="50"
-              value={selectedBlock.props?.borderRadius || 16}
-              onChange={(e) => onUpdateBlock(selectedBlock.id, { borderRadius: parseInt(e.target.value) })}
-              className="w-full"
-            />
+            <input type="range" min="0" max="50" value={selectedBlock.props?.borderRadius || 16} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderRadius: parseInt(e.target.value) })} className="w-full" />
           </div>
         </div>
       </div>
     );
   }
 
-  // ⭐ RENDU NORMAL POUR TOUS LES AUTRES CAS
+  // ⭐ RENDU NORMAL
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
@@ -677,48 +719,20 @@ export default function ColorsPanel({
         <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
       </div>
 
-      {activeTab === 'solid' && (
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">{target === 'text' ? 'Couleur du texte' : 'Couleur'}</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="w-8 h-8 rounded border-0 cursor-pointer" />
-              <input type="text" value={currentSolidColor} onChange={(e) => applySolidColor(e.target.value)} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
-            </div>
-            {isGradientActive && <p className="text-xs text-green-400 mt-1">✓ Dégradé actif - cliquez sur une couleur unie pour le remplacer</p>}
-          </div>
-
-          {target === 'text' && (
-            <div className="border-t border-gray-700 pt-3 mt-2">
-              <label className="text-xs text-gray-400 block mb-1">Opacité du texte: {currentTextOpacity}%</label>
-              <input type="range" min="0" max="100" value={currentTextOpacity} onChange={(e) => handleTextOpacityChange(parseInt(e.target.value))} className="w-full" />
-            </div>
-          )}
-
-          {(isCanvasSelected || (isBlockSelected && target === 'background')) && (
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Dégradés</label>
-              <div className="grid grid-cols-2 gap-1">
-                {gradients.map((grad, idx) => (
-                  <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-8 rounded border transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-1 ring-primary' : 'border-gray-700'}`} style={{ background: grad.value }} title={grad.name} />
-                ))}
-              </div>
-              <button onClick={() => applySolidColor(currentSolidColor)} className="w-full mt-2 text-xs text-gray-400 hover:text-white">Réinitialiser</button>
-            </div>
-          )}
-        </div>
-      )}
+      {activeTab === 'solid' && renderSolidColors()}
 
       {activeTab === 'gradient' && (
         <div className="space-y-3">
           <div>
-            <label className="text-xs text-gray-400 block mb-1">{target === 'text' ? 'Dégradés pour le texte' : 'Dégradés'}</label>
-            <div className="grid grid-cols-2 gap-1">
-              {gradients.map((grad, idx) => (
-                <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-10 rounded border transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-1 ring-primary' : 'border-gray-700'}`} style={{ background: grad.value }} title={grad.name} />
+            <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
+            <div className="grid grid-cols-2 gap-2">
+              {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
+                <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-2 ring-primary/50' : 'border-gray-600'}`} style={{ background: grad.value }} title={grad.name}>
+                  <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
+                </button>
               ))}
             </div>
-            {!isGradientActive && <p className="text-xs text-blue-400 mt-1">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
+            {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
             <button onClick={() => applySolidColor(currentSolidColor)} className="w-full mt-2 text-xs text-gray-400 hover:text-white">Réinitialiser</button>
           </div>
         </div>

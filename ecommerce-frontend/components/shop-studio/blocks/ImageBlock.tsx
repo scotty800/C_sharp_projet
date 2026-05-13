@@ -19,6 +19,7 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
   const { props } = block;
   const [imageError, setImageError] = useState(false);
   const [showCropper, setShowCropper] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const getCleanImageUrl = (url: string) => {
     if (!url) return '';
@@ -44,12 +45,26 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
     setShowCropper(false);
   };
 
+  // ⭐ STYLE DE FOND (couleur unie ou dégradé)
+  let backgroundStyle: React.CSSProperties = {};
+  
+  if (props.backgroundType === 'gradient' && props.backgroundValue) {
+    // ⭐ Dégradé
+    backgroundStyle = { background: props.backgroundValue };
+  } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
+    // ⭐ Couleur unie
+    backgroundStyle = { backgroundColor: props.backgroundColor };
+  } else {
+    // ⭐ Transparent
+    backgroundStyle = { backgroundColor: 'transparent' };
+  }
+
   const containerStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: props.backgroundColor || '#f3f4f6',
+    ...backgroundStyle,
     opacity: textOpacity,
   };
 
@@ -95,7 +110,6 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
   if (showCropper) {
     return (
       <>
-        {/* Image floutée en arrière-plan, non interactive */}
         <div className="relative w-full h-full opacity-40 blur-sm pointer-events-none" style={containerStyle}>
           {cleanImageUrl && !imageError ? (
             <div style={imageContainerStyle}>
@@ -110,7 +124,6 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
           ) : null}
         </div>
 
-        {/* Cropper modal */}
         <ImageCropper
           imageUrl={props.url}
           assetId={props.assetId}
@@ -164,8 +177,84 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
           </div>
         )}
         
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap">
-          🖼️ Image - Double-clic pour recadrer
+        {/* UI de sélection avec options de fond */}
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap flex gap-2 items-center">
+          <span>🖼️ Image</span>
+          <span className="text-white/50">|</span>
+          
+          <div className="relative">
+            <button
+              className="px-1 py-0.5 bg-white/20 rounded hover:bg-white/30 flex items-center gap-1 text-white"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowColorPicker(!showColorPicker);
+              }}
+              title="Changer le fond"
+            >
+              🎨 Fond
+            </button>
+            
+            {showColorPicker && (
+              <div className="absolute top-full left-0 mt-1 p-2 bg-gray-800 rounded-lg shadow-lg z-30 flex flex-col gap-2 min-w-[160px]" onClick={(e) => e.stopPropagation()}>
+                <div className="grid grid-cols-6 gap-1">
+                  {['#FFFFFF', '#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#808080', '#800000', '#008000', '#000080', '#FFA500', '#800080', '#A52A2A', '#FFC0CB', '#40E0D0', '#FFD700'].map(color => (
+                    <button
+                      key={color}
+                      className="w-6 h-6 rounded border border-white/20 hover:scale-110 transition-transform"
+                      style={{ backgroundColor: color }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpdate({ backgroundColor: color, backgroundType: 'solid', backgroundValue: null });
+                        setShowColorPicker(false);
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-1 pt-1 border-t border-gray-700">
+                  <input
+                    type="color"
+                    value={props.backgroundColor === 'transparent' ? '#ffffff' : (props.backgroundColor || '#ffffff')}
+                    onChange={(e) => onUpdate({ backgroundColor: e.target.value, backgroundType: 'solid', backgroundValue: null })}
+                    className="w-8 h-8 rounded cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    className="flex-1 px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdate({ backgroundColor: 'transparent', backgroundType: 'solid', backgroundValue: null });
+                      setShowColorPicker(false);
+                    }}
+                  >
+                    Transparent
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {props.backgroundColor && props.backgroundColor !== 'transparent' && !props.backgroundValue && (
+            <span 
+              className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white"
+              style={{ backgroundColor: props.backgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}
+            >
+              🟦 Fond
+            </span>
+          )}
+          {props.backgroundType === 'gradient' && props.backgroundValue && (
+            <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white bg-gradient-to-r from-purple-500 to-pink-500">
+              🌈 Dégradé
+            </span>
+          )}
+          {(!props.backgroundColor || props.backgroundColor === 'transparent') && !props.backgroundValue && (
+            <span className="px-1 py-0.5 bg-white/20 rounded text-xs text-white">
+              🔲 Transparent
+            </span>
+          )}
+        </div>
+        
+        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full z-20 whitespace-nowrap">
+          Double-clic pour recadrer
         </div>
       </div>
     );

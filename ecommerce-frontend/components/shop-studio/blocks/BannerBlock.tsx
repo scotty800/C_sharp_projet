@@ -164,27 +164,25 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     else if (draggingElement === 'button') updateButtonPosition(newX, newY);
   }, [draggingElement, isEditing, dragOffset]);
 
-  // ⭐ Mouvement global redimensionnement - LIMITES AUGMENTÉES
+  // ⭐ Mouvement global redimensionnement
   const handleResizeMove = useCallback((e: MouseEvent) => {
     if (!resizingText || !resizeDirection) return;
     const dx = e.clientX - resizeMouseStart.x;
     let newWidth = resizeStart.width;
     let newFontSize = resizeStart.fontSize;
     
-    // ⭐ POIGNÉES DES COINS (NE, NW, SE, SW) → agrandissent la ZONE ET le texte proportionnellement
     if (resizeDirection === 'ne' || resizeDirection === 'nw' || 
         resizeDirection === 'se' || resizeDirection === 'sw') {
-      // Calcul du ratio d'agrandissement
       let ratio = 1;
       if (resizeDirection === 'ne' || resizeDirection === 'se') {
         ratio = (resizeStart.width + dx) / Math.max(1, resizeStart.width);
       } else if (resizeDirection === 'nw' || resizeDirection === 'sw') {
         ratio = (resizeStart.width - dx) / Math.max(1, resizeStart.width);
       }
-      ratio = Math.max(0.3, Math.min(5, ratio)); // Entre 30% et 500%
+      ratio = Math.max(0.3, Math.min(5, ratio));
       
-      newWidth = Math.max(50, Math.min(3000, Math.floor(resizeStart.width * ratio))); // Max 3000px
-      newFontSize = Math.max(10, Math.min(200, Math.floor(resizeStart.fontSize * ratio))); // ⭐ MAX 200px
+      newWidth = Math.max(50, Math.min(3000, Math.floor(resizeStart.width * ratio)));
+      newFontSize = Math.max(10, Math.min(200, Math.floor(resizeStart.fontSize * ratio)));
       
       if (resizingText === 'title') {
         updateTitleWidth(Math.round(newWidth));
@@ -197,7 +195,6 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
         onUpdate({ buttonFontSize: Math.round(newFontSize) });
       }
     }
-    // ⭐ POIGNÉES DES CÔTÉS (E, W) → modifient uniquement la largeur
     else if (resizeDirection === 'e' || resizeDirection === 'w') {
       if (resizeDirection === 'e') {
         newWidth = Math.max(50, Math.min(3000, resizeStart.width + dx));
@@ -391,7 +388,14 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     } else if (singleImage && !imageErrors[-1]) {
       return <img src={singleImage} alt="Bannière" style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} draggable={false} />;
     } else {
-      return <div className="absolute inset-0" style={{ backgroundColor: props.backgroundColor || '#2563EB' }} />;
+      // ⭐ APPLICATION DU DÉGRADÉ OU DE LA COULEUR DE FOND
+      if (props.backgroundType === 'gradient' && props.backgroundValue) {
+        return <div className="absolute inset-0" style={{ background: props.backgroundValue }} />;
+      } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
+        return <div className="absolute inset-0" style={{ backgroundColor: props.backgroundColor }} />;
+      } else {
+        return <div className="absolute inset-0" style={{ backgroundColor: customization?.primaryColor || '#2563EB' }} />;
+      }
     }
   };
 
@@ -459,7 +463,7 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           </div>
         )}
 
-        {/* ⭐ TITRE - AVEC LIMITES AUGMENTÉES */}
+        {/* ⭐ TITRE */}
         {showTitle && (
           <div className="absolute" style={{ left: `${titlePosition.x}%`, top: `${titlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
             <div className="relative" style={{ 
@@ -518,7 +522,7 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           </div>
         )}
 
-        {/* ⭐ SOUS-TITRE - AVEC LIMITES AUGMENTÉES */}
+        {/* ⭐ SOUS-TITRE */}
         {showSubtitle && (
           <div className="absolute" style={{ left: `${subtitlePosition.x}%`, top: `${subtitlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
             <div className="relative" style={{ 
@@ -574,7 +578,7 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           </div>
         )}
 
-        {/* ⭐ BOUTON - AVEC LIMITES AUGMENTÉES */}
+        {/* ⭐ BOUTON */}
         {showButton && (
           <div className="absolute" style={{ left: `${buttonPosition.x}%`, top: `${buttonPosition.y}%`, transform: 'translate(-50%, -50%)' }}>
             <div className="relative" style={{ 
