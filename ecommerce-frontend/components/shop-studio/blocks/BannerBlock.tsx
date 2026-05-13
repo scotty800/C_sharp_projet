@@ -20,21 +20,32 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
   
-  // ⭐ États pour l'affichage du titre, sous-titre et bouton
+  // ⭐ États pour l'affichage
   const [showTitle, setShowTitle] = useState(props.showTitle !== undefined ? props.showTitle : true);
   const [showSubtitle, setShowSubtitle] = useState(props.showSubtitle !== undefined ? props.showSubtitle : false);
   const [showButton, setShowButton] = useState(props.showButton !== undefined ? props.showButton : false);
   
-  // ⭐ Positions individuelles des textes (en pourcentage)
+  // ⭐ Positions
   const [titlePosition, setTitlePosition] = useState(props.titlePosition || { x: 50, y: 30 });
   const [subtitlePosition, setSubtitlePosition] = useState(props.subtitlePosition || { x: 50, y: 50 });
   const [buttonPosition, setButtonPosition] = useState(props.buttonPosition || { x: 50, y: 70 });
   
-  // ⭐ États pour le drag de chaque élément
+  // ⭐ Dimensions des conteneurs
+  const [titleWidth, setTitleWidth] = useState(props.titleWidth || 300);
+  const [subtitleWidth, setSubtitleWidth] = useState(props.subtitleWidth || 300);
+  const [buttonWidth, setButtonWidth] = useState(props.buttonWidth || 200);
+  
+  // ⭐ États pour le drag
   const [draggingElement, setDraggingElement] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
-  // ⭐ Référence du numéro d'image en cours d'édition
+  // ⭐ États pour le redimensionnement
+  const [resizingText, setResizingText] = useState<string | null>(null);
+  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState({ width: 0, fontSize: 0 });
+  const [resizeMouseStart, setResizeMouseStart] = useState({ x: 0, y: 0 });
+  
+  // ⭐ Références
   const editingImageIndexRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -46,7 +57,7 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
 
-  // ⭐ Synchroniser avec les props
+  // ⭐ Synchronisation
   useEffect(() => {
     setShowTitle(props.showTitle !== undefined ? props.showTitle : true);
     setShowSubtitle(props.showSubtitle !== undefined ? props.showSubtitle : false);
@@ -54,47 +65,27 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     setTitlePosition(props.titlePosition || { x: 50, y: 30 });
     setSubtitlePosition(props.subtitlePosition || { x: 50, y: 50 });
     setButtonPosition(props.buttonPosition || { x: 50, y: 70 });
-  }, [props.showTitle, props.showSubtitle, props.showButton, props.titlePosition, props.subtitlePosition, props.buttonPosition]);
+    setTitleWidth(props.titleWidth || 300);
+    setSubtitleWidth(props.subtitleWidth || 300);
+    setButtonWidth(props.buttonWidth || 200);
+  }, [props]);
 
-  // ⭐ Fonctions pour basculer l'affichage
-  const toggleTitle = () => {
-    const newValue = !showTitle;
-    setShowTitle(newValue);
-    onUpdate({ showTitle: newValue });
-  };
+  // ⭐ Toggles
+  const toggleTitle = () => { const newValue = !showTitle; setShowTitle(newValue); onUpdate({ showTitle: newValue }); };
+  const toggleSubtitle = () => { const newValue = !showSubtitle; setShowSubtitle(newValue); onUpdate({ showSubtitle: newValue }); };
+  const toggleButton = () => { const newValue = !showButton; setShowButton(newValue); onUpdate({ showButton: newValue }); };
 
-  const toggleSubtitle = () => {
-    const newValue = !showSubtitle;
-    setShowSubtitle(newValue);
-    onUpdate({ showSubtitle: newValue });
-  };
+  // ⭐ Positions
+  const updateTitlePosition = (x: number, y: number) => { const newPos = { x, y }; setTitlePosition(newPos); onUpdate({ titlePosition: newPos }); };
+  const updateSubtitlePosition = (x: number, y: number) => { const newPos = { x, y }; setSubtitlePosition(newPos); onUpdate({ subtitlePosition: newPos }); };
+  const updateButtonPosition = (x: number, y: number) => { const newPos = { x, y }; setButtonPosition(newPos); onUpdate({ buttonPosition: newPos }); };
 
-  const toggleButton = () => {
-    const newValue = !showButton;
-    setShowButton(newValue);
-    onUpdate({ showButton: newValue });
-  };
+  // ⭐ Dimensions largeur
+  const updateTitleWidth = (width: number) => { setTitleWidth(width); onUpdate({ titleWidth: width }); };
+  const updateSubtitleWidth = (width: number) => { setSubtitleWidth(width); onUpdate({ subtitleWidth: width }); };
+  const updateButtonWidth = (width: number) => { setButtonWidth(width); onUpdate({ buttonWidth: width }); };
 
-  // ⭐ Fonctions pour mettre à jour les positions
-  const updateTitlePosition = (x: number, y: number) => {
-    const newPos = { x, y };
-    setTitlePosition(newPos);
-    onUpdate({ titlePosition: newPos });
-  };
-
-  const updateSubtitlePosition = (x: number, y: number) => {
-    const newPos = { x, y };
-    setSubtitlePosition(newPos);
-    onUpdate({ subtitlePosition: newPos });
-  };
-
-  const updateButtonPosition = (x: number, y: number) => {
-    const newPos = { x, y };
-    setButtonPosition(newPos);
-    onUpdate({ buttonPosition: newPos });
-  };
-
-  // ⭐ Gestion du drag pour le titre
+  // ⭐ DRAG
   const handleTitleMouseDown = (e: React.MouseEvent) => {
     if (isEditing) return;
     e.stopPropagation();
@@ -108,7 +99,6 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     }
   };
 
-  // ⭐ Gestion du drag pour le sous-titre
   const handleSubtitleMouseDown = (e: React.MouseEvent) => {
     if (isEditing) return;
     e.stopPropagation();
@@ -122,7 +112,6 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     }
   };
 
-  // ⭐ Gestion du drag pour le bouton
   const handleButtonMouseDown = (e: React.MouseEvent) => {
     if (isEditing) return;
     e.stopPropagation();
@@ -136,30 +125,100 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     }
   };
 
-  // ⭐ Mouvement global
+  // ⭐ REDIMENSIONNEMENT
+  const handleResizeStart = (e: React.MouseEvent, element: string, direction: string) => {
+    if (isEditing) return;
+    e.stopPropagation();
+    setResizingText(element);
+    setResizeDirection(direction);
+    
+    let currentWidth = 0;
+    let currentFontSize = 0;
+    
+    if (element === 'title') {
+      currentWidth = titleWidth;
+      currentFontSize = props.titleFontSize || 48;
+    } else if (element === 'subtitle') {
+      currentWidth = subtitleWidth;
+      currentFontSize = props.subtitleFontSize || 18;
+    } else {
+      currentWidth = buttonWidth;
+      currentFontSize = props.buttonFontSize || 16;
+    }
+    
+    setResizeStart({ width: currentWidth, fontSize: currentFontSize });
+    setResizeMouseStart({ x: e.clientX, y: e.clientY });
+  };
+
+  // ⭐ Mouvement global drag
   const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
     if (!draggingElement || isEditing) return;
-    
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    
     let newX = (e.clientX - rect.left) / rect.width * 100 - dragOffset.x;
     let newY = (e.clientY - rect.top) / rect.height * 100 - dragOffset.y;
-    
     newX = Math.max(5, Math.min(95, newX));
     newY = Math.max(5, Math.min(95, newY));
-    
-    if (draggingElement === 'title') {
-      updateTitlePosition(newX, newY);
-    } else if (draggingElement === 'subtitle') {
-      updateSubtitlePosition(newX, newY);
-    } else if (draggingElement === 'button') {
-      updateButtonPosition(newX, newY);
-    }
+    if (draggingElement === 'title') updateTitlePosition(newX, newY);
+    else if (draggingElement === 'subtitle') updateSubtitlePosition(newX, newY);
+    else if (draggingElement === 'button') updateButtonPosition(newX, newY);
   }, [draggingElement, isEditing, dragOffset]);
+
+  // ⭐ Mouvement global redimensionnement - LIMITES AUGMENTÉES
+  const handleResizeMove = useCallback((e: MouseEvent) => {
+    if (!resizingText || !resizeDirection) return;
+    const dx = e.clientX - resizeMouseStart.x;
+    let newWidth = resizeStart.width;
+    let newFontSize = resizeStart.fontSize;
+    
+    // ⭐ POIGNÉES DES COINS (NE, NW, SE, SW) → agrandissent la ZONE ET le texte proportionnellement
+    if (resizeDirection === 'ne' || resizeDirection === 'nw' || 
+        resizeDirection === 'se' || resizeDirection === 'sw') {
+      // Calcul du ratio d'agrandissement
+      let ratio = 1;
+      if (resizeDirection === 'ne' || resizeDirection === 'se') {
+        ratio = (resizeStart.width + dx) / Math.max(1, resizeStart.width);
+      } else if (resizeDirection === 'nw' || resizeDirection === 'sw') {
+        ratio = (resizeStart.width - dx) / Math.max(1, resizeStart.width);
+      }
+      ratio = Math.max(0.3, Math.min(5, ratio)); // Entre 30% et 500%
+      
+      newWidth = Math.max(50, Math.min(3000, Math.floor(resizeStart.width * ratio))); // Max 3000px
+      newFontSize = Math.max(10, Math.min(200, Math.floor(resizeStart.fontSize * ratio))); // ⭐ MAX 200px
+      
+      if (resizingText === 'title') {
+        updateTitleWidth(Math.round(newWidth));
+        onUpdate({ titleFontSize: Math.round(newFontSize) });
+      } else if (resizingText === 'subtitle') {
+        updateSubtitleWidth(Math.round(newWidth));
+        onUpdate({ subtitleFontSize: Math.round(newFontSize) });
+      } else if (resizingText === 'button') {
+        updateButtonWidth(Math.round(newWidth));
+        onUpdate({ buttonFontSize: Math.round(newFontSize) });
+      }
+    }
+    // ⭐ POIGNÉES DES CÔTÉS (E, W) → modifient uniquement la largeur
+    else if (resizeDirection === 'e' || resizeDirection === 'w') {
+      if (resizeDirection === 'e') {
+        newWidth = Math.max(50, Math.min(3000, resizeStart.width + dx));
+      } else if (resizeDirection === 'w') {
+        newWidth = Math.max(50, Math.min(3000, resizeStart.width - dx));
+      }
+      
+      if (resizingText === 'title') {
+        updateTitleWidth(newWidth);
+      } else if (resizingText === 'subtitle') {
+        updateSubtitleWidth(newWidth);
+      } else if (resizingText === 'button') {
+        updateButtonWidth(newWidth);
+      }
+    }
+  }, [resizingText, resizeDirection, resizeMouseStart, resizeStart, onUpdate, updateTitleWidth, updateSubtitleWidth, updateButtonWidth]);
 
   const handleGlobalMouseUp = useCallback(() => {
     setDraggingElement(null);
+    setResizingText(null);
+    setResizeDirection(null);
   }, []);
 
   useEffect(() => {
@@ -173,31 +232,31 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     }
   }, [draggingElement, isEditing, handleGlobalMouseMove, handleGlobalMouseUp]);
 
-  // ⭐ Valeurs sauvegardées par image
+  useEffect(() => {
+    if (resizingText) {
+      window.addEventListener('mousemove', handleResizeMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleResizeMove);
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [resizingText, handleResizeMove, handleGlobalMouseUp]);
+
+  // ⭐ Carrousel et crops
   const [savedCrops, setSavedCrops] = useState<Record<number, { x: number; y: number; scale: number }>>(() => {
     const crops: Record<number, { x: number; y: number; scale: number }> = {};
-    
     if (props.isCarousel === true) {
       const imgList = props.images || [];
       imgList.forEach((img: any, idx: number) => {
-        if (img?.crop) {
-          crops[idx] = { x: img.crop.x || 0, y: img.crop.y || 0, scale: img.crop.scale || 1 };
-        } else {
-          crops[idx] = { x: 0, y: 0, scale: 1 };
-        }
+        crops[idx] = img?.crop || { x: 0, y: 0, scale: 1 };
       });
     } else {
-      if (props.crop) {
-        crops[0] = { x: props.crop.x || 0, y: props.crop.y || 0, scale: props.crop.scale || 1 };
-      } else {
-        crops[0] = { x: 0, y: 0, scale: 1 };
-      }
+      crops[0] = props.crop || { x: 0, y: 0, scale: 1 };
     }
-    
     return crops;
   });
 
-  // ⭐ Mode carrousel
   const isCarousel = props.isCarousel === true;
   const images = isCarousel ? (props.images || []) : [];
   const hasMultipleImages = images.length > 1;
@@ -210,56 +269,31 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   const showDots = props.showDots !== false && hasMultipleImages;
   const transitionEffect = props.transitionEffect || 'fade';
 
-  // ⭐ Bloquer auto-défilement pendant l'édition
   useEffect(() => {
     if (!autoPlay || !hasMultipleImages || isHovered || isResizing || isEditing) return;
     const interval = setInterval(() => {
-      if (!isEditing) {
-        setCurrentIndex((prev) => (prev + 1) % images.length);
-      }
+      if (!isEditing) setCurrentIndex((prev) => (prev + 1) % images.length);
     }, intervalTime);
     return () => clearInterval(interval);
   }, [autoPlay, hasMultipleImages, intervalTime, isHovered, images.length, isResizing, isEditing]);
 
-  // ⭐ Navigation
-  const goToPrevious = useCallback(() => {
-    if (isEditing) return;
-    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
-  }, [images.length, isEditing]);
-  
-  const goToNext = useCallback(() => {
-    if (isEditing) return;
-    setCurrentIndex((prev) => (prev + 1) % images.length);
-  }, [images.length, isEditing]);
-  
-  const goToSlide = (index: number) => {
-    if (isEditing) return;
-    setCurrentIndex(index);
-  };
+  const goToPrevious = useCallback(() => { if (isEditing) return; setCurrentIndex((prev) => (prev - 1 + images.length) % images.length); }, [images.length, isEditing]);
+  const goToNext = useCallback(() => { if (isEditing) return; setCurrentIndex((prev) => (prev + 1) % images.length); }, [images.length, isEditing]);
+  const goToSlide = (index: number) => { if (isEditing) return; setCurrentIndex(index); };
 
-  // ⭐ Récupérer le crop pour l'image courante
-  const getCurrentCrop = useCallback(() => {
-    return savedCrops[currentIndex] || { x: 0, y: 0, scale: 1 };
-  }, [savedCrops, currentIndex]);
-
-  // ⭐ Sauvegarder le crop pour l'image courante
+  const getCurrentCrop = useCallback(() => savedCrops[currentIndex] || { x: 0, y: 0, scale: 1 }, [savedCrops, currentIndex]);
   const saveCurrentCrop = useCallback((x: number, y: number, scale: number) => {
     const newCrops = { ...savedCrops, [currentIndex]: { x, y, scale } };
     setSavedCrops(newCrops);
-    
     if (isCarousel) {
       const newImages = [...images];
-      newImages[currentIndex] = {
-        ...newImages[currentIndex],
-        crop: { x, y, scale }
-      };
+      newImages[currentIndex] = { ...newImages[currentIndex], crop: { x, y, scale } };
       onUpdate({ images: newImages });
     } else {
       onUpdate({ crop: { x, y, scale } });
     }
   }, [isCarousel, images, currentIndex, savedCrops, onUpdate]);
 
-  // ⭐ Initialiser l'édition avec le crop de l'image courante
   const handleDoubleClick = useCallback(() => {
     if (currentImageUrl && !imageErrors[isCarousel ? currentIndex : -1]) {
       const currentCrop = getCurrentCrop();
@@ -271,7 +305,6 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     }
   }, [currentImageUrl, imageErrors, isCarousel, currentIndex, getCurrentCrop]);
 
-  // ⭐ Sauvegarder et quitter
   const exitEditMode = useCallback(() => {
     saveCurrentCrop(editOffsetX, editOffsetY, editZoom);
     setIsEditing(false);
@@ -279,45 +312,29 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     editingImageIndexRef.current = null;
   }, [editOffsetX, editOffsetY, editZoom, saveCurrentCrop]);
 
-  // ⭐ Annuler
   const cancelEditMode = useCallback(() => {
     setIsEditing(false);
     setIsDragging(false);
     editingImageIndexRef.current = null;
   }, []);
 
-  // ⭐ Déplacement image
   const handleImageMouseDown = (e: React.MouseEvent) => {
     if (!isEditing) return;
     e.stopPropagation();
     e.preventDefault();
     setIsDragging(true);
-    dragStart.current = {
-      x: e.clientX,
-      y: e.clientY,
-      startX: editOffsetX,
-      startY: editOffsetY,
-    };
+    dragStart.current = { x: e.clientX, y: e.clientY, startX: editOffsetX, startY: editOffsetY };
   };
 
   const handleImageMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging) return;
     const dx = e.clientX - dragStart.current.x;
     const dy = e.clientY - dragStart.current.y;
-    let newX = dragStart.current.startX + dx;
-    let newY = dragStart.current.startY + dy;
-    const limit = 500;
-    newX = Math.max(-limit, Math.min(limit, newX));
-    newY = Math.max(-limit, Math.min(limit, newY));
-    setEditOffsetX(newX);
-    setEditOffsetY(newY);
+    setEditOffsetX(Math.max(-500, Math.min(500, dragStart.current.startX + dx)));
+    setEditOffsetY(Math.max(-500, Math.min(500, dragStart.current.startY + dy)));
   }, [isDragging]);
 
-  const handleImageMouseUp = useCallback(() => {
-    if (isDragging) {
-      setIsDragging(false);
-    }
-  }, [isDragging]);
+  const handleImageMouseUp = useCallback(() => { if (isDragging) setIsDragging(false); }, [isDragging]);
 
   useEffect(() => {
     if (isDragging) {
@@ -330,29 +347,15 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     }
   }, [isDragging, handleImageMouseMove, handleImageMouseUp]);
 
-  // ⭐ Zoom
-  const handleZoomIn = useCallback(() => {
-    setEditZoom(prev => Math.min(4, prev + 0.2));
-  }, []);
-  const handleZoomOut = useCallback(() => {
-    setEditZoom(prev => Math.max(1, prev - 0.2));
-  }, []);
-  const handleReset = useCallback(() => {
-    setEditOffsetX(0);
-    setEditOffsetY(0);
-    setEditZoom(1);
-  }, []);
+  const handleZoomIn = useCallback(() => setEditZoom(prev => Math.min(4, prev + 0.2)), []);
+  const handleZoomOut = useCallback(() => setEditZoom(prev => Math.max(1, prev - 0.2)), []);
+  const handleReset = useCallback(() => { setEditOffsetX(0); setEditOffsetY(0); setEditZoom(1); }, []);
 
-  // ⭐ Transformation de l'image
   const getImageTransform = () => {
-    if (isEditing) {
-      return `translate(-50%, -50%) translate(${editOffsetX}px, ${editOffsetY}px) scale(${editZoom})`;
-    } else if (isResizing) {
-      return `translate(-50%, -50%) scale(1)`;
-    } else {
-      const currentCrop = getCurrentCrop();
-      return `translate(-50%, -50%) translate(${currentCrop.x}px, ${currentCrop.y}px) scale(${currentCrop.scale})`;
-    }
+    if (isEditing) return `translate(-50%, -50%) translate(${editOffsetX}px, ${editOffsetY}px) scale(${editZoom})`;
+    if (isResizing) return `translate(-50%, -50%) scale(1)`;
+    const currentCrop = getCurrentCrop();
+    return `translate(-50%, -50%) translate(${currentCrop.x}px, ${currentCrop.y}px) scale(${currentCrop.scale})`;
   };
 
   const imageStyle = {
@@ -368,42 +371,27 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     willChange: 'transform',
   };
 
-  // ⭐ RENDU DE L'IMAGE
   const renderImage = () => {
     if (isCarousel && images.length > 0) {
-      const transitionClass = transitionEffect === 'fade' ? 'transition-opacity duration-500' : 'transition-transform duration-500 ease-out';
       return (
         <div className="absolute inset-0">
-          {images.map((image: any, idx: number) => {
-            const isActive = idx === currentIndex;
-            return (
-              <div key={idx} className={`absolute inset-0 w-full h-full ${transitionClass}`} style={{
-                opacity: transitionEffect === 'fade' ? (isActive ? 1 : 0) : 1,
-                transform: transitionEffect === 'slide' ? `translateX(${(idx - currentIndex) * 100}%)` : 'none',
-                transition: 'all 0.5s ease-out',
-              }}>
-                {isActive && !imageErrors[idx] && image.url ? (
-                  <img src={image.url} alt={image.alt || `Slide ${idx + 1}`} style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))} draggable={false} />
-                ) : isActive && imageErrors[idx] ? (
-                  <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500">
-                    <div className="text-center"><div className="text-2xl mb-1">🖼️</div><div className="text-xs">Image non trouvée</div></div>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
+          {images.map((image: any, idx: number) => (
+            <div key={idx} className="absolute inset-0 w-full h-full transition-opacity duration-500" style={{ opacity: idx === currentIndex ? 1 : 0 }}>
+              {idx === currentIndex && !imageErrors[idx] && image.url ? (
+                <img src={image.url} alt={image.alt || `Slide ${idx + 1}`} style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))} draggable={false} />
+              ) : idx === currentIndex && imageErrors[idx] ? (
+                <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500">
+                  <div className="text-center"><div className="text-2xl mb-1">🖼️</div><div className="text-xs">Image non trouvée</div></div>
+                </div>
+              ) : null}
+            </div>
+          ))}
         </div>
       );
     } else if (singleImage && !imageErrors[-1]) {
       return <img src={singleImage} alt="Bannière" style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} draggable={false} />;
     } else {
-      let bgStyle: React.CSSProperties = {};
-      if (props.backgroundType === 'gradient' && props.backgroundValue) {
-        bgStyle = { background: props.backgroundValue };
-      } else {
-        bgStyle = { backgroundColor: props.backgroundColor || '#2563EB' };
-      }
-      return <div className="absolute inset-0" style={bgStyle} />;
+      return <div className="absolute inset-0" style={{ backgroundColor: props.backgroundColor || '#2563EB' }} />;
     }
   };
 
@@ -412,73 +400,10 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   const currentCrop = getCurrentCrop();
   const zoomPercent = Math.round((isEditing ? editZoom : currentCrop.scale) * 100);
 
-  // ⭐ STYLES TEXTE
-  const titleStyle: React.CSSProperties = {
-    fontFamily: props.titleFont || 'Poppins',
-    fontSize: props.titleFontSize || '48px',
-    fontWeight: props.titleFontWeight || '700',
-    lineHeight: 1.2,
-    letterSpacing: '-0.02em',
-    marginBottom: '0',
-    opacity: textOpacity,
-    position: 'absolute',
-    left: `${titlePosition.x}%`,
-    top: `${titlePosition.y}%`,
-    transform: 'translate(-50%, -50%)',
-    cursor: 'default',
-    width: 'auto',
-    whiteSpace: 'nowrap',
-    textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-  };
-  if (props?.titleGradient) {
-    titleStyle.backgroundImage = props.titleGradient;
-    titleStyle.backgroundClip = 'text';
-    titleStyle.WebkitBackgroundClip = 'text';
-    titleStyle.color = 'transparent';
-  } else {
-    titleStyle.color = props.titleColor || '#ffffff';
-  }
-
-  const subtitleStyle: React.CSSProperties = {
-    fontSize: props.subtitleFontSize || '18px',
-    fontFamily: props.subtitleFont || 'Inter',
-    fontWeight: props.subtitleFontWeight || '400',
-    color: props.subtitleColor || '#ffffff',
-    opacity: textOpacity,
-    position: 'absolute',
-    left: `${subtitlePosition.x}%`,
-    top: `${subtitlePosition.y}%`,
-    transform: 'translate(-50%, -50%)',
-    cursor: 'default',
-    width: 'auto',
-    whiteSpace: 'nowrap',
-    textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    fontFamily: props.buttonFont || 'Inter',
-    fontSize: props.buttonFontSize || '16px',
-    fontWeight: props.buttonFontWeight || '500',
-    backgroundColor: props.buttonBackgroundColor || '#2563EB',
-    color: props.buttonTextColor || '#ffffff',
-    padding: '0.75rem 1.5rem',
-    borderRadius: props.buttonBorderRadius || '0.5rem',
-    border: 'none',
-    cursor: 'pointer',
-    transition: 'transform 0.2s ease',
-    opacity: textOpacity,
-    position: 'absolute',
-    left: `${buttonPosition.x}%`,
-    top: `${buttonPosition.y}%`,
-    transform: 'translate(-50%, -50%)',
-    whiteSpace: 'nowrap',
-  };
-
   const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => onUpdate({ title: e.currentTarget.innerText });
   const handleSubtitleBlur = (e: React.FocusEvent<HTMLParagraphElement>) => onUpdate({ subtitle: e.currentTarget.innerText });
   const handleButtonTextBlur = (e: React.FocusEvent<HTMLButtonElement>) => onUpdate({ buttonText: e.currentTarget.innerText });
 
-  // Message si carrousel sans images
   if (isCarousel && images.length === 0 && !isEditing) {
     return (
       <div className={`relative cursor-pointer transition-all w-full h-full bg-gray-800 flex items-center justify-center ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''}`} onClick={onSelect}>
@@ -501,15 +426,11 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className="relative w-full h-full">
-        {/* Image */}
         <div className="absolute inset-0 overflow-hidden" onMouseDown={handleImageMouseDown} style={{ cursor: isEditing ? 'grab' : 'default' }}>
           {renderImage()}
         </div>
-
-        {/* Overlay */}
         <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: overlayColor, opacity: isEditing ? overlayOpacity / 200 : overlayOpacity / 100 }} />
 
-        {/* Contrôles de zoom */}
         {isEditing && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-black/80 rounded-full p-1 shadow-lg">
             <button onMouseDown={(e) => { e.stopPropagation(); handleZoomOut(); }} className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full text-white font-bold text-lg">−</button>
@@ -523,7 +444,6 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           </div>
         )}
 
-        {/* Flèches */}
         {!isEditing && !isResizing && showArrows && hasMultipleImages && (
           <>
             <button onMouseDown={(e) => { e.stopPropagation(); goToPrevious(); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white"><FiChevronLeft size={24} /></button>
@@ -531,7 +451,6 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           </>
         )}
 
-        {/* Points */}
         {!isEditing && !isResizing && showDots && hasMultipleImages && (
           <div className="absolute bottom-4 left-0 right-0 z-30 flex justify-center gap-2">
             {images.map((_: any, idx: number) => (
@@ -540,64 +459,186 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           </div>
         )}
 
-        {/* ⭐ TEXTE - Reste visible pendant le redimensionnement */}
-        {!isEditing && (
-          <>
-            {showTitle && (
-              <h1
-                className="mb-0"
-                style={titleStyle}
-                contentEditable={isSelected && !isResizing}
-                onBlur={handleTitleBlur}
-                onMouseDown={isSelected && !isResizing ? handleTitleMouseDown : undefined}
-                suppressContentEditableWarning
-              >
+        {/* ⭐ TITRE - AVEC LIMITES AUGMENTÉES */}
+        {showTitle && (
+          <div className="absolute" style={{ left: `${titlePosition.x}%`, top: `${titlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+            <div className="relative" style={{ 
+              display: 'inline-block',
+              width: `${titleWidth}px`,
+              minWidth: '50px',
+              maxWidth: '3000px',
+              border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+              padding: '4px',
+              borderRadius: '4px',
+              transition: isResizing ? 'none' : 'all 0.1s ease',
+            }}>
+              <h1 className="mb-0" style={{
+                display: 'block',
+                width: '100%',
+                fontFamily: props.titleFont || 'Poppins',
+                fontSize: `${props.titleFontSize || 48}px`,
+                fontWeight: props.titleFontWeight || '700',
+                lineHeight: 1.2,
+                letterSpacing: '-0.02em',
+                marginBottom: '0',
+                opacity: textOpacity,
+                cursor: 'default',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                transition: isResizing ? 'none' : 'all 0.1s ease',
+                ...(props?.titleGradient ? { backgroundImage: props.titleGradient, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } : { color: props.titleColor || '#ffffff' }),
+              }}
+              contentEditable={isSelected && !isResizing && !resizingText}
+              onBlur={handleTitleBlur}
+              onMouseDown={isSelected && !isResizing && !resizingText ? handleTitleMouseDown : undefined}
+              suppressContentEditableWarning>
                 {props.title || shop?.name || 'Bienvenue'}
               </h1>
-            )}
-            {showSubtitle && (
-              <p
-                className="mb-0 max-w-2xl"
-                style={subtitleStyle}
-                contentEditable={isSelected && !isResizing}
-                onBlur={handleSubtitleBlur}
-                onMouseDown={isSelected && !isResizing ? handleSubtitleMouseDown : undefined}
-                suppressContentEditableWarning
-              >
+              
+              {isSelected && !isEditing && !isResizing && !resizingText && (
+                <>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'ne')} />
+                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'nw')} />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'se')} />
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'sw')} />
+                  
+                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'e')} />
+                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'w')} />
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ⭐ SOUS-TITRE - AVEC LIMITES AUGMENTÉES */}
+        {showSubtitle && (
+          <div className="absolute" style={{ left: `${subtitlePosition.x}%`, top: `${subtitlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+            <div className="relative" style={{ 
+              display: 'inline-block',
+              width: `${subtitleWidth}px`,
+              minWidth: '50px',
+              maxWidth: '3000px',
+              border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+              padding: '4px',
+              borderRadius: '4px',
+              transition: isResizing ? 'none' : 'all 0.1s ease',
+            }}>
+              <p className="mb-0" style={{
+                display: 'block',
+                width: '100%',
+                fontSize: `${props.subtitleFontSize || 18}px`,
+                fontFamily: props.subtitleFont || 'Inter',
+                fontWeight: props.subtitleFontWeight || '400',
+                color: props.subtitleColor || '#ffffff',
+                opacity: textOpacity,
+                cursor: 'default',
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                overflowWrap: 'break-word',
+                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                transition: isResizing ? 'none' : 'all 0.1s ease',
+              }}
+              contentEditable={isSelected && !isResizing && !resizingText}
+              onBlur={handleSubtitleBlur}
+              onMouseDown={isSelected && !isResizing && !resizingText ? handleSubtitleMouseDown : undefined}
+              suppressContentEditableWarning>
                 {props.subtitle || shop?.description || 'Découvrez nos produits'}
               </p>
-            )}
-            {showButton && (
-              <button
-                className="inline-block"
-                style={buttonStyle}
-                contentEditable={isSelected && !isResizing}
-                onBlur={handleButtonTextBlur}
-                onMouseDown={isSelected && !isResizing ? handleButtonMouseDown : undefined}
-                suppressContentEditableWarning
-              >
+              
+              {isSelected && !isEditing && !isResizing && !resizingText && (
+                <>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'ne')} />
+                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'nw')} />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'se')} />
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'sw')} />
+                  
+                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'e')} />
+                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'w')} />
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ⭐ BOUTON - AVEC LIMITES AUGMENTÉES */}
+        {showButton && (
+          <div className="absolute" style={{ left: `${buttonPosition.x}%`, top: `${buttonPosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+            <div className="relative" style={{ 
+              display: 'inline-block',
+              width: `${buttonWidth}px`,
+              minWidth: '50px',
+              maxWidth: '3000px',
+              border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+              padding: '4px',
+              borderRadius: '4px',
+              transition: isResizing ? 'none' : 'all 0.1s ease',
+            }}>
+              <button className="inline-block w-full" style={{
+                fontFamily: props.buttonFont || 'Inter',
+                fontSize: `${props.buttonFontSize || 16}px`,
+                fontWeight: props.buttonFontWeight || '500',
+                backgroundColor: props.buttonBackgroundColor || '#2563EB',
+                color: props.buttonTextColor || '#ffffff',
+                padding: '0.75rem 1rem',
+                borderRadius: props.buttonBorderRadius || '0.5rem',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'transform 0.2s ease',
+                opacity: textOpacity,
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+              }}
+              contentEditable={isSelected && !isResizing && !resizingText}
+              onBlur={handleButtonTextBlur}
+              onMouseDown={isSelected && !isResizing && !resizingText ? handleButtonMouseDown : undefined}
+              suppressContentEditableWarning>
                 {props.buttonText || 'Découvrir'}
               </button>
-            )}
-          </>
+              
+              {isSelected && !isEditing && !isResizing && !resizingText && (
+                <>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'ne')} />
+                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'nw')} />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'se')} />
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'sw')} />
+                  
+                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'e')} />
+                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'w')} />
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Label de sélection avec toggles */}
       {isSelected && !isEditing && !isResizing && (
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap flex gap-2">
-          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleTitle(); }} title="Afficher/Masquer le titre">
-            {showTitle ? '📝 Titre' : '📝 (masqué)'}
-          </span>
-          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleSubtitle(); }} title="Afficher/Masquer le sous-titre">
-            {showSubtitle ? '📄 Sous-titre' : '📄 (masqué)'}
-          </span>
-          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleButton(); }} title="Afficher/Masquer le bouton">
-            {showButton ? '🔘 Bouton' : '🔘 (masqué)'}
-          </span>
+          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleTitle(); }}>{showTitle ? '📝 Titre' : '📝 (masqué)'}</span>
+          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleSubtitle(); }}>{showSubtitle ? '📄 Sous-titre' : '📄 (masqué)'}</span>
+          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleButton(); }}>{showButton ? '🔘 Bouton' : '🔘 (masqué)'}</span>
           <span className="ml-1">{isCarousel ? `🎠 Carrousel (${images.length} images)` : (singleImage ? '🖼️ Bannière' : '🎨 Bannière')}</span>
           {currentCrop.scale !== 1 && <span className="ml-1 text-yellow-300">(Zoomé {Math.round(currentCrop.scale * 100)}%)</span>}
-          <span className="ml-1 text-yellow-300">(Double-clic)</span>
+          <span className="ml-1 text-yellow-300">🔵Zone+Police (max 200px) 🟢Largeur (max 3000px)</span>
         </div>
       )}
     </div>

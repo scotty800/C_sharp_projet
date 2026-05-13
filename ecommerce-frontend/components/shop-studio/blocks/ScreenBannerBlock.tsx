@@ -30,9 +30,20 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
   const [subtitlePosition, setSubtitlePosition] = useState(props.subtitlePosition || { x: 50, y: 50 });
   const [buttonPosition, setButtonPosition] = useState(props.buttonPosition || { x: 50, y: 70 });
   
+  // ⭐ Dimensions des conteneurs
+  const [titleWidth, setTitleWidth] = useState(props.titleWidth || 300);
+  const [subtitleWidth, setSubtitleWidth] = useState(props.subtitleWidth || 300);
+  const [buttonWidth, setButtonWidth] = useState(props.buttonWidth || 200);
+  
   // ⭐ États pour le drag de chaque élément
   const [draggingElement, setDraggingElement] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
+  // ⭐ États pour le redimensionnement
+  const [resizingText, setResizingText] = useState<string | null>(null);
+  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState({ width: 0, fontSize: 0 });
+  const [resizeMouseStart, setResizeMouseStart] = useState({ x: 0, y: 0 });
   
   // ⭐ Référence du numéro d'image en cours d'édition
   const editingImageIndexRef = useRef<number | null>(null);
@@ -54,7 +65,10 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     setTitlePosition(props.titlePosition || { x: 50, y: 30 });
     setSubtitlePosition(props.subtitlePosition || { x: 50, y: 50 });
     setButtonPosition(props.buttonPosition || { x: 50, y: 70 });
-  }, [props.showTitle, props.showSubtitle, props.showButton, props.titlePosition, props.subtitlePosition, props.buttonPosition]);
+    setTitleWidth(props.titleWidth || 300);
+    setSubtitleWidth(props.subtitleWidth || 300);
+    setButtonWidth(props.buttonWidth || 200);
+  }, [props]);
 
   // ⭐ Fonctions pour basculer l'affichage
   const toggleTitle = () => {
@@ -92,6 +106,22 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     const newPos = { x, y };
     setButtonPosition(newPos);
     onUpdate({ buttonPosition: newPos });
+  };
+
+  // ⭐ Fonctions pour mettre à jour les largeurs
+  const updateTitleWidth = (width: number) => {
+    setTitleWidth(width);
+    onUpdate({ titleWidth: width });
+  };
+  
+  const updateSubtitleWidth = (width: number) => {
+    setSubtitleWidth(width);
+    onUpdate({ subtitleWidth: width });
+  };
+  
+  const updateButtonWidth = (width: number) => {
+    setButtonWidth(width);
+    onUpdate({ buttonWidth: width });
   };
 
   // ⭐ Gestion du drag pour le titre
@@ -136,7 +166,32 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     }
   };
 
-  // ⭐ Mouvement global
+  // ⭐ GESTION DU REDIMENSIONNEMENT
+  const handleResizeStart = (e: React.MouseEvent, element: string, direction: string) => {
+    if (isEditing) return;
+    e.stopPropagation();
+    setResizingText(element);
+    setResizeDirection(direction);
+    
+    let currentWidth = 0;
+    let currentFontSize = 0;
+    
+    if (element === 'title') {
+      currentWidth = titleWidth;
+      currentFontSize = props.titleFontSize || 48;
+    } else if (element === 'subtitle') {
+      currentWidth = subtitleWidth;
+      currentFontSize = props.subtitleFontSize || 18;
+    } else {
+      currentWidth = buttonWidth;
+      currentFontSize = props.buttonFontSize || 16;
+    }
+    
+    setResizeStart({ width: currentWidth, fontSize: currentFontSize });
+    setResizeMouseStart({ x: e.clientX, y: e.clientY });
+  };
+
+  // ⭐ Mouvement global drag
   const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
     if (!draggingElement || isEditing) return;
     
@@ -158,8 +213,61 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     }
   }, [draggingElement, isEditing, dragOffset]);
 
+  // ⭐ Mouvement global redimensionnement - AVEC LIMITES AUGMENTÉES
+  const handleResizeMove = useCallback((e: MouseEvent) => {
+    if (!resizingText || !resizeDirection) return;
+    
+    const dx = e.clientX - resizeMouseStart.x;
+    let newWidth = resizeStart.width;
+    let newFontSize = resizeStart.fontSize;
+    
+    // ⭐ POIGNÉES DES COINS (NE, NW, SE, SW) → agrandissent la ZONE ET le texte proportionnellement
+    if (resizeDirection === 'ne' || resizeDirection === 'nw' || 
+        resizeDirection === 'se' || resizeDirection === 'sw') {
+      let ratio = 1;
+      if (resizeDirection === 'ne' || resizeDirection === 'se') {
+        ratio = (resizeStart.width + dx) / Math.max(1, resizeStart.width);
+      } else if (resizeDirection === 'nw' || resizeDirection === 'sw') {
+        ratio = (resizeStart.width - dx) / Math.max(1, resizeStart.width);
+      }
+      ratio = Math.max(0.3, Math.min(5, ratio));
+      
+      newWidth = Math.max(50, Math.min(3000, Math.floor(resizeStart.width * ratio)));
+      newFontSize = Math.max(10, Math.min(200, Math.floor(resizeStart.fontSize * ratio)));
+      
+      if (resizingText === 'title') {
+        updateTitleWidth(Math.round(newWidth));
+        onUpdate({ titleFontSize: Math.round(newFontSize) });
+      } else if (resizingText === 'subtitle') {
+        updateSubtitleWidth(Math.round(newWidth));
+        onUpdate({ subtitleFontSize: Math.round(newFontSize) });
+      } else if (resizingText === 'button') {
+        updateButtonWidth(Math.round(newWidth));
+        onUpdate({ buttonFontSize: Math.round(newFontSize) });
+      }
+    }
+    // ⭐ POIGNÉES DES CÔTÉS (E, W) → modifient uniquement la largeur
+    else if (resizeDirection === 'e' || resizeDirection === 'w') {
+      if (resizeDirection === 'e') {
+        newWidth = Math.max(50, Math.min(3000, resizeStart.width + dx));
+      } else if (resizeDirection === 'w') {
+        newWidth = Math.max(50, Math.min(3000, resizeStart.width - dx));
+      }
+      
+      if (resizingText === 'title') {
+        updateTitleWidth(newWidth);
+      } else if (resizingText === 'subtitle') {
+        updateSubtitleWidth(newWidth);
+      } else if (resizingText === 'button') {
+        updateButtonWidth(newWidth);
+      }
+    }
+  }, [resizingText, resizeDirection, resizeMouseStart, resizeStart, onUpdate]);
+
   const handleGlobalMouseUp = useCallback(() => {
     setDraggingElement(null);
+    setResizingText(null);
+    setResizeDirection(null);
   }, []);
 
   useEffect(() => {
@@ -172,6 +280,17 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
       };
     }
   }, [draggingElement, isEditing, handleGlobalMouseMove, handleGlobalMouseUp]);
+
+  useEffect(() => {
+    if (resizingText) {
+      window.addEventListener('mousemove', handleResizeMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleResizeMove);
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [resizingText, handleResizeMove, handleGlobalMouseUp]);
 
   // ⭐ Valeurs sauvegardées par image - initialisation directe depuis props
   const [savedCrops, setSavedCrops] = useState<Record<number, { x: number; y: number; scale: number }>>(() => {
@@ -427,71 +546,6 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
   const currentCrop = getCurrentCrop();
   const zoomPercent = Math.round((isEditing ? editZoom : currentCrop.scale) * 100);
 
-  // ⭐ STYLE DU TITRE
-  const titleStyle: React.CSSProperties = {
-    fontFamily: props.titleFont || 'Poppins',
-    fontSize: props.titleFontSize || '48px',
-    fontWeight: props.titleFontWeight || '700',
-    lineHeight: 1.2,
-    letterSpacing: '-0.02em',
-    marginBottom: '0',
-    opacity: textOpacity,
-    position: 'absolute',
-    left: `${titlePosition.x}%`,
-    top: `${titlePosition.y}%`,
-    transform: 'translate(-50%, -50%)',
-    cursor: 'default',
-    width: 'auto',
-    whiteSpace: 'nowrap',
-    WebkitTextStroke: props.textStrokeWidth ? `${props.textStrokeWidth}px` : '0px',
-    WebkitTextStrokeColor: props.textStrokeColor || '#000000',
-    textShadow: props.textShadow || '2px 2px 4px rgba(0,0,0,0.3)',
-  };
-  if (props?.titleGradient) {
-    titleStyle.backgroundImage = props.titleGradient;
-    titleStyle.backgroundClip = 'text';
-    titleStyle.WebkitBackgroundClip = 'text';
-    titleStyle.color = 'transparent';
-  } else {
-    titleStyle.color = props.titleColor || '#ffffff';
-  }
-
-  const subtitleStyle: React.CSSProperties = {
-    fontSize: props.subtitleFontSize || '18px',
-    fontFamily: props.subtitleFont || 'Inter',
-    fontWeight: props.subtitleFontWeight || '400',
-    color: props.subtitleColor || '#ffffff',
-    opacity: textOpacity,
-    position: 'absolute',
-    left: `${subtitlePosition.x}%`,
-    top: `${subtitlePosition.y}%`,
-    transform: 'translate(-50%, -50%)',
-    cursor: 'default',
-    width: 'auto',
-    whiteSpace: 'nowrap',
-    textShadow: '1px 1px 2px rgba(0,0,0,0.3)',
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    fontFamily: props.buttonFont || 'Inter',
-    fontSize: props.buttonFontSize || '16px',
-    fontWeight: props.buttonFontWeight || '600',
-    backgroundColor: props.buttonBackgroundColor || '#2563EB',
-    color: props.buttonTextColor || '#ffffff',
-    padding: '0.75rem 1.5rem',
-    borderRadius: props.buttonBorderRadius || '2rem',
-    border: props.buttonBorder ? `2px solid ${props.buttonBorderColor || '#ffffff'}` : 'none',
-    cursor: 'pointer',
-    transition: 'transform 0.2s ease, background 0.2s ease',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-    opacity: textOpacity,
-    position: 'absolute',
-    left: `${buttonPosition.x}%`,
-    top: `${buttonPosition.y}%`,
-    transform: 'translate(-50%, -50%)',
-    whiteSpace: 'nowrap',
-  };
-
   const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => onUpdate({ title: e.currentTarget.innerText });
   const handleSubtitleBlur = (e: React.FocusEvent<HTMLParagraphElement>) => onUpdate({ subtitle: e.currentTarget.innerText });
   const handleButtonTextBlur = (e: React.FocusEvent<HTMLButtonElement>) => onUpdate({ buttonText: e.currentTarget.innerText });
@@ -564,44 +618,189 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
           </div>
         )}
 
-        {/* ⭐ TEXTE - Reste visible pendant le redimensionnement */}
+        {/* ⭐ TEXTE AVEC CONTENEURS REDIMENSIONNABLES + CONTOUR DE TEXTE */}
         {!isEditing && (
           <>
+            {/* TITRE */}
             {showTitle && (
-              <h1
-                className="mb-0"
-                style={titleStyle}
-                contentEditable={isSelected && !isResizing}
-                onBlur={handleTitleBlur}
-                onMouseDown={isSelected && !isResizing ? handleTitleMouseDown : undefined}
-                suppressContentEditableWarning
-              >
-                {props.title || shop?.name || 'Bienvenue'}
-              </h1>
+              <div className="absolute" style={{ left: `${titlePosition.x}%`, top: `${titlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+                <div className="relative" style={{ 
+                  display: 'inline-block',
+                  width: `${titleWidth}px`,
+                  minWidth: '50px',
+                  maxWidth: '3000px',
+                  border: isSelected && !resizingText ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  transition: isResizing ? 'none' : 'all 0.1s ease',
+                }}>
+                  <h1 className="mb-0" style={{
+                    display: 'block',
+                    width: '100%',
+                    fontFamily: props.titleFont || 'Poppins',
+                    fontSize: `${props.titleFontSize || 48}px`,
+                    fontWeight: props.titleFontWeight || '700',
+                    lineHeight: 1.2,
+                    letterSpacing: '-0.02em',
+                    marginBottom: '0',
+                    opacity: textOpacity,
+                    cursor: 'default',
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                    transition: isResizing ? 'none' : 'all 0.1s ease',
+                    // ⭐ CONTOUR DE TEXTE (text stroke)
+                    WebkitTextStroke: props.textStrokeWidth ? `${props.textStrokeWidth}px ${props.textStrokeColor || '#000000'}` : '0px',
+                    WebkitTextStrokeColor: props.textStrokeColor || '#000000',
+                    textShadow: props.textShadow || '2px 2px 4px rgba(0,0,0,0.3)',
+                    ...(props?.titleGradient ? { backgroundImage: props.titleGradient, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } : { color: props.titleColor || '#ffffff' }),
+                  }}
+                  contentEditable={isSelected && !isResizing && !resizingText}
+                  onBlur={handleTitleBlur}
+                  onMouseDown={isSelected && !isResizing && !resizingText ? handleTitleMouseDown : undefined}
+                  suppressContentEditableWarning>
+                    {props.title || shop?.name || 'Bienvenue'}
+                  </h1>
+                  
+                  {/* Poignées de redimensionnement */}
+                  {isSelected && !isEditing && !isResizing && !resizingText && (
+                    <>
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'ne')} />
+                      <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'nw')} />
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'se')} />
+                      <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'sw')} />
+                      <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'e')} />
+                      <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'w')} />
+                    </>
+                  )}
+                </div>
+              </div>
             )}
+
+            {/* SOUS-TITRE - avec contour de texte */}
             {showSubtitle && (
-              <p
-                className="mb-0 max-w-2xl"
-                style={subtitleStyle}
-                contentEditable={isSelected && !isResizing}
-                onBlur={handleSubtitleBlur}
-                onMouseDown={isSelected && !isResizing ? handleSubtitleMouseDown : undefined}
-                suppressContentEditableWarning
-              >
-                {props.subtitle || shop?.description || 'Découvrez notre collection exclusive'}
-              </p>
+              <div className="absolute" style={{ left: `${subtitlePosition.x}%`, top: `${subtitlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+                <div className="relative" style={{ 
+                  display: 'inline-block',
+                  width: `${subtitleWidth}px`,
+                  minWidth: '50px',
+                  maxWidth: '3000px',
+                  border: isSelected && !resizingText ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  transition: isResizing ? 'none' : 'all 0.1s ease',
+                }}>
+                  <p className="mb-0" style={{
+                    display: 'block',
+                    width: '100%',
+                    fontSize: `${props.subtitleFontSize || 18}px`,
+                    fontFamily: props.subtitleFont || 'Inter',
+                    fontWeight: props.subtitleFontWeight || '400',
+                    color: props.subtitleColor || '#ffffff',
+                    opacity: textOpacity,
+                    cursor: 'default',
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                    transition: isResizing ? 'none' : 'all 0.1s ease',
+                    // ⭐ CONTOUR DE TEXTE (text stroke)
+                    WebkitTextStroke: props.subtitleTextStrokeWidth ? `${props.subtitleTextStrokeWidth}px ${props.subtitleTextStrokeColor || '#000000'}` : '0px',
+                    WebkitTextStrokeColor: props.subtitleTextStrokeColor || '#000000',
+                    textShadow: props.subtitleTextShadow || '1px 1px 2px rgba(0,0,0,0.3)',
+                  }}
+                  contentEditable={isSelected && !isResizing && !resizingText}
+                  onBlur={handleSubtitleBlur}
+                  onMouseDown={isSelected && !isResizing && !resizingText ? handleSubtitleMouseDown : undefined}
+                  suppressContentEditableWarning>
+                    {props.subtitle || shop?.description || 'Découvrez notre collection exclusive'}
+                  </p>
+                  
+                  {/* Poignées de redimensionnement */}
+                  {isSelected && !isEditing && !isResizing && !resizingText && (
+                    <>
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'ne')} />
+                      <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'nw')} />
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'se')} />
+                      <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'sw')} />
+                      <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'e')} />
+                      <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'w')} />
+                    </>
+                  )}
+                </div>
+              </div>
             )}
+
+            {/* BOUTON - avec contour de texte */}
             {showButton && (
-              <button
-                className="inline-block"
-                style={buttonStyle}
-                contentEditable={isSelected && !isResizing}
-                onBlur={handleButtonTextBlur}
-                onMouseDown={isSelected && !isResizing ? handleButtonMouseDown : undefined}
-                suppressContentEditableWarning
-              >
-                {props.buttonText || 'Explorer'}
-              </button>
+              <div className="absolute" style={{ left: `${buttonPosition.x}%`, top: `${buttonPosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+                <div className="relative" style={{ 
+                  display: 'inline-block',
+                  width: `${buttonWidth}px`,
+                  minWidth: '50px',
+                  maxWidth: '3000px',
+                  border: isSelected && !resizingText ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  transition: isResizing ? 'none' : 'all 0.1s ease',
+                }}>
+                  <button className="inline-block w-full" style={{
+                    fontFamily: props.buttonFont || 'Inter',
+                    fontSize: `${props.buttonFontSize || 16}px`,
+                    fontWeight: props.buttonFontWeight || '600',
+                    backgroundColor: props.buttonBackgroundColor || '#2563EB',
+                    color: props.buttonTextColor || '#ffffff',
+                    padding: '0.75rem 1rem',
+                    borderRadius: props.buttonBorderRadius || '2rem',
+                    border: props.buttonBorder ? `2px solid ${props.buttonBorderColor || '#ffffff'}` : 'none',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s ease, background 0.2s ease',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    opacity: textOpacity,
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-word',
+                    // ⭐ CONTOUR DE TEXTE (text stroke) pour le bouton
+                    WebkitTextStroke: props.buttonTextStrokeWidth ? `${props.buttonTextStrokeWidth}px ${props.buttonTextStrokeColor || '#000000'}` : '0px',
+                    WebkitTextStrokeColor: props.buttonTextStrokeColor || '#000000',
+                    textShadow: props.buttonTextShadow || 'none',
+                  }}
+                  contentEditable={isSelected && !isResizing && !resizingText}
+                  onBlur={handleButtonTextBlur}
+                  onMouseDown={isSelected && !isResizing && !resizingText ? handleButtonMouseDown : undefined}
+                  suppressContentEditableWarning>
+                    {props.buttonText || 'Explorer'}
+                  </button>
+                  
+                  {/* Poignées de redimensionnement */}
+                  {isSelected && !isEditing && !isResizing && !resizingText && (
+                    <>
+                      <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'ne')} />
+                      <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'nw')} />
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'se')} />
+                      <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'sw')} />
+                      <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'e')} />
+                      <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                           title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'w')} />
+                    </>
+                  )}
+                </div>
+              </div>
             )}
           </>
         )}
@@ -621,6 +820,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
           </span>
           <span className="ml-1">🖥️ Écran {isCarousel ? `🎠 (${images.length} images)` : (singleImage ? '🖼️' : '🎨')}</span>
           {currentCrop.scale !== 1 && <span className="ml-1 text-yellow-300">(Zoomé {Math.round(currentCrop.scale * 100)}%)</span>}
+          <span className="ml-1 text-yellow-300">🔵Zone+Police (max 200px) 🟢Largeur (max 3000px)</span>
           <span className="ml-1 text-yellow-300">(Double-clic)</span>
         </div>
       )}
