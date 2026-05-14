@@ -258,13 +258,13 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   const images = isCarousel ? (props.images || []) : [];
   const hasMultipleImages = images.length > 1;
   const singleImage = props.backgroundImage || shop?.bannerUrl;
-  const currentImageUrl = isCarousel && images[currentIndex]?.url ? images[currentIndex].url : singleImage;
   
   const autoPlay = props.autoPlay !== false && isCarousel && hasMultipleImages;
   const intervalTime = props.intervalTime || 5000;
   const showArrows = props.showArrows !== false && hasMultipleImages;
   const showDots = props.showDots !== false && hasMultipleImages;
   const transitionEffect = props.transitionEffect || 'fade';
+  const transitionDuration = 300;
 
   useEffect(() => {
     if (!autoPlay || !hasMultipleImages || isHovered || isResizing || isEditing) return;
@@ -290,6 +290,8 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
       onUpdate({ crop: { x, y, scale } });
     }
   }, [isCarousel, images, currentIndex, savedCrops, onUpdate]);
+
+  const currentImageUrl = isCarousel && images[currentIndex]?.url ? images[currentIndex].url : singleImage;
 
   const handleDoubleClick = useCallback(() => {
     if (currentImageUrl && !imageErrors[isCarousel ? currentIndex : -1]) {
@@ -368,34 +370,118 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     willChange: 'transform',
   };
 
+  // ⭐ STYLE DE FOND PAR DÉFAUT POUR LA BANNIÈRE
+  let defaultBackgroundStyle: React.CSSProperties = {};
+  
+  if (props.backgroundType === 'gradient' && props.backgroundValue) {
+    defaultBackgroundStyle = { background: props.backgroundValue };
+  } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
+    defaultBackgroundStyle = { backgroundColor: props.backgroundColor };
+  } else {
+    defaultBackgroundStyle = { backgroundColor: customization?.primaryColor || '#2563EB' };
+  }
+
+  // ⭐ RENDER IMAGE AVEC FOND INDIVIDUEL POUR CHAQUE SLIDE - VERSION CORRIGÉE POUR LE GLISSEMENT
   const renderImage = () => {
     if (isCarousel && images.length > 0) {
+      const isFade = transitionEffect === 'fade';
+      
+      // Pour le glissement, on a besoin des indices précédent et suivant
+      const prevIndex = (currentIndex - 1 + images.length) % images.length;
+      const nextIndex = (currentIndex + 1) % images.length;
+      
       return (
         <div className="absolute inset-0">
-          {images.map((image: any, idx: number) => (
-            <div key={idx} className="absolute inset-0 w-full h-full transition-opacity duration-500" style={{ opacity: idx === currentIndex ? 1 : 0 }}>
-              {idx === currentIndex && !imageErrors[idx] && image.url ? (
-                <img src={image.url} alt={image.alt || `Slide ${idx + 1}`} style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))} draggable={false} />
-              ) : idx === currentIndex && imageErrors[idx] ? (
-                <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500">
-                  <div className="text-center"><div className="text-2xl mb-1">🖼️</div><div className="text-xs">Image non trouvée</div></div>
-                </div>
-              ) : null}
-            </div>
-          ))}
+          {images.map((image: any, idx: number) => {
+            // ⭐ Style de fond individuel pour chaque image
+            let slideBackgroundStyle: React.CSSProperties = {};
+            
+            if (image.backgroundType === 'gradient' && image.backgroundValue) {
+              slideBackgroundStyle = { background: image.backgroundValue };
+            } else if (image.backgroundColor && image.backgroundColor !== 'transparent') {
+              slideBackgroundStyle = { backgroundColor: image.backgroundColor };
+            } else {
+              slideBackgroundStyle = { backgroundColor: 'transparent' };
+            }
+            
+            const isActive = idx === currentIndex;
+            let transformStyle: React.CSSProperties = {};
+            
+            if (isFade) {
+              transformStyle = {
+                opacity: isActive ? 1 : 0,
+                transition: `opacity ${transitionDuration}ms ease-in-out`,
+              };
+            } else {
+              // ⭐ GLISSEMENT CORRIGÉ
+              if (isActive) {
+                // Image active : à sa position normale
+                transformStyle = {
+                  transform: 'translateX(0)',
+                  transition: `transform ${transitionDuration}ms ease-in-out`,
+                };
+              } else {
+                // Image inactive : placée à droite ou à gauche selon sa position relative à l'active
+                if (idx === prevIndex) {
+                  // L'image précédente (celle qui va sortir) est à gauche
+                  transformStyle = {
+                    transform: 'translateX(-100%)',
+                    transition: `transform ${transitionDuration}ms ease-in-out`,
+                  };
+                } else if (idx === nextIndex) {
+                  // L'image suivante (celle qui va entrer) est à droite
+                  transformStyle = {
+                    transform: 'translateX(100%)',
+                    transition: `transform ${transitionDuration}ms ease-in-out`,
+                  };
+                } else {
+                  // Les autres images sont cachées
+                  transformStyle = {
+                    transform: 'translateX(100%)',
+                    transition: 'none',
+                  };
+                }
+              }
+            }
+            
+            return (
+              <div 
+                key={idx} 
+                className="absolute inset-0 w-full h-full"
+                style={{ ...slideBackgroundStyle, ...transformStyle }}
+              >
+                {!imageErrors[idx] && image.url ? (
+                  <img 
+                    src={image.url} 
+                    alt={image.alt || `Slide ${idx + 1}`} 
+                    style={imageStyle}
+                    onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))}
+                    draggable={false}
+                  />
+                ) : !imageErrors[idx] && !image.url ? (
+                  <div className="w-full h-full flex items-center justify-center text-gray-500">
+                    <div className="text-center">
+                      <div className="text-2xl mb-1">🖼️</div>
+                      <div className="text-xs">URL manquante</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-500">
+                    <div className="text-center">
+                      <div className="text-2xl mb-1">🖼️</div>
+                      <div className="text-xs">Image non trouvée</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       );
     } else if (singleImage && !imageErrors[-1]) {
       return <img src={singleImage} alt="Bannière" style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} draggable={false} />;
     } else {
-      // ⭐ APPLICATION DU DÉGRADÉ OU DE LA COULEUR DE FOND
-      if (props.backgroundType === 'gradient' && props.backgroundValue) {
-        return <div className="absolute inset-0" style={{ background: props.backgroundValue }} />;
-      } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
-        return <div className="absolute inset-0" style={{ backgroundColor: props.backgroundColor }} />;
-      } else {
-        return <div className="absolute inset-0" style={{ backgroundColor: customization?.primaryColor || '#2563EB' }} />;
-      }
+      return null;
     }
   };
 
@@ -429,7 +515,7 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative w-full h-full">
+      <div className="relative w-full h-full" style={defaultBackgroundStyle}>
         <div className="absolute inset-0 overflow-hidden" onMouseDown={handleImageMouseDown} style={{ cursor: isEditing ? 'grab' : 'default' }}>
           {renderImage()}
         </div>

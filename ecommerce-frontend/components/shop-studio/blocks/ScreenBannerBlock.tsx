@@ -213,7 +213,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     }
   }, [draggingElement, isEditing, dragOffset]);
 
-  // ⭐ Mouvement global redimensionnement - AVEC LIMITES AUGMENTÉES
+  // ⭐ Mouvement global redimensionnement
   const handleResizeMove = useCallback((e: MouseEvent) => {
     if (!resizingText || !resizeDirection) return;
     
@@ -221,7 +221,6 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     let newWidth = resizeStart.width;
     let newFontSize = resizeStart.fontSize;
     
-    // ⭐ POIGNÉES DES COINS (NE, NW, SE, SW) → agrandissent la ZONE ET le texte proportionnellement
     if (resizeDirection === 'ne' || resizeDirection === 'nw' || 
         resizeDirection === 'se' || resizeDirection === 'sw') {
       let ratio = 1;
@@ -246,7 +245,6 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
         onUpdate({ buttonFontSize: Math.round(newFontSize) });
       }
     }
-    // ⭐ POIGNÉES DES CÔTÉS (E, W) → modifient uniquement la largeur
     else if (resizeDirection === 'e' || resizeDirection === 'w') {
       if (resizeDirection === 'e') {
         newWidth = Math.max(50, Math.min(3000, resizeStart.width + dx));
@@ -292,7 +290,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     }
   }, [resizingText, handleResizeMove, handleGlobalMouseUp]);
 
-  // ⭐ Valeurs sauvegardées par image - initialisation directe depuis props
+  // ⭐ Valeurs sauvegardées par image
   const [savedCrops, setSavedCrops] = useState<Record<number, { x: number; y: number; scale: number }>>(() => {
     const crops: Record<number, { x: number; y: number; scale: number }> = {};
     
@@ -328,8 +326,9 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
   const showArrows = props.showArrows !== false && hasMultipleImages;
   const showDots = props.showDots !== false && hasMultipleImages;
   const transitionEffect = props.transitionEffect || 'fade';
+  const transitionDuration = 300;
 
-  // ⭐ STYLE ÉCRAN / CARTE AVEC BORDURES ÉPAISSES
+  // ⭐ STYLE ÉCRAN / CARTE AVEC BORDURES
   const containerStyle: React.CSSProperties = {
     position: 'relative',
     width: '100%',
@@ -502,27 +501,103 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     willChange: 'transform',
   };
 
-  // ⭐ RENDU DE L'IMAGE
+  // ⭐ STYLE DE FOND PAR DÉFAUT POUR L'ÉCRAN
+  let defaultBackgroundStyle: React.CSSProperties = {};
+  
+  if (props.backgroundType === 'gradient' && props.backgroundValue) {
+    defaultBackgroundStyle = { background: props.backgroundValue };
+  } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
+    defaultBackgroundStyle = { backgroundColor: props.backgroundColor };
+  } else {
+    defaultBackgroundStyle = { backgroundColor: '#1e1e2f' };
+  }
+
+  // ⭐ RENDER IMAGE AVEC FOND INDIVIDUEL POUR CHAQUE SLIDE
   const renderImage = () => {
     if (isCarousel && images.length > 0) {
-      const transitionClass = transitionEffect === 'fade' ? 'transition-opacity duration-500' : 'transition-transform duration-500 ease-out';
+      const isFade = transitionEffect === 'fade';
+      
+      // Pour le glissement, on a besoin des indices précédent et suivant
+      const prevIndex = (currentIndex - 1 + images.length) % images.length;
+      const nextIndex = (currentIndex + 1) % images.length;
+      
       return (
         <div className="absolute inset-0">
           {images.map((image: any, idx: number) => {
+            // ⭐ Style de fond individuel pour chaque image
+            let slideBackgroundStyle: React.CSSProperties = {};
+            
+            if (image.backgroundType === 'gradient' && image.backgroundValue) {
+              slideBackgroundStyle = { background: image.backgroundValue };
+            } else if (image.backgroundColor && image.backgroundColor !== 'transparent') {
+              slideBackgroundStyle = { backgroundColor: image.backgroundColor };
+            } else {
+              slideBackgroundStyle = { backgroundColor: 'transparent' };
+            }
+            
             const isActive = idx === currentIndex;
+            let transformStyle: React.CSSProperties = {};
+            
+            if (isFade) {
+              transformStyle = {
+                opacity: isActive ? 1 : 0,
+                transition: `opacity ${transitionDuration}ms ease-in-out`,
+              };
+            } else {
+              if (isActive) {
+                transformStyle = {
+                  transform: 'translateX(0)',
+                  transition: `transform ${transitionDuration}ms ease-in-out`,
+                };
+              } else {
+                if (idx === prevIndex) {
+                  transformStyle = {
+                    transform: 'translateX(-100%)',
+                    transition: `transform ${transitionDuration}ms ease-in-out`,
+                  };
+                } else if (idx === nextIndex) {
+                  transformStyle = {
+                    transform: 'translateX(100%)',
+                    transition: `transform ${transitionDuration}ms ease-in-out`,
+                  };
+                } else {
+                  transformStyle = {
+                    transform: 'translateX(100%)',
+                    transition: 'none',
+                  };
+                }
+              }
+            }
+            
             return (
-              <div key={idx} className={`absolute inset-0 w-full h-full ${transitionClass}`} style={{
-                opacity: transitionEffect === 'fade' ? (isActive ? 1 : 0) : 1,
-                transform: transitionEffect === 'slide' ? `translateX(${(idx - currentIndex) * 100}%)` : 'none',
-                transition: 'all 0.5s ease-out',
-              }}>
-                {isActive && !imageErrors[idx] && image.url ? (
-                  <img src={image.url} alt={image.alt || `Slide ${idx + 1}`} style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))} draggable={false} />
-                ) : isActive && imageErrors[idx] ? (
-                  <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500">
-                    <div className="text-center"><div className="text-2xl mb-1">🖼️</div><div className="text-xs">Image non trouvée</div></div>
+              <div 
+                key={idx} 
+                className="absolute inset-0 w-full h-full"
+                style={{ ...slideBackgroundStyle, ...transformStyle }}
+              >
+                {!imageErrors[idx] && image.url ? (
+                  <img 
+                    src={image.url} 
+                    alt={image.alt || `Slide ${idx + 1}`} 
+                    style={imageStyle}
+                    onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))}
+                    draggable={false}
+                  />
+                ) : !imageErrors[idx] && !image.url ? (
+                  <div className="w-full h-full flex items-center justify-center text-gray-500" style={slideBackgroundStyle}>
+                    <div className="text-center">
+                      <div className="text-2xl mb-1">🖼️</div>
+                      <div className="text-xs">URL manquante</div>
+                    </div>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-500" style={slideBackgroundStyle}>
+                    <div className="text-center">
+                      <div className="text-2xl mb-1">🖼️</div>
+                      <div className="text-xs">Image non trouvée</div>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -531,13 +606,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     } else if (singleImage && !imageErrors[-1]) {
       return <img src={singleImage} alt="Bannière" style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} draggable={false} />;
     } else {
-      let bgStyle: React.CSSProperties = {};
-      if (props.backgroundType === 'gradient' && props.backgroundValue) {
-        bgStyle = { background: props.backgroundValue };
-      } else {
-        bgStyle = { backgroundColor: props.backgroundColor || '#1e1e2f' };
-      }
-      return <div className="absolute inset-0" style={bgStyle} />;
+      return null;
     }
   };
 
@@ -573,7 +642,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative w-full h-full">
+      <div className="relative w-full h-full" style={defaultBackgroundStyle}>
         {/* Image */}
         <div className="absolute inset-0 overflow-hidden" onMouseDown={handleImageMouseDown} style={{ cursor: isEditing ? 'grab' : 'default' }}>
           {renderImage()}
@@ -649,9 +718,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
                     wordBreak: 'break-word',
                     overflowWrap: 'break-word',
                     transition: isResizing ? 'none' : 'all 0.1s ease',
-                    // ⭐ CONTOUR DE TEXTE (text stroke)
                     WebkitTextStroke: props.textStrokeWidth ? `${props.textStrokeWidth}px ${props.textStrokeColor || '#000000'}` : '0px',
-                    WebkitTextStrokeColor: props.textStrokeColor || '#000000',
                     textShadow: props.textShadow || '2px 2px 4px rgba(0,0,0,0.3)',
                     ...(props?.titleGradient ? { backgroundImage: props.titleGradient, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } : { color: props.titleColor || '#ffffff' }),
                   }}
@@ -662,7 +729,6 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
                     {props.title || shop?.name || 'Bienvenue'}
                   </h1>
                   
-                  {/* Poignées de redimensionnement */}
                   {isSelected && !isEditing && !isResizing && !resizingText && (
                     <>
                       <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
@@ -683,7 +749,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
               </div>
             )}
 
-            {/* SOUS-TITRE - avec contour de texte */}
+            {/* SOUS-TITRE */}
             {showSubtitle && (
               <div className="absolute" style={{ left: `${subtitlePosition.x}%`, top: `${subtitlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
                 <div className="relative" style={{ 
@@ -709,9 +775,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
                     wordBreak: 'break-word',
                     overflowWrap: 'break-word',
                     transition: isResizing ? 'none' : 'all 0.1s ease',
-                    // ⭐ CONTOUR DE TEXTE (text stroke)
                     WebkitTextStroke: props.subtitleTextStrokeWidth ? `${props.subtitleTextStrokeWidth}px ${props.subtitleTextStrokeColor || '#000000'}` : '0px',
-                    WebkitTextStrokeColor: props.subtitleTextStrokeColor || '#000000',
                     textShadow: props.subtitleTextShadow || '1px 1px 2px rgba(0,0,0,0.3)',
                   }}
                   contentEditable={isSelected && !isResizing && !resizingText}
@@ -721,7 +785,6 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
                     {props.subtitle || shop?.description || 'Découvrez notre collection exclusive'}
                   </p>
                   
-                  {/* Poignées de redimensionnement */}
                   {isSelected && !isEditing && !isResizing && !resizingText && (
                     <>
                       <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
@@ -742,7 +805,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
               </div>
             )}
 
-            {/* BOUTON - avec contour de texte */}
+            {/* BOUTON */}
             {showButton && (
               <div className="absolute" style={{ left: `${buttonPosition.x}%`, top: `${buttonPosition.y}%`, transform: 'translate(-50%, -50%)' }}>
                 <div className="relative" style={{ 
@@ -770,9 +833,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
                     opacity: textOpacity,
                     whiteSpace: 'normal',
                     wordBreak: 'break-word',
-                    // ⭐ CONTOUR DE TEXTE (text stroke) pour le bouton
                     WebkitTextStroke: props.buttonTextStrokeWidth ? `${props.buttonTextStrokeWidth}px ${props.buttonTextStrokeColor || '#000000'}` : '0px',
-                    WebkitTextStrokeColor: props.buttonTextStrokeColor || '#000000',
                     textShadow: props.buttonTextShadow || 'none',
                   }}
                   contentEditable={isSelected && !isResizing && !resizingText}
@@ -782,7 +843,6 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
                     {props.buttonText || 'Explorer'}
                   </button>
                   
-                  {/* Poignées de redimensionnement */}
                   {isSelected && !isEditing && !isResizing && !resizingText && (
                     <>
                       <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
