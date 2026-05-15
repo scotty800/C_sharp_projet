@@ -1,8 +1,10 @@
 'use client';
 
-import Image from 'next/image';
-import { useState, useEffect, useCallback } from 'react';
-import { FiChevronLeft, FiChevronRight, FiCircle } from 'react-icons/fi';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { FiChevronLeft, FiChevronRight, FiPlus, FiTrash2, FiMove, FiX, FiUpload } from 'react-icons/fi';
+import { assetsService } from '@/services/api/assets';
+import { getImageUrl } from '@/utils/imageUtils';
+import toast from 'react-hot-toast';
 
 interface Props {
   shop: any;
@@ -12,258 +14,997 @@ interface Props {
   onSelect: () => void;
   onUpdate: (updates: any) => void;
   textOpacity?: number;
+  isResizing?: boolean;
+  shopId?: number;
 }
 
-export function CarouselBannerBlock({ shop, block, customization, isSelected, onSelect, onUpdate, textOpacity = 1 }: Props) {
+export function CarouselBannerBlock({ shop, block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing = false, shopId }: Props) {
   const { props } = block;
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
+  
+  // ⭐ États pour l'affichage
+  const [showTitle, setShowTitle] = useState(props.showTitle !== undefined ? props.showTitle : true);
+  const [showSubtitle, setShowSubtitle] = useState(props.showSubtitle !== undefined ? props.showSubtitle : true);
+  const [showButton, setShowButton] = useState(props.showButton !== undefined ? props.showButton : true);
+  
+  // ⭐ Positions
+  const [titlePosition, setTitlePosition] = useState(props.titlePosition || { x: 50, y: 30 });
+  const [subtitlePosition, setSubtitlePosition] = useState(props.subtitlePosition || { x: 50, y: 50 });
+  const [buttonPosition, setButtonPosition] = useState(props.buttonPosition || { x: 50, y: 70 });
+  
+  // ⭐ Dimensions des conteneurs
+  const [titleWidth, setTitleWidth] = useState(props.titleWidth || 300);
+  const [subtitleWidth, setSubtitleWidth] = useState(props.subtitleWidth || 300);
+  const [buttonWidth, setButtonWidth] = useState(props.buttonWidth || 200);
+  
+  // ⭐ États pour le drag
+  const [draggingElement, setDraggingElement] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
+  // ⭐ États pour le redimensionnement
+  const [resizingText, setResizingText] = useState<string | null>(null);
+  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
+  const [resizeStart, setResizeStart] = useState({ width: 0, fontSize: 0 });
+  const [resizeMouseStart, setResizeMouseStart] = useState({ x: 0, y: 0 });
+  
+  // ⭐ Références
+  const editingImageIndexRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // ⭐ Édition image
+  const [isEditing, setIsEditing] = useState(false);
+  const [editOffsetX, setEditOffsetX] = useState(0);
+  const [editOffsetY, setEditOffsetY] = useState(0);
+  const [editZoom, setEditZoom] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
 
-  // Récupérer les images du carrousel
+  // ⭐ GESTION DES IMAGES DU CARROUSEL
+  const [showImageManager, setShowImageManager] = useState(false);
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [newImageAlt, setNewImageAlt] = useState('');
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
+
   const images = props.images || [];
-  const hasImages = images.length > 0;
-  const autoPlay = props.autoPlay !== false;
-  const intervalTime = props.intervalTime || 5000;
-  const showArrows = props.showArrows !== false;
-  const showDots = props.showDots !== false;
-  const transitionEffect = props.transitionEffect || 'fade'; // fade, slide
-
-  // Auto-défilement
+  const hasMultipleImages = images.length > 1;
+  
+  // ⭐ Récupérer la couleur de fond du bloc parent (définie dans ColorsPanel)
+  const blockBackgroundColor = props.backgroundColor;
+  const blockBackgroundType = props.backgroundType;
+  const blockBackgroundValue = props.backgroundValue;
+  
+  // ⭐ Diffusion de l'index actuel pour le panel couleurs
   useEffect(() => {
-    if (!autoPlay || !hasImages || isHovered) return;
+    const event = new CustomEvent('carouselIndexChange', { detail: currentIndex });
+    window.dispatchEvent(event);
+  }, [currentIndex]);
+  
+  // ⭐ Ajouter une image par URL (avec détection de transparence)
+  const addImage = () => {
+    if (!newImageUrl.trim()) return;
     
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % images.length);
-    }, intervalTime);
+    const isTransparentUrl = newImageUrl.toLowerCase().includes('.png') || 
+                              newImageUrl.toLowerCase().includes('.webp');
     
-    return () => clearInterval(interval);
-  }, [autoPlay, hasImages, intervalTime, isHovered]);
-
-  // Navigation manuelle
-  const goToPrevious = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
-  }, [images.length]);
-
-  const goToNext = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % images.length);
-  }, [images.length]);
-
-  const goToSlide = (index: number) => {
-    setCurrentIndex(index);
+    const newImage = {
+      url: newImageUrl,
+      alt: newImageAlt || `Slide ${images.length + 1}`,
+      crop: { x: 0, y: 0, scale: 1 },
+      backgroundColor: isTransparentUrl ? 'transparent' : null,
+      backgroundType: isTransparentUrl ? 'solid' : null,
+    };
+    
+    const newImages = [...images, newImage];
+    onUpdate({ images: newImages });
+    setNewImageUrl('');
+    setNewImageAlt('');
   };
 
-  // Style conteneur
-  const containerStyle: React.CSSProperties = {
-    position: 'relative',
+  // ⭐ Supprimer une image
+  const removeImage = (index: number) => {
+    const newImages = images.filter((_: any, i: number) => i !== index);
+    onUpdate({ images: newImages });
+    if (currentIndex >= newImages.length && newImages.length > 0) {
+      setCurrentIndex(newImages.length - 1);
+    } else if (newImages.length === 0) {
+      setCurrentIndex(0);
+    }
+  };
+
+  // ⭐ Upload depuis l'ordinateur avec détection de transparence
+  const handleImageUpload = async (files: FileList) => {
+    if (!shopId) {
+      toast.error('ID de boutique non disponible');
+      return;
+    }
+
+    const fileArray = Array.from(files);
+    for (const file of fileArray) {
+      try {
+        const asset = await assetsService.uploadAsset(shopId, file, 'image', 'carousel');
+        const fullUrl = getImageUrl(asset.url);
+        
+        const isTransparentFormat = file.type === 'image/png' || 
+                                     file.type === 'image/webp' ||
+                                     file.name.toLowerCase().endsWith('.png') ||
+                                     file.name.toLowerCase().endsWith('.webp');
+        
+        const newImage = {
+          url: fullUrl,
+          alt: asset.name,
+          crop: { x: 0, y: 0, scale: 1 },
+          backgroundColor: isTransparentFormat ? 'transparent' : null,
+          backgroundType: isTransparentFormat ? 'solid' : null,
+        };
+        
+        const newImages = [...images, newImage];
+        onUpdate({ images: newImages });
+        toast.success(`Image uploadée: ${asset.name}`);
+      } catch (error) {
+        console.error('Erreur upload:', error);
+        toast.error(`Erreur lors de l'upload de ${file.name}`);
+      }
+    }
+  };
+
+  // ⭐ Ouvrir la bibliothèque d'assets avec détection de transparence
+  const openAssetPicker = () => {
+    const event = new CustomEvent('openAssetPickerForCarousel', { 
+      detail: { 
+        callback: (asset: any) => {
+          const fullUrl = getImageUrl(asset.url);
+          
+          const isTransparentFormat = asset.url?.toLowerCase().includes('.png') || 
+                                       asset.url?.toLowerCase().includes('.webp') ||
+                                       asset.type === 'image/png' ||
+                                       asset.type === 'image/webp';
+          
+          const newImage = {
+            url: fullUrl,
+            alt: asset.name,
+            crop: { x: 0, y: 0, scale: 1 },
+            backgroundColor: isTransparentFormat ? 'transparent' : null,
+            backgroundType: isTransparentFormat ? 'solid' : null,
+          };
+          
+          const newImages = [...images, newImage];
+          onUpdate({ images: newImages });
+        }
+      } 
+    });
+    window.dispatchEvent(event);
+  };
+
+  // ⭐ Drag & Drop pour réorganiser les images
+  const handleImageDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedImageIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleImageDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedImageIndex === null || draggedImageIndex === index) return;
+    
+    const newImages = [...images];
+    const [draggedItem] = newImages.splice(draggedImageIndex, 1);
+    newImages.splice(index, 0, draggedItem);
+    
+    onUpdate({ images: newImages });
+    setDraggedImageIndex(index);
+  };
+
+  const handleImageDragEnd = () => {
+    setDraggedImageIndex(null);
+  };
+
+  // ⭐ Synchronisation
+  useEffect(() => {
+    setShowTitle(props.showTitle !== undefined ? props.showTitle : true);
+    setShowSubtitle(props.showSubtitle !== undefined ? props.showSubtitle : true);
+    setShowButton(props.showButton !== undefined ? props.showButton : true);
+    setTitlePosition(props.titlePosition || { x: 50, y: 30 });
+    setSubtitlePosition(props.subtitlePosition || { x: 50, y: 50 });
+    setButtonPosition(props.buttonPosition || { x: 50, y: 70 });
+    setTitleWidth(props.titleWidth || 300);
+    setSubtitleWidth(props.subtitleWidth || 300);
+    setButtonWidth(props.buttonWidth || 200);
+  }, [props]);
+
+  // ⭐ Toggles
+  const toggleTitle = () => { const newValue = !showTitle; setShowTitle(newValue); onUpdate({ showTitle: newValue }); };
+  const toggleSubtitle = () => { const newValue = !showSubtitle; setShowSubtitle(newValue); onUpdate({ showSubtitle: newValue }); };
+  const toggleButton = () => { const newValue = !showButton; setShowButton(newValue); onUpdate({ showButton: newValue }); };
+
+  // ⭐ Positions
+  const updateTitlePosition = (x: number, y: number) => { const newPos = { x, y }; setTitlePosition(newPos); onUpdate({ titlePosition: newPos }); };
+  const updateSubtitlePosition = (x: number, y: number) => { const newPos = { x, y }; setSubtitlePosition(newPos); onUpdate({ subtitlePosition: newPos }); };
+  const updateButtonPosition = (x: number, y: number) => { const newPos = { x, y }; setButtonPosition(newPos); onUpdate({ buttonPosition: newPos }); };
+
+  // ⭐ Dimensions largeur
+  const updateTitleWidth = (width: number) => { setTitleWidth(width); onUpdate({ titleWidth: width }); };
+  const updateSubtitleWidth = (width: number) => { setSubtitleWidth(width); onUpdate({ subtitleWidth: width }); };
+  const updateButtonWidth = (width: number) => { setButtonWidth(width); onUpdate({ buttonWidth: width }); };
+
+  // ⭐ DRAG
+  const handleTitleMouseDown = (e: React.MouseEvent) => {
+    if (isEditing) return;
+    e.stopPropagation();
+    setDraggingElement('title');
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: (e.clientX - rect.left) / rect.width * 100 - titlePosition.x,
+        y: (e.clientY - rect.top) / rect.height * 100 - titlePosition.y,
+      });
+    }
+  };
+
+  const handleSubtitleMouseDown = (e: React.MouseEvent) => {
+    if (isEditing) return;
+    e.stopPropagation();
+    setDraggingElement('subtitle');
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: (e.clientX - rect.left) / rect.width * 100 - subtitlePosition.x,
+        y: (e.clientY - rect.top) / rect.height * 100 - subtitlePosition.y,
+      });
+    }
+  };
+
+  const handleButtonMouseDown = (e: React.MouseEvent) => {
+    if (isEditing) return;
+    e.stopPropagation();
+    setDraggingElement('button');
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: (e.clientX - rect.left) / rect.width * 100 - buttonPosition.x,
+        y: (e.clientY - rect.top) / rect.height * 100 - buttonPosition.y,
+      });
+    }
+  };
+
+  // ⭐ REDIMENSIONNEMENT
+  const handleResizeStart = (e: React.MouseEvent, element: string, direction: string) => {
+    if (isEditing) return;
+    e.stopPropagation();
+    setResizingText(element);
+    setResizeDirection(direction);
+    
+    let currentWidth = 0;
+    let currentFontSize = 0;
+    
+    if (element === 'title') {
+      currentWidth = titleWidth;
+      currentFontSize = props.titleFontSize || 48;
+    } else if (element === 'subtitle') {
+      currentWidth = subtitleWidth;
+      currentFontSize = props.subtitleFontSize || 18;
+    } else {
+      currentWidth = buttonWidth;
+      currentFontSize = props.buttonFontSize || 16;
+    }
+    
+    setResizeStart({ width: currentWidth, fontSize: currentFontSize });
+    setResizeMouseStart({ x: e.clientX, y: e.clientY });
+  };
+
+  // ⭐ Mouvement global drag
+  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+    if (!draggingElement || isEditing) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    let newX = (e.clientX - rect.left) / rect.width * 100 - dragOffset.x;
+    let newY = (e.clientY - rect.top) / rect.height * 100 - dragOffset.y;
+    newX = Math.max(5, Math.min(95, newX));
+    newY = Math.max(5, Math.min(95, newY));
+    if (draggingElement === 'title') updateTitlePosition(newX, newY);
+    else if (draggingElement === 'subtitle') updateSubtitlePosition(newX, newY);
+    else if (draggingElement === 'button') updateButtonPosition(newX, newY);
+  }, [draggingElement, isEditing, dragOffset]);
+
+  // ⭐ Mouvement global redimensionnement
+  const handleResizeMove = useCallback((e: MouseEvent) => {
+    if (!resizingText || !resizeDirection) return;
+    const dx = e.clientX - resizeMouseStart.x;
+    let newWidth = resizeStart.width;
+    let newFontSize = resizeStart.fontSize;
+    
+    if (resizeDirection === 'ne' || resizeDirection === 'nw' || 
+        resizeDirection === 'se' || resizeDirection === 'sw') {
+      let ratio = 1;
+      if (resizeDirection === 'ne' || resizeDirection === 'se') {
+        ratio = (resizeStart.width + dx) / Math.max(1, resizeStart.width);
+      } else if (resizeDirection === 'nw' || resizeDirection === 'sw') {
+        ratio = (resizeStart.width - dx) / Math.max(1, resizeStart.width);
+      }
+      ratio = Math.max(0.3, Math.min(5, ratio));
+      
+      newWidth = Math.max(50, Math.min(3000, Math.floor(resizeStart.width * ratio)));
+      newFontSize = Math.max(10, Math.min(200, Math.floor(resizeStart.fontSize * ratio)));
+      
+      if (resizingText === 'title') {
+        updateTitleWidth(Math.round(newWidth));
+        onUpdate({ titleFontSize: Math.round(newFontSize) });
+      } else if (resizingText === 'subtitle') {
+        updateSubtitleWidth(Math.round(newWidth));
+        onUpdate({ subtitleFontSize: Math.round(newFontSize) });
+      } else if (resizingText === 'button') {
+        updateButtonWidth(Math.round(newWidth));
+        onUpdate({ buttonFontSize: Math.round(newFontSize) });
+      }
+    }
+    else if (resizeDirection === 'e' || resizeDirection === 'w') {
+      if (resizeDirection === 'e') {
+        newWidth = Math.max(50, Math.min(3000, resizeStart.width + dx));
+      } else if (resizeDirection === 'w') {
+        newWidth = Math.max(50, Math.min(3000, resizeStart.width - dx));
+      }
+      
+      if (resizingText === 'title') {
+        updateTitleWidth(newWidth);
+      } else if (resizingText === 'subtitle') {
+        updateSubtitleWidth(newWidth);
+      } else if (resizingText === 'button') {
+        updateButtonWidth(newWidth);
+      }
+    }
+  }, [resizingText, resizeDirection, resizeMouseStart, resizeStart, onUpdate, updateTitleWidth, updateSubtitleWidth, updateButtonWidth]);
+
+  const handleGlobalMouseUp = useCallback(() => {
+    setDraggingElement(null);
+    setResizingText(null);
+    setResizeDirection(null);
+  }, []);
+
+  useEffect(() => {
+    if (draggingElement && !isEditing) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleGlobalMouseMove);
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [draggingElement, isEditing, handleGlobalMouseMove, handleGlobalMouseUp]);
+
+  useEffect(() => {
+    if (resizingText) {
+      window.addEventListener('mousemove', handleResizeMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleResizeMove);
+        window.removeEventListener('mouseup', handleGlobalMouseUp);
+      };
+    }
+  }, [resizingText, handleResizeMove, handleGlobalMouseUp]);
+
+  // ⭐ Carrousel et crops
+  const [savedCrops, setSavedCrops] = useState<Record<number, { x: number; y: number; scale: number }>>(() => {
+    const crops: Record<number, { x: number; y: number; scale: number }> = {};
+    const imgList = props.images || [];
+    imgList.forEach((img: any, idx: number) => {
+      crops[idx] = img?.crop || { x: 0, y: 0, scale: 1 };
+    });
+    return crops;
+  });
+  
+  const autoPlay = props.autoPlay !== false && hasMultipleImages;
+  const intervalTime = props.intervalTime || 5000;
+  const showArrows = props.showArrows !== false && hasMultipleImages;
+  const showDots = props.showDots !== false && hasMultipleImages;
+  const transitionEffect = props.transitionEffect || 'fade';
+  const transitionDuration = 300;
+
+  useEffect(() => {
+    if (!autoPlay || !hasMultipleImages || isHovered || isResizing || isEditing) return;
+    const interval = setInterval(() => {
+      if (!isEditing) setCurrentIndex((prev) => (prev + 1) % images.length);
+    }, intervalTime);
+    return () => clearInterval(interval);
+  }, [autoPlay, hasMultipleImages, intervalTime, isHovered, images.length, isResizing, isEditing]);
+
+  const goToPrevious = useCallback(() => { if (isEditing) return; setCurrentIndex((prev) => (prev - 1 + images.length) % images.length); }, [images.length, isEditing]);
+  const goToNext = useCallback(() => { if (isEditing) return; setCurrentIndex((prev) => (prev + 1) % images.length); }, [images.length, isEditing]);
+  const goToSlide = (index: number) => { if (isEditing) return; setCurrentIndex(index); };
+
+  const getCurrentCrop = useCallback(() => savedCrops[currentIndex] || { x: 0, y: 0, scale: 1 }, [savedCrops, currentIndex]);
+  const saveCurrentCrop = useCallback((x: number, y: number, scale: number) => {
+    const newCrops = { ...savedCrops, [currentIndex]: { x, y, scale } };
+    setSavedCrops(newCrops);
+    const newImages = [...images];
+    newImages[currentIndex] = { ...newImages[currentIndex], crop: { x, y, scale } };
+    onUpdate({ images: newImages });
+  }, [images, currentIndex, savedCrops, onUpdate]);
+
+  const currentImageUrl = images[currentIndex]?.url;
+
+  const handleDoubleClick = useCallback(() => {
+    if (currentImageUrl && !imageErrors[currentIndex]) {
+      const currentCrop = getCurrentCrop();
+      setEditOffsetX(currentCrop.x);
+      setEditOffsetY(currentCrop.y);
+      setEditZoom(currentCrop.scale);
+      editingImageIndexRef.current = currentIndex;
+      setIsEditing(true);
+    }
+  }, [currentImageUrl, imageErrors, currentIndex, getCurrentCrop]);
+
+  const exitEditMode = useCallback(() => {
+    saveCurrentCrop(editOffsetX, editOffsetY, editZoom);
+    setIsEditing(false);
+    setIsDragging(false);
+    editingImageIndexRef.current = null;
+  }, [editOffsetX, editOffsetY, editZoom, saveCurrentCrop]);
+
+  const cancelEditMode = useCallback(() => {
+    setIsEditing(false);
+    setIsDragging(false);
+    editingImageIndexRef.current = null;
+  }, []);
+
+  const handleImageMouseDown = (e: React.MouseEvent) => {
+    if (!isEditing) return;
+    e.stopPropagation();
+    e.preventDefault();
+    setIsDragging(true);
+    dragStart.current = { x: e.clientX, y: e.clientY, startX: editOffsetX, startY: editOffsetY };
+  };
+
+  const handleImageMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStart.current.x;
+    const dy = e.clientY - dragStart.current.y;
+    setEditOffsetX(Math.max(-500, Math.min(500, dragStart.current.startX + dx)));
+    setEditOffsetY(Math.max(-500, Math.min(500, dragStart.current.startY + dy)));
+  }, [isDragging]);
+
+  const handleImageMouseUp = useCallback(() => { if (isDragging) setIsDragging(false); }, [isDragging]);
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleImageMouseMove);
+      window.addEventListener('mouseup', handleImageMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleImageMouseMove);
+        window.removeEventListener('mouseup', handleImageMouseUp);
+      };
+    }
+  }, [isDragging, handleImageMouseMove, handleImageMouseUp]);
+
+  const handleZoomIn = useCallback(() => setEditZoom(prev => Math.min(4, prev + 0.2)), []);
+  const handleZoomOut = useCallback(() => setEditZoom(prev => Math.max(1, prev - 0.2)), []);
+  const handleReset = useCallback(() => { setEditOffsetX(0); setEditOffsetY(0); setEditZoom(1); }, []);
+
+  const getImageTransform = () => {
+    if (isEditing) return `translate(-50%, -50%) translate(${editOffsetX}px, ${editOffsetY}px) scale(${editZoom})`;
+    if (isResizing) return `translate(-50%, -50%) scale(1)`;
+    const currentCrop = getCurrentCrop();
+    return `translate(-50%, -50%) translate(${currentCrop.x}px, ${currentCrop.y}px) scale(${currentCrop.scale})`;
+  };
+
+  const imageStyle = {
+    position: 'absolute' as const,
+    top: '50%',
+    left: '50%',
     width: '100%',
     height: '100%',
-    overflow: 'hidden',
+    transform: getImageTransform(),
+    objectFit: 'cover' as const,
+    cursor: isEditing && isDragging ? 'grabbing' : (isEditing ? 'grab' : 'default'),
+    transition: isResizing || isEditing ? 'none' : 'transform 0.2s ease',
+    willChange: 'transform',
   };
 
-  // Style du contenu (texte superposé)
-  const contentStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 20,
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: props.textPosition === 'center' ? 'center' : 'flex-start',
-    padding: '0 2rem',
-    color: '#ffffff',
-    textAlign: props.textPosition === 'center' ? 'center' : 'left',
-  };
-
-  const titleStyle: React.CSSProperties = {
-    fontFamily: props.titleFont || 'Poppins',
-    fontSize: props.titleFontSize || '48px',
-    fontWeight: props.titleFontWeight || '700',
-    lineHeight: 1.2,
-    marginBottom: '1rem',
-    opacity: textOpacity,
-    color: props.titleColor || '#ffffff',
-    textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
-  };
-
-  const subtitleStyle: React.CSSProperties = {
-    fontSize: props.subtitleFontSize || '18px',
-    fontFamily: props.subtitleFont || 'Inter',
-    fontWeight: props.subtitleFontWeight || '400',
-    color: props.subtitleColor || '#ffffff',
-    marginBottom: '1.5rem',
-    textShadow: '1px 1px 2px rgba(0,0,0,0.3)',
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    fontFamily: props.buttonFont || 'Inter',
-    fontSize: props.buttonFontSize || '16px',
-    fontWeight: props.buttonFontWeight || '500',
-    backgroundColor: props.buttonBackgroundColor || '#2563EB',
-    color: props.buttonTextColor || '#ffffff',
-    padding: '0.75rem 1.5rem',
-    borderRadius: props.buttonBorderRadius || '0.5rem',
-    border: 'none',
-    cursor: 'pointer',
-    transition: 'transform 0.2s ease',
-    display: 'inline-block',
-  };
-
-  const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => {
-    onUpdate({ title: e.currentTarget.innerText });
-  };
-
-  const handleSubtitleBlur = (e: React.FocusEvent<HTMLParagraphElement>) => {
-    onUpdate({ subtitle: e.currentTarget.innerText });
-  };
-
-  const handleButtonTextBlur = (e: React.FocusEvent<HTMLButtonElement>) => {
-    onUpdate({ buttonText: e.currentTarget.innerText });
-  };
-
-  // Si pas d'images, afficher un placeholder
-  if (!hasImages) {
+  // ⭐ RENDER IMAGE - CORRECTION POUR QUE LA COULEUR DU BLOC S'APPLIQUE AUX IMAGES TRANSPARENTES
+  const renderImage = () => {
+    if (images.length === 0) return null;
+    
+    const isFade = transitionEffect === 'fade';
+    const prevIndex = (currentIndex - 1 + images.length) % images.length;
+    const nextIndex = (currentIndex + 1) % images.length;
+    
     return (
-      <div
-        className={`relative cursor-pointer transition-all w-full h-full bg-gray-800 flex items-center justify-center ${
-          isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''
-        }`}
-        onClick={onSelect}
-        style={containerStyle}
-      >
-        <div className="text-center text-gray-400">
-          <div className="text-4xl mb-2">🖼️</div>
-          <p className="text-sm">Ajoutez des images au carrousel</p>
-          {isSelected && (
-            <p className="text-xs mt-2 text-primary">Cliquez sur "Gérer les images" dans les propriétés</p>
-          )}
+      <div className="absolute inset-0">
+        {images.map((image: any, idx: number) => {
+          // ⭐ STYLE DE FOND : priorité à l'image, sinon le bloc parent
+          let backgroundStyle: React.CSSProperties = {};
+          
+          // ⭐ 1. Si l'image a son propre fond (géré dans la gestion des images)
+          if (image.backgroundType === 'gradient' && image.backgroundValue) {
+            backgroundStyle = { background: image.backgroundValue };
+          }
+          else if (image.backgroundColor && image.backgroundColor !== 'transparent') {
+            backgroundStyle = { backgroundColor: image.backgroundColor };
+          }
+          // ⭐ 2. Sinon, utiliser le fond du bloc parent (défini dans ColorsPanel)
+          else if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
+            backgroundStyle = { background: blockBackgroundValue };
+          }
+          else if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
+            backgroundStyle = { backgroundColor: blockBackgroundColor };
+          }
+          // ⭐ 3. Par défaut : transparent
+          else {
+            backgroundStyle = { backgroundColor: 'transparent' };
+          }
+          
+          const isActive = idx === currentIndex;
+          let transformStyle: React.CSSProperties = {};
+          
+          if (isFade) {
+            transformStyle = {
+              opacity: isActive ? 1 : 0,
+              transition: `opacity ${transitionDuration}ms ease-in-out`,
+            };
+          } else {
+            if (isActive) {
+              transformStyle = {
+                transform: 'translateX(0)',
+                transition: `transform ${transitionDuration}ms ease-in-out`,
+              };
+            } else {
+              if (idx === prevIndex) {
+                transformStyle = {
+                  transform: 'translateX(-100%)',
+                  transition: `transform ${transitionDuration}ms ease-in-out`,
+                };
+              } else if (idx === nextIndex) {
+                transformStyle = {
+                  transform: 'translateX(100%)',
+                  transition: `transform ${transitionDuration}ms ease-in-out`,
+                };
+              } else {
+                transformStyle = {
+                  transform: 'translateX(100%)',
+                  transition: 'none',
+                };
+              }
+            }
+          }
+          
+          return (
+            <div 
+              key={idx} 
+              className="absolute inset-0 w-full h-full"
+              style={{ ...backgroundStyle, ...transformStyle }}
+            >
+              {!imageErrors[idx] && image.url ? (
+                <img 
+                  src={image.url} 
+                  alt={image.alt || `Slide ${idx + 1}`} 
+                  style={imageStyle}
+                  onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))}
+                  draggable={false}
+                />
+              ) : !imageErrors[idx] && !image.url ? (
+                <div className="w-full h-full flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <div className="text-2xl mb-1">🖼️</div>
+                    <div className="text-xs">URL manquante</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-500">
+                  <div className="text-center">
+                    <div className="text-2xl mb-1">🖼️</div>
+                    <div className="text-xs">Image non trouvée</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const overlayOpacity = props.overlayOpacity || 30;
+  const overlayColor = props.overlayColor || '#000000';
+  const currentCrop = getCurrentCrop();
+  const zoomPercent = Math.round((isEditing ? editZoom : currentCrop.scale) * 100);
+
+  const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => onUpdate({ title: e.currentTarget.innerText });
+  const handleSubtitleBlur = (e: React.FocusEvent<HTMLParagraphElement>) => onUpdate({ subtitle: e.currentTarget.innerText });
+  const handleButtonTextBlur = (e: React.FocusEvent<HTMLButtonElement>) => onUpdate({ buttonText: e.currentTarget.innerText });
+
+  if (images.length === 0 && !isEditing) {
+    return (
+      <div className={`relative cursor-pointer transition-all w-full h-full bg-gray-800 flex items-center justify-center ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''}`} onClick={onSelect}>
+        <div className="text-center text-gray-400 p-4">
+          <div className="text-4xl mb-2">🎠</div>
+          <p className="text-sm">Mode carrousel activé</p>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowImageManager(true); }}
+            className="mt-2 px-3 py-1 bg-primary text-white text-xs rounded-lg hover:bg-primary/80"
+          >
+            + Ajouter des images
+          </button>
         </div>
       </div>
     );
   }
 
-  const currentImage = images[currentIndex];
-  const transitionClass = transitionEffect === 'fade' ? 'transition-opacity duration-500' : 'transition-transform duration-500 ease-out';
-
   return (
-    <div
-      className={`relative cursor-pointer transition-all w-full h-full ${
-        isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''
-      }`}
-      style={containerStyle}
-      onClick={onSelect}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Images du carrousel */}
-      <div className="relative w-full h-full overflow-hidden">
-        {images.map((image: any, idx: number) => (
-          <div
-            key={idx}
-            className={`absolute inset-0 w-full h-full ${transitionClass}`}
-            style={{
-              opacity: transitionEffect === 'fade' ? (idx === currentIndex ? 1 : 0) : 1,
-              transform: transitionEffect === 'slide' ? `translateX(${(idx - currentIndex) * 100}%)` : 'none',
-              transition: 'all 0.5s ease-out',
-            }}
-          >
-            {!imageErrors[idx] ? (
-              <img
-                src={image.url}
-                alt={image.alt || `Slide ${idx + 1}`}
-                className="w-full h-full object-cover"
-                onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))}
-              />
-            ) : (
-              <div className="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500">
-                Image non trouvée
-              </div>
-            )}
-            
-            {/* Overlay */}
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundColor: props.overlayColor || '#000000',
-                opacity: (props.overlayOpacity || 30) / 100,
-              }}
-            />
+    <>
+      <div
+        ref={containerRef}
+        className={`relative cursor-pointer transition-all w-full h-full overflow-hidden ${isSelected && !isEditing ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : isHovered && !isEditing ? 'ring-1 ring-gray-300 rounded-lg' : ''}`}
+        onDoubleClick={handleDoubleClick}
+        onClick={onSelect}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <div className="relative w-full h-full">
+          {/* Conteneur des images */}
+          <div className="absolute inset-0">
+            {renderImage()}
           </div>
-        ))}
+          
+          {/* Overlay */}
+          <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: overlayColor, opacity: overlayOpacity / 100 }} />
+
+          {isEditing && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-black/80 rounded-full p-1 shadow-lg">
+              <button onMouseDown={(e) => { e.stopPropagation(); handleZoomOut(); }} className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full text-white font-bold text-lg">−</button>
+              <div className="px-3 py-1 text-white text-sm">{zoomPercent}%</div>
+              <button onMouseDown={(e) => { e.stopPropagation(); handleZoomIn(); }} className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full text-white font-bold text-lg">+</button>
+              <div className="w-px h-6 bg-gray-600 mx-1" />
+              <button onMouseDown={(e) => { e.stopPropagation(); handleReset(); }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 rounded-full text-white text-xs">Reset</button>
+              <div className="w-px h-6 bg-gray-600 mx-1" />
+              <button onMouseDown={(e) => { e.stopPropagation(); exitEditMode(); }} className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded-full text-white text-sm">✓ Terminer</button>
+              <button onMouseDown={(e) => { e.stopPropagation(); cancelEditMode(); }} className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded-full text-white text-sm">✕ Annuler</button>
+            </div>
+          )}
+
+          {!isEditing && !isResizing && showArrows && hasMultipleImages && (
+            <>
+              <button onMouseDown={(e) => { e.stopPropagation(); goToPrevious(); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white"><FiChevronLeft size={24} /></button>
+              <button onMouseDown={(e) => { e.stopPropagation(); goToNext(); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white"><FiChevronRight size={24} /></button>
+            </>
+          )}
+
+          {!isEditing && !isResizing && showDots && hasMultipleImages && (
+            <div className="absolute bottom-4 left-0 right-0 z-30 flex justify-center gap-2">
+              {images.map((_: any, idx: number) => (
+                <button key={idx} onMouseDown={(e) => { e.stopPropagation(); goToSlide(idx); }} className={`transition-all ${idx === currentIndex ? 'w-6 bg-white' : 'w-2 bg-white/50'} h-2 rounded-full`} />
+              ))}
+            </div>
+          )}
+
+          {/* ⭐ TITRE */}
+          {showTitle && (
+            <div className="absolute" style={{ left: `${titlePosition.x}%`, top: `${titlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+              <div className="relative" style={{ 
+                display: 'inline-block',
+                width: `${titleWidth}px`,
+                minWidth: '50px',
+                maxWidth: '3000px',
+                border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+                padding: '4px',
+                borderRadius: '4px',
+                transition: isResizing ? 'none' : 'all 0.1s ease',
+              }}>
+                <h1 className="mb-0" style={{
+                  display: 'block',
+                  width: '100%',
+                  fontFamily: props.titleFont || 'Poppins',
+                  fontSize: `${props.titleFontSize || 48}px`,
+                  fontWeight: props.titleFontWeight || '700',
+                  lineHeight: 1.2,
+                  letterSpacing: '-0.02em',
+                  marginBottom: '0',
+                  opacity: textOpacity,
+                  cursor: 'default',
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'break-word',
+                  textShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  transition: isResizing ? 'none' : 'all 0.1s ease',
+                  ...(props?.titleGradient ? { backgroundImage: props.titleGradient, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } : { color: props.titleColor || '#ffffff' }),
+                }}
+                contentEditable={isSelected && !isResizing && !resizingText}
+                onBlur={handleTitleBlur}
+                onMouseDown={isSelected && !isResizing && !resizingText ? handleTitleMouseDown : undefined}
+                suppressContentEditableWarning>
+                  {props.title || shop?.name || 'Bienvenue'}
+                </h1>
+                
+                {isSelected && !isEditing && !isResizing && !resizingText && (
+                  <>
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'ne')} />
+                    <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'nw')} />
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'se')} />
+                    <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'sw')} />
+                    
+                    <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'e')} />
+                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'w')} />
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ⭐ SOUS-TITRE */}
+          {showSubtitle && (
+            <div className="absolute" style={{ left: `${subtitlePosition.x}%`, top: `${subtitlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+              <div className="relative" style={{ 
+                display: 'inline-block',
+                width: `${subtitleWidth}px`,
+                minWidth: '50px',
+                maxWidth: '3000px',
+                border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+                padding: '4px',
+                borderRadius: '4px',
+                transition: isResizing ? 'none' : 'all 0.1s ease',
+              }}>
+                <p className="mb-0" style={{
+                  display: 'block',
+                  width: '100%',
+                  fontSize: `${props.subtitleFontSize || 18}px`,
+                  fontFamily: props.subtitleFont || 'Inter',
+                  fontWeight: props.subtitleFontWeight || '400',
+                  color: props.subtitleColor || '#ffffff',
+                  opacity: textOpacity,
+                  cursor: 'default',
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'break-word',
+                  textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                  transition: isResizing ? 'none' : 'all 0.1s ease',
+                }}
+                contentEditable={isSelected && !isResizing && !resizingText}
+                onBlur={handleSubtitleBlur}
+                onMouseDown={isSelected && !isResizing && !resizingText ? handleSubtitleMouseDown : undefined}
+                suppressContentEditableWarning>
+                  {props.subtitle || shop?.description || 'Découvrez nos produits'}
+                </p>
+                
+                {isSelected && !isEditing && !isResizing && !resizingText && (
+                  <>
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'ne')} />
+                    <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'nw')} />
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'se')} />
+                    <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'sw')} />
+                    
+                    <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'e')} />
+                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'w')} />
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ⭐ BOUTON */}
+          {showButton && (
+            <div className="absolute" style={{ left: `${buttonPosition.x}%`, top: `${buttonPosition.y}%`, transform: 'translate(-50%, -50%)' }}>
+              <div className="relative" style={{ 
+                display: 'inline-block',
+                width: `${buttonWidth}px`,
+                minWidth: '50px',
+                maxWidth: '3000px',
+                border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
+                padding: '4px',
+                borderRadius: '4px',
+                transition: isResizing ? 'none' : 'all 0.1s ease',
+              }}>
+                <button className="inline-block w-full" style={{
+                  fontFamily: props.buttonFont || 'Inter',
+                  fontSize: `${props.buttonFontSize || 16}px`,
+                  fontWeight: props.buttonFontWeight || '500',
+                  backgroundColor: props.buttonBackgroundColor || '#2563EB',
+                  color: props.buttonTextColor || '#ffffff',
+                  padding: '0.75rem 1rem',
+                  borderRadius: props.buttonBorderRadius || '0.5rem',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s ease',
+                  opacity: textOpacity,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                }}
+                contentEditable={isSelected && !isResizing && !resizingText}
+                onBlur={handleButtonTextBlur}
+                onMouseDown={isSelected && !isResizing && !resizingText ? handleButtonMouseDown : undefined}
+                suppressContentEditableWarning>
+                  {props.buttonText || 'Découvrir'}
+                </button>
+                
+                {isSelected && !isEditing && !isResizing && !resizingText && (
+                  <>
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'ne')} />
+                    <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'nw')} />
+                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'se')} />
+                    <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'sw')} />
+                    
+                    <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'e')} />
+                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'w')} />
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {isSelected && !isEditing && !isResizing && (
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap flex gap-2">
+            <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleTitle(); }}>{showTitle ? '📝 Titre' : '📝 (masqué)'}</span>
+            <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleSubtitle(); }}>{showSubtitle ? '📄 Sous-titre' : '📄 (masqué)'}</span>
+            <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleButton(); }}>{showButton ? '🔘 Bouton' : '🔘 (masqué)'}</span>
+            
+            {/* ⭐ Badge fond de l'image courante ou du bloc */}
+            {(() => {
+              const currentImage = images[currentIndex];
+              if (currentImage?.backgroundType === 'gradient' && currentImage?.backgroundValue) {
+                return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé</span>;
+              }
+              if (currentImage?.backgroundColor && currentImage.backgroundColor !== 'transparent') {
+                return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: currentImage.backgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond</span>;
+              }
+              // ⭐ Si l'image n'a pas de fond, afficher le fond du bloc
+              if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
+                return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé (global)</span>;
+              }
+              if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
+                return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: blockBackgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond (global)</span>;
+              }
+              if (currentImage && (!currentImage.backgroundColor || currentImage.backgroundColor === 'transparent') && !currentImage.backgroundValue) {
+                return <span className="px-1 py-0.5 bg-white/20 rounded text-xs text-white">🔲 Transparent</span>;
+              }
+              return null;
+            })()}
+            
+            <span className="ml-1">🎠 Carrousel ({images.length} images)</span>
+            <span className="px-1 py-0.5 bg-green-600 rounded cursor-pointer hover:bg-green-500" onClick={(e) => { e.stopPropagation(); setShowImageManager(true); }}>📸 Gérer</span>
+            {currentCrop.scale !== 1 && <span className="ml-1 text-yellow-300">(Zoomé {Math.round(currentCrop.scale * 100)}%)</span>}
+            <span className="ml-1 text-yellow-300">🔵Zone+Police (max 200px) 🟢Largeur (max 3000px)</span>
+          </div>
+        )}
       </div>
 
-      {/* Flèches de navigation */}
-      {showArrows && hasImages && images.length > 1 && (
-        <>
-          <button
-            onClick={(e) => { e.stopPropagation(); goToPrevious(); }}
-            className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-all"
-            style={{ opacity: isHovered || isSelected ? 1 : 0.5 }}
-          >
-            <FiChevronLeft size={24} />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); goToNext(); }}
-            className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white transition-all"
-            style={{ opacity: isHovered || isSelected ? 1 : 0.5 }}
-          >
-            <FiChevronRight size={24} />
-          </button>
-        </>
-      )}
+      {/* ⭐ MODAL GESTION DES IMAGES */}
+      {showImageManager && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowImageManager(false)}>
+          <div className="bg-gray-800 rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-4 border-b border-gray-700">
+              <h3 className="text-white font-semibold">Gérer les images du carrousel</h3>
+              <button onClick={() => setShowImageManager(false)} className="text-gray-400 hover:text-white"><FiX size={20} /></button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Liste des images existantes */}
+              <div className="space-y-2">
+                <h4 className="text-white text-sm font-medium">Images ({images.length})</h4>
+                {images.length === 0 ? (
+                  <div className="text-center text-gray-500 py-4">Aucune image</div>
+                ) : (
+                  images.map((image: any, idx: number) => (
+                    <div
+                      key={idx}
+                      draggable
+                      onDragStart={(e) => handleImageDragStart(e, idx)}
+                      onDragOver={(e) => handleImageDragOver(e, idx)}
+                      onDragEnd={handleImageDragEnd}
+                      className={`flex items-center gap-3 p-2 bg-gray-700 rounded-lg cursor-move transition-all ${draggedImageIndex === idx ? 'opacity-50' : ''}`}
+                    >
+                      <FiMove className="text-gray-400 cursor-grab" size={16} />
+                      <div className="w-12 h-12 bg-gray-600 rounded overflow-hidden flex-shrink-0">
+                        {image.url && !imageErrors[idx] ? (
+                          <img src={image.url} alt={image.alt} className="w-full h-full object-cover" onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))} />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">🖼️</div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <input
+                          type="text"
+                          value={image.url || ''}
+                          onChange={(e) => {
+                            const newImages = [...images];
+                            newImages[idx] = { ...image, url: e.target.value };
+                            onUpdate({ images: newImages });
+                          }}
+                          className="w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-xs"
+                          placeholder="URL de l'image"
+                        />
+                        <input
+                          type="text"
+                          value={image.alt || ''}
+                          onChange={(e) => {
+                            const newImages = [...images];
+                            newImages[idx] = { ...image, alt: e.target.value };
+                            onUpdate({ images: newImages });
+                          }}
+                          className="w-full mt-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-xs"
+                          placeholder="Texte alternatif"
+                        />
+                      </div>
+                      <button onClick={() => removeImage(idx)} className="p-1.5 text-red-400 hover:text-red-300 rounded">
+                        <FiTrash2 size={16} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              
+              {/* Ajouter une nouvelle image par URL */}
+              <div className="border-t border-gray-700 pt-4">
+                <h4 className="text-white text-sm font-medium mb-3">Ajouter par URL</h4>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="URL de l'image"
+                    value={newImageUrl}
+                    onChange={(e) => setNewImageUrl(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Texte alternatif (optionnel)"
+                    value={newImageAlt}
+                    onChange={(e) => setNewImageAlt(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+                  />
+                  <button
+                    onClick={addImage}
+                    disabled={!newImageUrl.trim()}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-primary hover:bg-primary/80 text-white rounded-lg transition-colors text-sm disabled:opacity-50"
+                  >
+                    <FiPlus size={16} /> Ajouter l'image
+                  </button>
+                </div>
+              </div>
 
-      {/* Points de navigation (dots) */}
-      {showDots && hasImages && images.length > 1 && (
-        <div className="absolute bottom-4 left-0 right-0 z-30 flex justify-center gap-2">
-          {images.map((_: any, idx: number) => (
-            <button
-              key={idx}
-              onClick={(e) => { e.stopPropagation(); goToSlide(idx); }}
-              className={`transition-all ${idx === currentIndex ? 'w-6 bg-white' : 'w-2 bg-white/50'} h-2 rounded-full`}
-            />
-          ))}
+              {/* Upload depuis l'ordinateur */}
+              <div className="border-t border-gray-700 pt-4">
+                <h4 className="text-white text-sm font-medium mb-3">Upload depuis l'ordinateur</h4>
+                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors">
+                  <FiUpload size={24} className="text-gray-400 mb-2" />
+                  <span className="text-gray-400 text-sm">Cliquer ou glisser des images</span>
+                  <span className="text-gray-500 text-xs mt-1">PNG, JPG, GIF, WebP (max 10MB)</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    multiple
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        handleImageUpload(e.target.files);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-gray-700 flex justify-end">
+              <button onClick={() => setShowImageManager(false)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg">Fermer</button>
+            </div>
+          </div>
         </div>
       )}
-
-      {/* Contenu texte superposé */}
-      <div style={contentStyle}>
-        <h2
-          className="mb-4"
-          style={titleStyle}
-          contentEditable={isSelected}
-          onBlur={handleTitleBlur}
-          suppressContentEditableWarning
-        >
-          {props.title || shop?.name || 'Bienvenue'}
-        </h2>
-        <p
-          className="mb-6 max-w-2xl"
-          style={subtitleStyle}
-          contentEditable={isSelected}
-          onBlur={handleSubtitleBlur}
-          suppressContentEditableWarning
-        >
-          {props.subtitle || shop?.description || 'Découvrez notre sélection'}
-        </p>
-        <button
-          style={buttonStyle}
-          contentEditable={isSelected}
-          onBlur={handleButtonTextBlur}
-          suppressContentEditableWarning
-        >
-          {props.buttonText || 'Découvrir'}
-        </button>
-      </div>
-
-      {/* Label de sélection */}
-      {isSelected && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-purple-500 text-white text-xs px-2 py-0.5 rounded-full z-40 whitespace-nowrap">
-          🎠 Carrousel ({images.length} images)
-        </div>
-      )}
-    </div>
+    </>
   );
 }

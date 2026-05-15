@@ -47,13 +47,17 @@ export default function ColorsPanel({
 }: Props) {
   const [activeTab, setActiveTab] = useState<'solid' | 'gradient' | 'carousel'>('solid');
   const [showExtendedColors, setShowExtendedColors] = useState(false);
+  
+  // ⭐ États pour l'ajout d'images
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [newImageAlt, setNewImageAlt] = useState('');
 
   const isCanvasSelected = isBackgroundSelected;
   const isBlockSelected = !isCanvasSelected && selectedBlock !== null;
   const target = selectedTarget;
   const isBanner = selectedBlock?.type === 'banner';
   const isScreenBanner = selectedBlock?.type === 'screen-banner';
-  const isCarousel = selectedBlock?.props?.isCarousel || false;
+  const isCarouselBanner = selectedBlock?.type === 'carousel-banner';
   const images = selectedBlock?.props?.images || [];
 
   const applySolidColor = useCallback((color: string) => {
@@ -118,6 +122,7 @@ export default function ColorsPanel({
     }
   }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
 
+  // ⭐ Détection de transparence pour l'upload
   const handleImageUpload = async (files: FileList) => {
     if (!shopId) {
       toast.error('ID de boutique non disponible');
@@ -129,7 +134,21 @@ export default function ColorsPanel({
       try {
         const asset = await assetsService.uploadAsset(shopId, file, 'image', 'carousel');
         const fullUrl = getImageUrl(asset.url);
-        const newImages = [...images, { url: fullUrl, alt: asset.name }];
+        
+        const isTransparentFormat = file.type === 'image/png' || 
+                                     file.type === 'image/webp' ||
+                                     file.name.toLowerCase().endsWith('.png') ||
+                                     file.name.toLowerCase().endsWith('.webp');
+        
+        const newImage = {
+          url: fullUrl,
+          alt: asset.name,
+          crop: { x: 0, y: 0, scale: 1 },
+          backgroundColor: isTransparentFormat ? 'transparent' : null,
+          backgroundType: isTransparentFormat ? 'solid' : null,
+        };
+        
+        const newImages = [...images, newImage];
         onUpdateBlock(selectedBlock.id, { images: newImages });
         toast.success(`Image uploadée: ${asset.name}`);
       } catch (error) {
@@ -139,12 +158,27 @@ export default function ColorsPanel({
     }
   };
 
+  // ⭐ Détection de transparence pour la bibliothèque
   const openAssetPicker = () => {
     const event = new CustomEvent('openAssetPickerForCarousel', { 
       detail: { 
         callback: (asset: any) => {
           const fullUrl = getImageUrl(asset.url);
-          const newImages = [...images, { url: fullUrl, alt: asset.name }];
+          
+          const isTransparentFormat = asset.url?.toLowerCase().includes('.png') || 
+                                       asset.url?.toLowerCase().includes('.webp') ||
+                                       asset.type === 'image/png' ||
+                                       asset.type === 'image/webp';
+          
+          const newImage = {
+            url: fullUrl,
+            alt: asset.name,
+            crop: { x: 0, y: 0, scale: 1 },
+            backgroundColor: isTransparentFormat ? 'transparent' : null,
+            backgroundType: isTransparentFormat ? 'solid' : null,
+          };
+          
+          const newImages = [...images, newImage];
           onUpdateBlock(selectedBlock.id, { images: newImages });
         }
       } 
@@ -214,13 +248,6 @@ export default function ColorsPanel({
     return 100;
   }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization]);
 
-  const currentTextOpacity = useMemo(() => {
-    if (isBlockSelected && target === 'text') {
-      return selectedBlock.props?.textOpacity !== undefined ? selectedBlock.props.textOpacity : 100;
-    }
-    return 100;
-  }, [isBlockSelected, target, selectedBlock]);
-
   const handleBackgroundOpacityChange = useCallback((opacity: number) => {
     if (isCanvasSelected) {
       onUpdateCustomization({ backgroundOpacity: opacity });
@@ -228,12 +255,6 @@ export default function ColorsPanel({
       onUpdateBlock(selectedBlock.id, { opacity });
     }
   }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
-
-  const handleTextOpacityChange = useCallback((opacity: number) => {
-    if (isBlockSelected && target === 'text') {
-      onUpdateBlock(selectedBlock.id, { textOpacity: opacity });
-    }
-  }, [isBlockSelected, target, selectedBlock, onUpdateBlock]);
 
   const getTitle = () => {
     if (isCanvasSelected) return 'Fond du canvas';
@@ -255,7 +276,6 @@ export default function ColorsPanel({
   // ⭐ RENDU COMMUN POUR TOUS LES CAS (couleurs unies)
   const renderSolidColors = () => (
     <div className="space-y-3">
-      {/* ⭐ Sélecteur personnalisé EN HAUT (à sa place d'origine) */}
       <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700">
         <div className="flex items-center gap-2">
           <div
@@ -266,7 +286,6 @@ export default function ColorsPanel({
               const input = document.createElement('input');
               input.type = 'color';
               input.value = currentSolidColor === 'transparent' ? '#ffffff' : currentSolidColor;
-              // ⭐ Positionner le popup plus bas
               input.style.position = 'fixed';
               input.style.left = `${rect.left}px`;
               input.style.top = `${rect.bottom + 10}px`;
@@ -379,7 +398,214 @@ export default function ColorsPanel({
     );
   }
 
-  // ⭐ POUR LE BLOC BANNER
+  // ⭐ POUR LE BLOC CARROUSEL-BANNER
+  if (isCarouselBanner && target === 'background') {
+    return (
+      <div className="space-y-3">
+        <h3 className="text-white font-semibold text-sm">🎨 Fond du carrousel</h3>
+        <p className="text-xs text-gray-400 mb-2">Visible uniquement si l'image a de la transparence</p>
+
+        <div className="flex gap-2 border-b border-gray-700 pb-2">
+          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
+          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
+          <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🖼️ Images</button>
+        </div>
+
+        {activeTab === 'solid' && (
+          <div className="space-y-3">
+            {renderSolidColors()}
+            <div className="text-xs text-blue-400 mt-1">
+              💡 La couleur s'appliquera sous les images PNG/WEBP transparentes
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'gradient' && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
+              <div className="grid grid-cols-2 gap-2">
+                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => applyGradient(grad.value)}
+                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
+                      isGradientActive && currentGradient === grad.value
+                        ? 'border-primary ring-2 ring-primary/50'
+                        : 'border-gray-600'
+                    }`}
+                    style={{ background: grad.value }}
+                    title={grad.name}
+                  >
+                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
+                  </button>
+                ))}
+              </div>
+              {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
+              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 30}%</label>
+              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 30} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'carousel' && (
+          <div className="space-y-3">
+            {/* Liste des images */}
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {images.length === 0 ? (
+                <div className="text-center py-4 text-gray-400 text-xs">Aucune image. Ajoutez-en ci-dessous.</div>
+              ) : (
+                <DragDropContext onDragEnd={(result) => {
+                  if (!result.destination) return;
+                  const newImages = [...images];
+                  const [removed] = newImages.splice(result.source.index, 1);
+                  newImages.splice(result.destination.index, 0, removed);
+                  onUpdateBlock(selectedBlock.id, { images: newImages });
+                }}>
+                  <Droppable droppableId="carousel-images">
+                    {(provided) => (
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                        {images.map((img: any, idx: number) => (
+                          <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
+                            {(provided, snapshot) => (
+                              <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'}`}>
+                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">⋮⋮</div>
+                                <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
+                                  <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <input
+                                    type="text"
+                                    value={img.url || ''}
+                                    onChange={(e) => {
+                                      const newImages = [...images];
+                                      newImages[idx] = { ...img, url: e.target.value };
+                                      onUpdateBlock(selectedBlock.id, { images: newImages });
+                                    }}
+                                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                                    placeholder="URL de l'image"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={img.alt || ''}
+                                    onChange={(e) => {
+                                      const newImages = [...images];
+                                      newImages[idx] = { ...img, alt: e.target.value };
+                                      onUpdateBlock(selectedBlock.id, { images: newImages });
+                                    }}
+                                    className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                                    placeholder="Texte alternatif"
+                                  />
+                                </div>
+                                <button onClick={() => {
+                                  const newImages = images.filter((_: any, i: number) => i !== idx);
+                                  onUpdateBlock(selectedBlock.id, { images: newImages });
+                                }} className="text-red-400 hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity">🗑️</button>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+              )}
+            </div>
+
+            {/* Ajout d'images par URL */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="URL de l'image"
+                value={newImageUrl}
+                onChange={(e) => setNewImageUrl(e.target.value)}
+                className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+              />
+              <button
+                onClick={() => {
+                  if (!newImageUrl.trim()) return;
+                  const isTransparentUrl = newImageUrl.toLowerCase().includes('.png') || 
+                                            newImageUrl.toLowerCase().includes('.webp');
+                  
+                  const newImages = [...images, { 
+                    url: newImageUrl, 
+                    alt: newImageAlt || `Image ${images.length + 1}`, 
+                    crop: { x: 0, y: 0, scale: 1 },
+                    backgroundColor: isTransparentUrl ? 'transparent' : null,
+                    backgroundType: isTransparentUrl ? 'solid' : null,
+                  }];
+                  onUpdateBlock(selectedBlock.id, { images: newImages });
+                  setNewImageUrl('');
+                  setNewImageAlt('');
+                }}
+                disabled={!newImageUrl.trim()}
+                className="px-3 py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm disabled:opacity-50"
+              >
+                +
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="Texte alternatif (optionnel)"
+              value={newImageAlt}
+              onChange={(e) => setNewImageAlt(e.target.value)}
+              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
+            />
+
+            {/* Upload depuis l'ordinateur */}
+            <label className="flex items-center justify-center gap-2 p-2 border border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors">
+              <FiUpload size={14} className="text-gray-400" />
+              <span className="text-gray-400 text-xs">📁 Importer depuis l'ordinateur</span>
+              <input type="file" className="hidden" multiple accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { handleImageUpload(e.target.files); e.target.value = ''; } }} />
+            </label>
+
+            {/* Lien vers bibliothèque */}
+            <button onClick={openAssetPicker} className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1">
+              📚 Parcourir la bibliothèque d'images
+            </button>
+
+            {/* Options du carrousel (transitions) */}
+            <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-gray-400">▶️ Défilement automatique</label>
+                <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
+              </div>
+              {selectedBlock.props?.autoPlay !== false && (
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">⏱️ Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
+                  <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-gray-400">⬅️➡️ Afficher les flèches</label>
+                <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-gray-400">● Afficher les points</label>
+                <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">✨ Effet de transition</label>
+                <select value={selectedBlock.props?.transitionEffect || 'fade'} onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
+                  <option value="fade">Fondu (fade)</option>
+                  <option value="slide">Glissement (slide)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ⭐ POUR LE BLOC BANNER (existant, non modifié)
   if (isBanner && target === 'background') {
     return (
       <div className="space-y-3">
@@ -429,10 +655,10 @@ export default function ColorsPanel({
 
         {activeTab === 'carousel' && (
           <div className="space-y-3">
-            {!isCarousel && (
+            {!selectedBlock.props?.isCarousel && (
               <button onClick={() => { onUpdateBlock(selectedBlock.id, { isCarousel: true, images: [{ url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' }, { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' }, { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }] }); setActiveTab('carousel'); }} className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors">🎠 Activer le carrousel</button>
             )}
-            {isCarousel && (
+            {selectedBlock.props?.isCarousel && (
               <>
                 <div className="flex justify-between items-center">
                   <h4 className="text-white text-xs font-semibold">Images du carrousel ({images.length})</h4>
@@ -525,7 +751,7 @@ export default function ColorsPanel({
     );
   }
 
-  // ⭐ POUR LE BLOC SCREEN-BANNER
+  // ⭐ POUR LE BLOC SCREEN-BANNER (existant, non modifié)
   if (isScreenBanner && target === 'background') {
     const screenImages = selectedBlock.props?.images || [];
     const isScreenCarousel = selectedBlock.props?.isCarousel || false;

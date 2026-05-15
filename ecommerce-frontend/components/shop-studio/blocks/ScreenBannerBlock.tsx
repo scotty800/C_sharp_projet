@@ -57,6 +57,11 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
   const [isImageDragging, setIsImageDragging] = useState(false);
   const imageDragStart = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
 
+  // ⭐ Récupérer la couleur de fond du bloc parent (définie dans ColorsPanel)
+  const blockBackgroundColor = props.backgroundColor;
+  const blockBackgroundType = props.backgroundType;
+  const blockBackgroundValue = props.backgroundValue;
+
   // ⭐ Synchroniser avec les props
   useEffect(() => {
     setShowTitle(props.showTitle !== undefined ? props.showTitle : true);
@@ -501,38 +506,35 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
     willChange: 'transform',
   };
 
-  // ⭐ STYLE DE FOND PAR DÉFAUT POUR L'ÉCRAN
-  let defaultBackgroundStyle: React.CSSProperties = {};
-  
-  if (props.backgroundType === 'gradient' && props.backgroundValue) {
-    defaultBackgroundStyle = { background: props.backgroundValue };
-  } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
-    defaultBackgroundStyle = { backgroundColor: props.backgroundColor };
-  } else {
-    defaultBackgroundStyle = { backgroundColor: '#1e1e2f' };
-  }
-
-  // ⭐ RENDER IMAGE AVEC FOND INDIVIDUEL POUR CHAQUE SLIDE
+  // ⭐ RENDER IMAGE - AVEC GESTION DE LA COULEUR DU BLOC POUR LES IMAGES TRANSPARENTES
   const renderImage = () => {
     if (isCarousel && images.length > 0) {
       const isFade = transitionEffect === 'fade';
-      
-      // Pour le glissement, on a besoin des indices précédent et suivant
       const prevIndex = (currentIndex - 1 + images.length) % images.length;
       const nextIndex = (currentIndex + 1) % images.length;
       
       return (
         <div className="absolute inset-0">
           {images.map((image: any, idx: number) => {
-            // ⭐ Style de fond individuel pour chaque image
-            let slideBackgroundStyle: React.CSSProperties = {};
+            // ⭐ STYLE DE FOND : priorité à l'image, sinon le bloc parent
+            let backgroundStyle: React.CSSProperties = {};
             
+            // ⭐ 1. Si l'image a son propre fond
             if (image.backgroundType === 'gradient' && image.backgroundValue) {
-              slideBackgroundStyle = { background: image.backgroundValue };
+              backgroundStyle = { background: image.backgroundValue };
             } else if (image.backgroundColor && image.backgroundColor !== 'transparent') {
-              slideBackgroundStyle = { backgroundColor: image.backgroundColor };
-            } else {
-              slideBackgroundStyle = { backgroundColor: 'transparent' };
+              backgroundStyle = { backgroundColor: image.backgroundColor };
+            }
+            // ⭐ 2. Sinon, utiliser le fond du bloc parent (défini dans ColorsPanel)
+            else if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
+              backgroundStyle = { background: blockBackgroundValue };
+            }
+            else if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
+              backgroundStyle = { backgroundColor: blockBackgroundColor };
+            }
+            // ⭐ 3. Par défaut : transparent
+            else {
+              backgroundStyle = { backgroundColor: 'transparent' };
             }
             
             const isActive = idx === currentIndex;
@@ -573,7 +575,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
               <div 
                 key={idx} 
                 className="absolute inset-0 w-full h-full"
-                style={{ ...slideBackgroundStyle, ...transformStyle }}
+                style={{ ...backgroundStyle, ...transformStyle }}
               >
                 {!imageErrors[idx] && image.url ? (
                   <img 
@@ -584,14 +586,14 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
                     draggable={false}
                   />
                 ) : !imageErrors[idx] && !image.url ? (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500" style={slideBackgroundStyle}>
+                  <div className="w-full h-full flex items-center justify-center text-gray-500" style={backgroundStyle}>
                     <div className="text-center">
                       <div className="text-2xl mb-1">🖼️</div>
                       <div className="text-xs">URL manquante</div>
                     </div>
                   </div>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500" style={slideBackgroundStyle}>
+                  <div className="w-full h-full flex items-center justify-center text-gray-500" style={backgroundStyle}>
                     <div className="text-center">
                       <div className="text-2xl mb-1">🖼️</div>
                       <div className="text-xs">Image non trouvée</div>
@@ -604,7 +606,28 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
         </div>
       );
     } else if (singleImage && !imageErrors[-1]) {
-      return <img src={singleImage} alt="Bannière" style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} draggable={false} />;
+      // ⭐ Pour l'image simple, on applique aussi le fond du bloc parent si besoin
+      let imageContainerStyle: React.CSSProperties = {};
+      
+      if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
+        imageContainerStyle = { background: blockBackgroundValue };
+      } else if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
+        imageContainerStyle = { backgroundColor: blockBackgroundColor };
+      } else {
+        imageContainerStyle = { backgroundColor: 'transparent' };
+      }
+      
+      return (
+        <div className="absolute inset-0 w-full h-full" style={imageContainerStyle}>
+          <img 
+            src={singleImage} 
+            alt="Bannière" 
+            style={imageStyle} 
+            onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} 
+            draggable={false}
+          />
+        </div>
+      );
     } else {
       return null;
     }
@@ -642,7 +665,7 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative w-full h-full" style={defaultBackgroundStyle}>
+      <div className="relative w-full h-full" style={{ backgroundColor: 'transparent' }}>
         {/* Image */}
         <div className="absolute inset-0 overflow-hidden" onMouseDown={handleImageMouseDown} style={{ cursor: isEditing ? 'grab' : 'default' }}>
           {renderImage()}
@@ -878,6 +901,26 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
           <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleButton(); }} title="Afficher/Masquer le bouton">
             {showButton ? '🔘 Bouton' : '🔘 (masqué)'}
           </span>
+          
+          {/* ⭐ Badge fond de l'image courante ou du bloc */}
+          {(() => {
+            const currentImage = images[currentIndex];
+            if (currentImage?.backgroundType === 'gradient' && currentImage?.backgroundValue) {
+              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé</span>;
+            }
+            if (currentImage?.backgroundColor && currentImage.backgroundColor !== 'transparent') {
+              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: currentImage.backgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond</span>;
+            }
+            // ⭐ Si l'image n'a pas de fond, afficher le fond du bloc
+            if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
+              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé (global)</span>;
+            }
+            if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
+              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: blockBackgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond (global)</span>;
+            }
+            return null;
+          })()}
+          
           <span className="ml-1">🖥️ Écran {isCarousel ? `🎠 (${images.length} images)` : (singleImage ? '🖼️' : '🎨')}</span>
           {currentCrop.scale !== 1 && <span className="ml-1 text-yellow-300">(Zoomé {Math.round(currentCrop.scale * 100)}%)</span>}
           <span className="ml-1 text-yellow-300">🔵Zone+Police (max 200px) 🟢Largeur (max 3000px)</span>

@@ -57,6 +57,11 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
 
+  // ⭐ Récupérer la couleur de fond du bloc parent (définie dans ColorsPanel)
+  const blockBackgroundColor = props.backgroundColor;
+  const blockBackgroundType = props.backgroundType;
+  const blockBackgroundValue = props.backgroundValue;
+
   // ⭐ Synchronisation
   useEffect(() => {
     setShowTitle(props.showTitle !== undefined ? props.showTitle : true);
@@ -370,38 +375,35 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     willChange: 'transform',
   };
 
-  // ⭐ STYLE DE FOND PAR DÉFAUT POUR LA BANNIÈRE
-  let defaultBackgroundStyle: React.CSSProperties = {};
-  
-  if (props.backgroundType === 'gradient' && props.backgroundValue) {
-    defaultBackgroundStyle = { background: props.backgroundValue };
-  } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
-    defaultBackgroundStyle = { backgroundColor: props.backgroundColor };
-  } else {
-    defaultBackgroundStyle = { backgroundColor: customization?.primaryColor || '#2563EB' };
-  }
-
-  // ⭐ RENDER IMAGE AVEC FOND INDIVIDUEL POUR CHAQUE SLIDE - VERSION CORRIGÉE POUR LE GLISSEMENT
+  // ⭐ RENDER IMAGE - AVEC GESTION DE LA COULEUR DU BLOC POUR LES IMAGES TRANSPARENTES
   const renderImage = () => {
     if (isCarousel && images.length > 0) {
       const isFade = transitionEffect === 'fade';
-      
-      // Pour le glissement, on a besoin des indices précédent et suivant
       const prevIndex = (currentIndex - 1 + images.length) % images.length;
       const nextIndex = (currentIndex + 1) % images.length;
       
       return (
         <div className="absolute inset-0">
           {images.map((image: any, idx: number) => {
-            // ⭐ Style de fond individuel pour chaque image
-            let slideBackgroundStyle: React.CSSProperties = {};
+            // ⭐ STYLE DE FOND : priorité à l'image, sinon le bloc parent
+            let backgroundStyle: React.CSSProperties = {};
             
+            // ⭐ 1. Si l'image a son propre fond
             if (image.backgroundType === 'gradient' && image.backgroundValue) {
-              slideBackgroundStyle = { background: image.backgroundValue };
+              backgroundStyle = { background: image.backgroundValue };
             } else if (image.backgroundColor && image.backgroundColor !== 'transparent') {
-              slideBackgroundStyle = { backgroundColor: image.backgroundColor };
-            } else {
-              slideBackgroundStyle = { backgroundColor: 'transparent' };
+              backgroundStyle = { backgroundColor: image.backgroundColor };
+            }
+            // ⭐ 2. Sinon, utiliser le fond du bloc parent (défini dans ColorsPanel)
+            else if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
+              backgroundStyle = { background: blockBackgroundValue };
+            }
+            else if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
+              backgroundStyle = { backgroundColor: blockBackgroundColor };
+            }
+            // ⭐ 3. Par défaut : transparent
+            else {
+              backgroundStyle = { backgroundColor: 'transparent' };
             }
             
             const isActive = idx === currentIndex;
@@ -413,29 +415,23 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
                 transition: `opacity ${transitionDuration}ms ease-in-out`,
               };
             } else {
-              // ⭐ GLISSEMENT CORRIGÉ
               if (isActive) {
-                // Image active : à sa position normale
                 transformStyle = {
                   transform: 'translateX(0)',
                   transition: `transform ${transitionDuration}ms ease-in-out`,
                 };
               } else {
-                // Image inactive : placée à droite ou à gauche selon sa position relative à l'active
                 if (idx === prevIndex) {
-                  // L'image précédente (celle qui va sortir) est à gauche
                   transformStyle = {
                     transform: 'translateX(-100%)',
                     transition: `transform ${transitionDuration}ms ease-in-out`,
                   };
                 } else if (idx === nextIndex) {
-                  // L'image suivante (celle qui va entrer) est à droite
                   transformStyle = {
                     transform: 'translateX(100%)',
                     transition: `transform ${transitionDuration}ms ease-in-out`,
                   };
                 } else {
-                  // Les autres images sont cachées
                   transformStyle = {
                     transform: 'translateX(100%)',
                     transition: 'none',
@@ -448,7 +444,7 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
               <div 
                 key={idx} 
                 className="absolute inset-0 w-full h-full"
-                style={{ ...slideBackgroundStyle, ...transformStyle }}
+                style={{ ...backgroundStyle, ...transformStyle }}
               >
                 {!imageErrors[idx] && image.url ? (
                   <img 
@@ -479,7 +475,28 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
         </div>
       );
     } else if (singleImage && !imageErrors[-1]) {
-      return <img src={singleImage} alt="Bannière" style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} draggable={false} />;
+      // ⭐ Pour l'image simple, on applique aussi le fond du bloc parent si besoin
+      let imageContainerStyle: React.CSSProperties = {};
+      
+      if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
+        imageContainerStyle = { background: blockBackgroundValue };
+      } else if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
+        imageContainerStyle = { backgroundColor: blockBackgroundColor };
+      } else {
+        imageContainerStyle = { backgroundColor: 'transparent' };
+      }
+      
+      return (
+        <div className="absolute inset-0 w-full h-full" style={imageContainerStyle}>
+          <img 
+            src={singleImage} 
+            alt="Bannière" 
+            style={imageStyle} 
+            onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} 
+            draggable={false}
+          />
+        </div>
+      );
     } else {
       return null;
     }
@@ -515,7 +532,7 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative w-full h-full" style={defaultBackgroundStyle}>
+      <div className="relative w-full h-full" style={{ backgroundColor: 'transparent' }}>
         <div className="absolute inset-0 overflow-hidden" onMouseDown={handleImageMouseDown} style={{ cursor: isEditing ? 'grab' : 'default' }}>
           {renderImage()}
         </div>
@@ -726,6 +743,26 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleTitle(); }}>{showTitle ? '📝 Titre' : '📝 (masqué)'}</span>
           <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleSubtitle(); }}>{showSubtitle ? '📄 Sous-titre' : '📄 (masqué)'}</span>
           <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleButton(); }}>{showButton ? '🔘 Bouton' : '🔘 (masqué)'}</span>
+          
+          {/* ⭐ Badge fond de l'image courante ou du bloc */}
+          {(() => {
+            const currentImage = images[currentIndex];
+            if (currentImage?.backgroundType === 'gradient' && currentImage?.backgroundValue) {
+              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé</span>;
+            }
+            if (currentImage?.backgroundColor && currentImage.backgroundColor !== 'transparent') {
+              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: currentImage.backgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond</span>;
+            }
+            // ⭐ Si l'image n'a pas de fond, afficher le fond du bloc
+            if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
+              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé (global)</span>;
+            }
+            if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
+              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: blockBackgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond (global)</span>;
+            }
+            return null;
+          })()}
+          
           <span className="ml-1">{isCarousel ? `🎠 Carrousel (${images.length} images)` : (singleImage ? '🖼️ Bannière' : '🎨 Bannière')}</span>
           {currentCrop.scale !== 1 && <span className="ml-1 text-yellow-300">(Zoomé {Math.round(currentCrop.scale * 100)}%)</span>}
           <span className="ml-1 text-yellow-300">🔵Zone+Police (max 200px) 🟢Largeur (max 3000px)</span>
