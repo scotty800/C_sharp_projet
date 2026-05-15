@@ -375,7 +375,18 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
     willChange: 'transform',
   };
 
-  // ⭐ RENDER IMAGE - AVEC GESTION DE LA COULEUR DU BLOC POUR LES IMAGES TRANSPARENTES
+  // ⭐ STYLE DE FOND PAR DÉFAUT POUR LA BANNIÈRE
+  let defaultBackgroundStyle: React.CSSProperties = {};
+  
+  if (props.backgroundType === 'gradient' && props.backgroundValue) {
+    defaultBackgroundStyle = { background: props.backgroundValue };
+  } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
+    defaultBackgroundStyle = { backgroundColor: props.backgroundColor };
+  } else {
+    defaultBackgroundStyle = { backgroundColor: customization?.primaryColor || '#2563EB' };
+  }
+
+  // ⭐ RENDER IMAGE - LOGIQUE SPÉCIFIQUE POUR LE CARROUSEL
   const renderImage = () => {
     if (isCarousel && images.length > 0) {
       const isFade = transitionEffect === 'fade';
@@ -385,23 +396,23 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
       return (
         <div className="absolute inset-0">
           {images.map((image: any, idx: number) => {
-            // ⭐ STYLE DE FOND : priorité à l'image, sinon le bloc parent
+            // ⭐ CALCUL DU FOND SEULEMENT EN MODE CARROUSEL
             let backgroundStyle: React.CSSProperties = {};
             
-            // ⭐ 1. Si l'image a son propre fond
+            // ⭐ 1. Priorité au fond individuel de l'image
             if (image.backgroundType === 'gradient' && image.backgroundValue) {
               backgroundStyle = { background: image.backgroundValue };
             } else if (image.backgroundColor && image.backgroundColor !== 'transparent') {
               backgroundStyle = { backgroundColor: image.backgroundColor };
             }
-            // ⭐ 2. Sinon, utiliser le fond du bloc parent (défini dans ColorsPanel)
+            // ⭐ 2. Sinon, utiliser le fond du bloc parent
             else if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
               backgroundStyle = { background: blockBackgroundValue };
             }
             else if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
               backgroundStyle = { backgroundColor: blockBackgroundColor };
             }
-            // ⭐ 3. Par défaut : transparent
+            // ⭐ 3. Sinon, transparent
             else {
               backgroundStyle = { backgroundColor: 'transparent' };
             }
@@ -454,18 +465,11 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
                     onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))}
                     draggable={false}
                   />
-                ) : !imageErrors[idx] && !image.url ? (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500">
-                    <div className="text-center">
-                      <div className="text-2xl mb-1">🖼️</div>
-                      <div className="text-xs">URL manquante</div>
-                    </div>
-                  </div>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500">
+                  <div className="w-full h-full flex items-center justify-center text-gray-500" style={backgroundStyle}>
                     <div className="text-center">
                       <div className="text-2xl mb-1">🖼️</div>
-                      <div className="text-xs">Image non trouvée</div>
+                      <div className="text-xs">Image {idx + 1}</div>
                     </div>
                   </div>
                 )}
@@ -475,28 +479,8 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
         </div>
       );
     } else if (singleImage && !imageErrors[-1]) {
-      // ⭐ Pour l'image simple, on applique aussi le fond du bloc parent si besoin
-      let imageContainerStyle: React.CSSProperties = {};
-      
-      if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
-        imageContainerStyle = { background: blockBackgroundValue };
-      } else if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
-        imageContainerStyle = { backgroundColor: blockBackgroundColor };
-      } else {
-        imageContainerStyle = { backgroundColor: 'transparent' };
-      }
-      
-      return (
-        <div className="absolute inset-0 w-full h-full" style={imageContainerStyle}>
-          <img 
-            src={singleImage} 
-            alt="Bannière" 
-            style={imageStyle} 
-            onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} 
-            draggable={false}
-          />
-        </div>
-      );
+      // ⭐ Mode normal : l'image est superposée sur le fond du bloc
+      return <img src={singleImage} alt="Bannière" style={imageStyle} onError={() => setImageErrors(prev => ({ ...prev, [-1]: true }))} draggable={false} />;
     } else {
       return null;
     }
@@ -532,7 +516,8 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="relative w-full h-full" style={{ backgroundColor: 'transparent' }}>
+      {/* ⭐ Conteneur principal : fond normal sauf en mode carrousel */}
+      <div className="relative w-full h-full" style={isCarousel ? { backgroundColor: 'transparent' } : defaultBackgroundStyle}>
         <div className="absolute inset-0 overflow-hidden" onMouseDown={handleImageMouseDown} style={{ cursor: isEditing ? 'grab' : 'default' }}>
           {renderImage()}
         </div>
@@ -744,8 +729,8 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleSubtitle(); }}>{showSubtitle ? '📄 Sous-titre' : '📄 (masqué)'}</span>
           <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleButton(); }}>{showButton ? '🔘 Bouton' : '🔘 (masqué)'}</span>
           
-          {/* ⭐ Badge fond de l'image courante ou du bloc */}
-          {(() => {
+          {/* ⭐ Badge fond de l'image courante ou du bloc (uniquement en carrousel) */}
+          {isCarousel && (() => {
             const currentImage = images[currentIndex];
             if (currentImage?.backgroundType === 'gradient' && currentImage?.backgroundValue) {
               return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé</span>;
@@ -753,7 +738,6 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
             if (currentImage?.backgroundColor && currentImage.backgroundColor !== 'transparent') {
               return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: currentImage.backgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond</span>;
             }
-            // ⭐ Si l'image n'a pas de fond, afficher le fond du bloc
             if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
               return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé (global)</span>;
             }
