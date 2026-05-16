@@ -72,7 +72,6 @@ export default function StudioCanvas({
     };
   }, []);
 
-  // ⭐ DRAG - désactivé si le cropper est ouvert
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (draggingBlock && !isCropperOpen) {
       if (dragRafId.current) return;
@@ -90,7 +89,6 @@ export default function StudioCanvas({
     }
   }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition, isCropperOpen]);
 
-  // ⭐ RESIZE MOVE
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
     if (isCropperOpen) return;
     if (resizeRafId.current) return;
@@ -175,7 +173,6 @@ export default function StudioCanvas({
     }
   }, [draggingBlock, handleMouseMove, handleMouseUp, isCropperOpen]);
 
-  // ⭐ HANDLE BLOCK CLICK - CORRIGÉ : Détection texte/fond pour les bannières
   const handleBlockClick = (e: React.MouseEvent, blockId: string, block: any) => {
     if (isCropperOpen) {
       e.stopPropagation();
@@ -183,48 +180,71 @@ export default function StudioCanvas({
     }
     e.stopPropagation();
     
-    // Pour les blocs de type banner, screen-banner, carousel-banner
+    const target = e.target as HTMLElement;
+    if (!target) return;
+    
     const isBannerType = block.type === 'banner' || block.type === 'screen-banner' || block.type === 'carousel-banner';
     
     if (isBannerType) {
-      // On vérifie si l'élément cliqué est du texte
-      const target = e.target as HTMLElement;
       const isTextClick = target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3' || 
                           target.tagName === 'H4' || target.tagName === 'P' || target.tagName === 'BUTTON' ||
-                          target.classList?.contains('text-content') || target.classList?.contains('prose');
+                          target.classList?.contains('text-content') || target.classList?.contains('prose') ||
+                          target.getAttribute?.('contenteditable') === 'true';
       
-      // Si on clique sur le texte → 'text', sinon → 'background'
       onSelectBlock(blockId, isTextClick ? 'text' : 'background');
       return;
     }
     
-    // Pour les autres blocs
-    const target = e.target as HTMLElement;
     const isTextClick = target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3' || 
                         target.tagName === 'H4' || target.tagName === 'P' || target.tagName === 'BUTTON' ||
                         target.classList?.contains('text-content') || target.classList?.contains('prose');
     onSelectBlock(blockId, isTextClick ? 'text' : 'background');
   };
 
-  // ⭐ HANDLE CANVAS CLICK - désactivé si cropper ouvert
   const handleCanvasClick = () => {
     if (isCropperOpen) return;
     onSelectBackground();
   };
 
-  // ⭐ MOUSE DOWN - désactivé si cropper ouvert
+  // ⭐ MOUSE DOWN - CORRIGÉ POUR LE CARROUSEL
   const handleMouseDown = (e: React.MouseEvent, blockId: string, block: any) => {
     if (isCropperOpen) {
       e.stopPropagation();
       return;
     }
+    
+    const target = e.target as HTMLElement;
+    
+    // ⭐ Pour le carrousel : drag autorisé SEULEMENT sur le fond (pas sur les éléments interactifs)
+    if (block.type === 'carousel-banner') {
+      // Éléments qui doivent être déplaçables indépendamment (NE PAS déclencher le drag du bloc)
+      const isInternalDraggable = 
+        target.closest('[data-drag-handle]') !== null ||          // titre, sous-titre, bouton
+        target.closest('[contenteditable="true"]') !== null ||    // zone de texte éditable
+        target.closest('button') !== null ||                      // boutons de contrôle (flèches, dots)
+        target.closest('[class*="bg-black/50"]') !== null ||      // fond des flèches
+        target.closest('.rounded-full') !== null;                 // les points de navigation
+      
+      if (isInternalDraggable) {
+        e.stopPropagation();
+        return;
+      }
+      
+      // Sinon, on autorise le drag du bloc parent
+      e.stopPropagation();
+      setDraggingBlock(blockId);
+      setDragStart({ x: e.clientX, y: e.clientY });
+      setOriginalPosition({ x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height });
+      return;
+    }
+    
+    // Pour les autres blocs : comportement normal
     e.stopPropagation();
     setDraggingBlock(blockId);
     setDragStart({ x: e.clientX, y: e.clientY });
     setOriginalPosition({ x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height });
   };
 
-  // ⭐ RESIZE START - désactivé si cropper ouvert
   const handleResizeStart = (e: React.MouseEvent, blockId: string, block: any, direction: string) => {
     if (isCropperOpen) {
       e.stopPropagation();
@@ -267,7 +287,6 @@ export default function StudioCanvas({
     window.addEventListener('mouseup', handleMouseUpResize);
   };
 
-  // ⭐ TEXT DOUBLE CLICK - désactivé si cropper ouvert
   const handleTextDoubleClick = (e: React.MouseEvent, blockId: string) => {
     if (isCropperOpen) return;
     e.stopPropagation();

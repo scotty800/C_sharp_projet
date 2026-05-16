@@ -65,14 +65,11 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
   const { props } = block;
   const [isHovered, setIsHovered] = useState(false);
   
-  // ⭐ Lire l'index depuis les props
   const [currentIndex, setCurrentIndex] = useState(() => {
     const savedIndex = props.currentIndex;
-    console.log(`🎠 Initialisation carrousel - currentIndex: ${savedIndex !== undefined ? savedIndex : 0}`);
     return savedIndex !== undefined ? savedIndex : 0;
   });
   
-  // ⭐ Références pour éviter la boucle infinie et les erreurs de rendu
   const lastSavedIndex = useRef(currentIndex);
   const pendingIndexRef = useRef<number | null>(null);
   const isMounted = useRef(true);
@@ -126,16 +123,13 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
   
   const hasMultipleSlides = slides.length > 1;
   
-  // ⭐ Sauvegarder l'index dans le bloc via useEffect (pas pendant le rendu)
   const saveCurrentIndex = useCallback((newIndex: number) => {
     if (lastSavedIndex.current !== newIndex && isMounted.current) {
       lastSavedIndex.current = newIndex;
-      console.log(`🎠 Sauvegarde de currentIndex: ${newIndex}`);
       onUpdate({ currentIndex: newIndex });
     }
   }, [onUpdate]);
   
-  // ⭐ Sauvegarder quand l'index change (via useEffect)
   useEffect(() => {
     if (pendingIndexRef.current !== null) {
       saveCurrentIndex(pendingIndexRef.current);
@@ -170,7 +164,6 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
   const transitionEffect = props.transitionEffect || 'fade';
   const transitionDuration = 500;
   
-  // ⭐ Auto-play
   useEffect(() => {
     if (!autoPlay || !hasMultipleSlides || isHovered || isResizing) return;
     const interval = setInterval(() => {
@@ -181,14 +174,11 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
     return () => clearInterval(interval);
   }, [autoPlay, hasMultipleSlides, intervalTime, isHovered, isResizing, slides.length, currentIndex]);
   
-  // ⭐ Diffuser l'index courant pour les panels
   useEffect(() => {
-    console.log(`🎠 Diffusion de currentIndex: ${currentIndex}`);
     const event = new CustomEvent('carouselIndexChange', { detail: currentIndex });
     window.dispatchEvent(event);
   }, [currentIndex]);
   
-  // ⭐ Navigation
   const goToPrevious = () => {
     const newIndex = (currentIndex - 1 + slides.length) % slides.length;
     pendingIndexRef.current = newIndex;
@@ -208,7 +198,7 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
   
   const currentSlide = slides.length > 0 ? slides[currentIndex] : null;
   
-  // ⭐ RENDER IMAGE AVEC TRANSITIONS (FADE ou SLIDE)
+  // ⭐ RENDER IMAGE AVEC TRANSITIONS
   const renderImageWithTransition = () => {
     if (slides.length === 0) return null;
     
@@ -219,7 +209,6 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
     return (
       <div className="absolute inset-0">
         {slides.map((slide, idx) => {
-          // Style de fond individuel pour chaque slide
           let backgroundStyle: React.CSSProperties = {};
           
           if (slide.backgroundType === 'gradient' && slide.backgroundValue) {
@@ -234,39 +223,32 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
           let transformStyle: React.CSSProperties = {};
           
           if (isFade) {
-            // ✅ EFFET FADE (fondu)
             transformStyle = {
               opacity: isActive ? 1 : 0,
               transition: `opacity ${transitionDuration}ms ease-in-out`,
               pointerEvents: isActive ? 'auto' : 'none',
             };
           } else {
-            // ✅ EFFET SLIDE (glissement)
             if (isActive) {
-              // Slide active : position normale
               transformStyle = {
                 transform: 'translateX(0)',
                 transition: `transform ${transitionDuration}ms ease-in-out`,
                 pointerEvents: 'auto',
               };
             } else {
-              // Slide inactive : placée à gauche ou à droite
               if (idx === prevIndex) {
-                // La slide précédente sort vers la gauche
                 transformStyle = {
                   transform: 'translateX(-100%)',
                   transition: `transform ${transitionDuration}ms ease-in-out`,
                   pointerEvents: 'none',
                 };
               } else if (idx === nextIndex) {
-                // La slide suivante entre depuis la droite
                 transformStyle = {
                   transform: 'translateX(100%)',
                   transition: `transform ${transitionDuration}ms ease-in-out`,
                   pointerEvents: 'none',
                 };
               } else {
-                // Les autres slides sont cachées
                 transformStyle = {
                   transform: 'translateX(100%)',
                   transition: 'none',
@@ -284,27 +266,11 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
               style={{ ...backgroundStyle, ...transformStyle }}
             >
               {!imageErrors[idx] && slide.url ? (
-                <div
-                  className="relative w-full h-full"
-                  style={{
-                    cursor: isSelected ? (isResizingImage ? 'grabbing' : 'move') : 'default',
-                  }}
-                  onMouseDown={isSelected && isActive ? (e) => {
-                    e.stopPropagation();
-                    setDraggingElement('image');
-                    const rect = containerRef.current?.getBoundingClientRect();
-                    if (rect) {
-                      setDragOffset({
-                        x: (e.clientX - rect.left) / rect.width * 100 - slide.imagePosition.x,
-                        y: (e.clientY - rect.top) / rect.height * 100 - slide.imagePosition.y,
-                      });
-                    }
-                  } : undefined}
-                >
+                <div className="relative w-full h-full">
+                  {/* ⭐ CONTENEUR IMAGE DRAGGABLE */}
                   <div 
-                    className="relative"
+                    className="absolute image-drag-handle"
                     style={{
-                      position: 'absolute',
                       left: `${slide.imagePosition?.x || 20}%`,
                       top: `${slide.imagePosition?.y || 50}%`,
                       transform: 'translate(-50%, -50%)',
@@ -312,7 +278,19 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
                       height: slide.imageHeight,
                       border: isSelected && isActive ? '2px solid #3b82f6' : 'none',
                       borderRadius: '8px',
+                      cursor: isSelected && isActive ? (isResizingImage ? 'grabbing' : 'default') : 'default',
                     }}
+                    onMouseDown={isSelected && isActive ? (e) => {
+                      e.stopPropagation();
+                      setDraggingElement('image');
+                      const rect = containerRef.current?.getBoundingClientRect();
+                      if (rect) {
+                        setDragOffset({
+                          x: (e.clientX - rect.left) / rect.width * 100 - slide.imagePosition.x,
+                          y: (e.clientY - rect.top) / rect.height * 100 - slide.imagePosition.y,
+                        });
+                      }
+                    } : undefined}
                   >
                     <img
                       src={slide.url}
@@ -360,7 +338,6 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
                 </div>
               )}
               
-              {/* Overlay */}
               <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: slide.overlayColor || '#000000', opacity: (slide.overlayOpacity || 30) / 100 }} />
             </div>
           );
@@ -535,6 +512,7 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
           if (draggingElement === 'title') updates.titlePosition = { x: newX, y: newY };
           else if (draggingElement === 'subtitle') updates.subtitlePosition = { x: newX, y: newY };
           else if (draggingElement === 'button') updates.buttonPosition = { x: newX, y: newY };
+          else if (draggingElement === 'image') updates.imagePosition = { x: newX, y: newY };
           updateCurrentSlide(updates);
         }
       }
@@ -671,7 +649,6 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
     setIsCropping(false);
   };
   
-  // ⭐ Nettoyage au démontage
   useEffect(() => {
     isMounted.current = true;
     return () => {
@@ -710,7 +687,8 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* ⭐ FOND DE LA SLIDE (fallback) */}
+        {/* ⭐ AUCUNE BARRE DE DRAG - le drag se fait directement sur le fond du carrousel */}
+        
         <div 
           className="absolute inset-0"
           style={{
@@ -718,18 +696,18 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
           }}
         />
         
-        {/* ⭐ RENDER DES IMAGES AVEC TRANSITIONS */}
         {renderImageWithTransition()}
         
         {/* ⭐ TITRE */}
         {currentSlide.showTitle !== false && currentSlide.title && (
           <div
+            data-drag-handle
             className="absolute"
             style={{
               left: `${currentSlide.titlePosition.x}%`,
               top: `${currentSlide.titlePosition.y}%`,
               transform: 'translate(-50%, -50%)',
-              cursor: isSelected ? 'move' : 'default',
+              cursor: isSelected ? 'default' : 'default',
             }}
             onMouseDown={isSelected ? handleTitleMouseDown : undefined}
           >
@@ -798,12 +776,13 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
         {/* ⭐ SOUS-TITRE */}
         {currentSlide.showSubtitle !== false && currentSlide.subtitle && (
           <div
+            data-drag-handle
             className="absolute"
             style={{
               left: `${currentSlide.subtitlePosition.x}%`,
               top: `${currentSlide.subtitlePosition.y}%`,
               transform: 'translate(-50%, -50%)',
-              cursor: isSelected ? 'move' : 'default',
+              cursor: isSelected ? 'default' : 'default',
             }}
             onMouseDown={isSelected ? handleSubtitleMouseDown : undefined}
           >
@@ -864,12 +843,13 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
         {/* ⭐ BOUTON */}
         {currentSlide.showButton !== false && currentSlide.buttonText && (
           <div
+            data-drag-handle
             className="absolute"
             style={{
               left: `${currentSlide.buttonPosition.x}%`,
               top: `${currentSlide.buttonPosition.y}%`,
               transform: 'translate(-50%, -50%)',
-              cursor: isSelected ? 'move' : 'default',
+              cursor: isSelected ? 'default' : 'default',
             }}
             onMouseDown={isSelected ? handleButtonMouseDown : undefined}
           >
