@@ -1,10 +1,53 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FiChevronLeft, FiChevronRight, FiPlus, FiTrash2, FiMove, FiX, FiUpload } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiPlus, FiTrash2, FiMove, FiX, FiUpload, FiCopy } from 'react-icons/fi';
 import { assetsService } from '@/services/api/assets';
 import { getImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
+
+interface Slide {
+  id: string;
+  url: string;
+  alt: string;
+  imageWidth: number;
+  imageHeight: number;
+  imagePosition: { x: number; y: number };
+  imageCrop?: { x: number; y: number; scale: number };
+  title: string;
+  titleFont: string;
+  titleFontSize: number;
+  titleFontWeight: string;
+  titleColor: string;
+  titleGradient?: string;
+  titlePosition: { x: number; y: number };
+  titleWidth: number;
+  subtitle: string;
+  subtitleFont: string;
+  subtitleFontSize: number;
+  subtitleFontWeight: string;
+  subtitleColor: string;
+  subtitlePosition: { x: number; y: number };
+  subtitleWidth: number;
+  buttonText: string;
+  buttonFont: string;
+  buttonFontSize: number;
+  buttonFontWeight: string;
+  buttonColor: string;
+  buttonBackgroundColor: string;
+  buttonBorderRadius: number;
+  buttonPosition: { x: number; y: number };
+  buttonWidth: number;
+  overlayOpacity: number;
+  overlayColor: string;
+  backgroundColor?: string;
+  backgroundType?: 'solid' | 'gradient';
+  backgroundValue?: string;
+  textOpacity?: number;
+  showTitle?: boolean;
+  showSubtitle?: boolean;
+  showButton?: boolean;
+}
 
 interface Props {
   shop: any;
@@ -21,514 +64,169 @@ interface Props {
 export function CarouselBannerBlock({ shop, block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing = false, shopId }: Props) {
   const { props } = block;
   const [isHovered, setIsHovered] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
   
-  // ⭐ États pour l'affichage
-  const [showTitle, setShowTitle] = useState(props.showTitle !== undefined ? props.showTitle : true);
-  const [showSubtitle, setShowSubtitle] = useState(props.showSubtitle !== undefined ? props.showSubtitle : true);
-  const [showButton, setShowButton] = useState(props.showButton !== undefined ? props.showButton : true);
+  // ⭐ Lire l'index depuis les props
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const savedIndex = props.currentIndex;
+    console.log(`🎠 Initialisation carrousel - currentIndex: ${savedIndex !== undefined ? savedIndex : 0}`);
+    return savedIndex !== undefined ? savedIndex : 0;
+  });
   
-  // ⭐ Positions
-  const [titlePosition, setTitlePosition] = useState(props.titlePosition || { x: 50, y: 30 });
-  const [subtitlePosition, setSubtitlePosition] = useState(props.subtitlePosition || { x: 50, y: 50 });
-  const [buttonPosition, setButtonPosition] = useState(props.buttonPosition || { x: 50, y: 70 });
+  // ⭐ Références pour éviter la boucle infinie et les erreurs de rendu
+  const lastSavedIndex = useRef(currentIndex);
+  const pendingIndexRef = useRef<number | null>(null);
+  const isMounted = useRef(true);
   
-  // ⭐ Dimensions des conteneurs
-  const [titleWidth, setTitleWidth] = useState(props.titleWidth || 300);
-  const [subtitleWidth, setSubtitleWidth] = useState(props.subtitleWidth || 300);
-  const [buttonWidth, setButtonWidth] = useState(props.buttonWidth || 200);
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
   
-  // ⭐ États pour le drag
+  const slides: Slide[] = (props.images || props.slides || []).map((slide: any, index: number) => {
+    return {
+      id: slide.id || `slide-${Date.now()}-${index}-${Math.random()}`,
+      url: slide.url || slide.imageUrl || '',
+      alt: slide.alt || slide.imageAlt || '',
+      imageWidth: slide.imageWidth || 200,
+      imageHeight: slide.imageHeight || 200,
+      imagePosition: slide.imagePosition || { x: 20, y: 50 },
+      imageCrop: slide.imageCrop || { x: 0, y: 0, scale: 1 },
+      title: slide.title || 'Titre de la slide',
+      titleFont: slide.titleFont || 'Poppins',
+      titleFontSize: slide.titleFontSize || 48,
+      titleFontWeight: slide.titleFontWeight || '700',
+      titleColor: slide.titleColor || '#ffffff',
+      titleGradient: slide.titleGradient || undefined,
+      titlePosition: slide.titlePosition || { x: 50, y: 30 },
+      titleWidth: slide.titleWidth || 300,
+      subtitle: slide.subtitle || 'Sous-titre de la slide',
+      subtitleFont: slide.subtitleFont || 'Inter',
+      subtitleFontSize: slide.subtitleFontSize || 18,
+      subtitleFontWeight: slide.subtitleFontWeight || '400',
+      subtitleColor: slide.subtitleColor || '#ffffff',
+      subtitlePosition: slide.subtitlePosition || { x: 50, y: 50 },
+      subtitleWidth: slide.subtitleWidth || 300,
+      buttonText: slide.buttonText || 'Découvrir',
+      buttonFont: slide.buttonFont || 'Inter',
+      buttonFontSize: slide.buttonFontSize || 16,
+      buttonFontWeight: slide.buttonFontWeight || '500',
+      buttonColor: slide.buttonColor || '#ffffff',
+      buttonBackgroundColor: slide.buttonBackgroundColor || '#2563EB',
+      buttonBorderRadius: slide.buttonBorderRadius || 8,
+      buttonPosition: slide.buttonPosition || { x: 50, y: 70 },
+      buttonWidth: slide.buttonWidth || 200,
+      overlayOpacity: slide.overlayOpacity ?? 30,
+      overlayColor: slide.overlayColor || '#000000',
+      backgroundColor: slide.backgroundColor || undefined,
+      backgroundType: slide.backgroundType || 'solid',
+      backgroundValue: slide.backgroundValue || undefined,
+      textOpacity: slide.textOpacity ?? 100,
+      showTitle: slide.showTitle !== false,
+      showSubtitle: slide.showSubtitle !== false,
+      showButton: slide.showButton !== false,
+    };
+  });
+  
+  const hasMultipleSlides = slides.length > 1;
+  
+  // ⭐ Sauvegarder l'index dans le bloc via useEffect (pas pendant le rendu)
+  const saveCurrentIndex = useCallback((newIndex: number) => {
+    if (lastSavedIndex.current !== newIndex && isMounted.current) {
+      lastSavedIndex.current = newIndex;
+      console.log(`🎠 Sauvegarde de currentIndex: ${newIndex}`);
+      onUpdate({ currentIndex: newIndex });
+    }
+  }, [onUpdate]);
+  
+  // ⭐ Sauvegarder quand l'index change (via useEffect)
+  useEffect(() => {
+    if (pendingIndexRef.current !== null) {
+      saveCurrentIndex(pendingIndexRef.current);
+      pendingIndexRef.current = null;
+    } else {
+      saveCurrentIndex(currentIndex);
+    }
+  }, [currentIndex, saveCurrentIndex]);
+  
+  const [showSlideManager, setShowSlideManager] = useState(false);
   const [draggingElement, setDraggingElement] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  
-  // ⭐ États pour le redimensionnement
-  const [resizingText, setResizingText] = useState<string | null>(null);
+  const [isResizingImage, setIsResizingImage] = useState(false);
+  const [imageResizeStart, setImageResizeStart] = useState({ width: 0, height: 0, x: 0, y: 0 });
   const [resizeDirection, setResizeDirection] = useState<string | null>(null);
+  
+  const [resizingText, setResizingText] = useState<string | null>(null);
   const [resizeStart, setResizeStart] = useState({ width: 0, fontSize: 0 });
   const [resizeMouseStart, setResizeMouseStart] = useState({ x: 0, y: 0 });
   
-  // ⭐ Références
-  const editingImageIndexRef = useRef<number | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropOffsetX, setCropOffsetX] = useState(0);
+  const [cropOffsetY, setCropOffsetY] = useState(0);
+  const [cropZoom, setCropZoom] = useState(1);
+  
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // ⭐ Édition image
-  const [isEditing, setIsEditing] = useState(false);
-  const [editOffsetX, setEditOffsetX] = useState(0);
-  const [editOffsetY, setEditOffsetY] = useState(0);
-  const [editZoom, setEditZoom] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStart = useRef({ x: 0, y: 0, startX: 0, startY: 0 });
-
-  // ⭐ GESTION DES IMAGES DU CARROUSEL
-  const [showImageManager, setShowImageManager] = useState(false);
-  const [newImageUrl, setNewImageUrl] = useState('');
-  const [newImageAlt, setNewImageAlt] = useState('');
-  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
-
-  const images = props.images || [];
-  const hasMultipleImages = images.length > 1;
+  const autoPlay = props.autoPlay !== false && hasMultipleSlides;
+  const intervalTime = props.intervalTime || 5000;
+  const showArrows = props.showArrows !== false && hasMultipleSlides;
+  const showDots = props.showDots !== false && hasMultipleSlides;
+  const transitionEffect = props.transitionEffect || 'fade';
+  const transitionDuration = 500;
   
-  // ⭐ Récupérer la couleur de fond du bloc parent (définie dans ColorsPanel)
-  const blockBackgroundColor = props.backgroundColor;
-  const blockBackgroundType = props.backgroundType;
-  const blockBackgroundValue = props.backgroundValue;
-  
-  // ⭐ Diffusion de l'index actuel pour le panel couleurs
+  // ⭐ Auto-play
   useEffect(() => {
+    if (!autoPlay || !hasMultipleSlides || isHovered || isResizing) return;
+    const interval = setInterval(() => {
+      const newIndex = (currentIndex + 1) % slides.length;
+      pendingIndexRef.current = newIndex;
+      setCurrentIndex(newIndex);
+    }, intervalTime);
+    return () => clearInterval(interval);
+  }, [autoPlay, hasMultipleSlides, intervalTime, isHovered, isResizing, slides.length, currentIndex]);
+  
+  // ⭐ Diffuser l'index courant pour les panels
+  useEffect(() => {
+    console.log(`🎠 Diffusion de currentIndex: ${currentIndex}`);
     const event = new CustomEvent('carouselIndexChange', { detail: currentIndex });
     window.dispatchEvent(event);
   }, [currentIndex]);
   
-  // ⭐ Ajouter une image par URL (avec détection de transparence)
-  const addImage = () => {
-    if (!newImageUrl.trim()) return;
-    
-    const isTransparentUrl = newImageUrl.toLowerCase().includes('.png') || 
-                              newImageUrl.toLowerCase().includes('.webp');
-    
-    const newImage = {
-      url: newImageUrl,
-      alt: newImageAlt || `Slide ${images.length + 1}`,
-      crop: { x: 0, y: 0, scale: 1 },
-      backgroundColor: isTransparentUrl ? 'transparent' : null,
-      backgroundType: isTransparentUrl ? 'solid' : null,
-    };
-    
-    const newImages = [...images, newImage];
-    onUpdate({ images: newImages });
-    setNewImageUrl('');
-    setNewImageAlt('');
+  // ⭐ Navigation
+  const goToPrevious = () => {
+    const newIndex = (currentIndex - 1 + slides.length) % slides.length;
+    pendingIndexRef.current = newIndex;
+    setCurrentIndex(newIndex);
   };
-
-  // ⭐ Supprimer une image
-  const removeImage = (index: number) => {
-    const newImages = images.filter((_: any, i: number) => i !== index);
-    onUpdate({ images: newImages });
-    if (currentIndex >= newImages.length && newImages.length > 0) {
-      setCurrentIndex(newImages.length - 1);
-    } else if (newImages.length === 0) {
-      setCurrentIndex(0);
-    }
-  };
-
-  // ⭐ Upload depuis l'ordinateur avec détection de transparence
-  const handleImageUpload = async (files: FileList) => {
-    if (!shopId) {
-      toast.error('ID de boutique non disponible');
-      return;
-    }
-
-    const fileArray = Array.from(files);
-    for (const file of fileArray) {
-      try {
-        const asset = await assetsService.uploadAsset(shopId, file, 'image', 'carousel');
-        const fullUrl = getImageUrl(asset.url);
-        
-        const isTransparentFormat = file.type === 'image/png' || 
-                                     file.type === 'image/webp' ||
-                                     file.name.toLowerCase().endsWith('.png') ||
-                                     file.name.toLowerCase().endsWith('.webp');
-        
-        const newImage = {
-          url: fullUrl,
-          alt: asset.name,
-          crop: { x: 0, y: 0, scale: 1 },
-          backgroundColor: isTransparentFormat ? 'transparent' : null,
-          backgroundType: isTransparentFormat ? 'solid' : null,
-        };
-        
-        const newImages = [...images, newImage];
-        onUpdate({ images: newImages });
-        toast.success(`Image uploadée: ${asset.name}`);
-      } catch (error) {
-        console.error('Erreur upload:', error);
-        toast.error(`Erreur lors de l'upload de ${file.name}`);
-      }
-    }
-  };
-
-  // ⭐ Ouvrir la bibliothèque d'assets avec détection de transparence
-  const openAssetPicker = () => {
-    const event = new CustomEvent('openAssetPickerForCarousel', { 
-      detail: { 
-        callback: (asset: any) => {
-          const fullUrl = getImageUrl(asset.url);
-          
-          const isTransparentFormat = asset.url?.toLowerCase().includes('.png') || 
-                                       asset.url?.toLowerCase().includes('.webp') ||
-                                       asset.type === 'image/png' ||
-                                       asset.type === 'image/webp';
-          
-          const newImage = {
-            url: fullUrl,
-            alt: asset.name,
-            crop: { x: 0, y: 0, scale: 1 },
-            backgroundColor: isTransparentFormat ? 'transparent' : null,
-            backgroundType: isTransparentFormat ? 'solid' : null,
-          };
-          
-          const newImages = [...images, newImage];
-          onUpdate({ images: newImages });
-        }
-      } 
-    });
-    window.dispatchEvent(event);
-  };
-
-  // ⭐ Drag & Drop pour réorganiser les images
-  const handleImageDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedImageIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleImageDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedImageIndex === null || draggedImageIndex === index) return;
-    
-    const newImages = [...images];
-    const [draggedItem] = newImages.splice(draggedImageIndex, 1);
-    newImages.splice(index, 0, draggedItem);
-    
-    onUpdate({ images: newImages });
-    setDraggedImageIndex(index);
-  };
-
-  const handleImageDragEnd = () => {
-    setDraggedImageIndex(null);
-  };
-
-  // ⭐ Synchronisation
-  useEffect(() => {
-    setShowTitle(props.showTitle !== undefined ? props.showTitle : true);
-    setShowSubtitle(props.showSubtitle !== undefined ? props.showSubtitle : true);
-    setShowButton(props.showButton !== undefined ? props.showButton : true);
-    setTitlePosition(props.titlePosition || { x: 50, y: 30 });
-    setSubtitlePosition(props.subtitlePosition || { x: 50, y: 50 });
-    setButtonPosition(props.buttonPosition || { x: 50, y: 70 });
-    setTitleWidth(props.titleWidth || 300);
-    setSubtitleWidth(props.subtitleWidth || 300);
-    setButtonWidth(props.buttonWidth || 200);
-  }, [props]);
-
-  // ⭐ Toggles
-  const toggleTitle = () => { const newValue = !showTitle; setShowTitle(newValue); onUpdate({ showTitle: newValue }); };
-  const toggleSubtitle = () => { const newValue = !showSubtitle; setShowSubtitle(newValue); onUpdate({ showSubtitle: newValue }); };
-  const toggleButton = () => { const newValue = !showButton; setShowButton(newValue); onUpdate({ showButton: newValue }); };
-
-  // ⭐ Positions
-  const updateTitlePosition = (x: number, y: number) => { const newPos = { x, y }; setTitlePosition(newPos); onUpdate({ titlePosition: newPos }); };
-  const updateSubtitlePosition = (x: number, y: number) => { const newPos = { x, y }; setSubtitlePosition(newPos); onUpdate({ subtitlePosition: newPos }); };
-  const updateButtonPosition = (x: number, y: number) => { const newPos = { x, y }; setButtonPosition(newPos); onUpdate({ buttonPosition: newPos }); };
-
-  // ⭐ Dimensions largeur
-  const updateTitleWidth = (width: number) => { setTitleWidth(width); onUpdate({ titleWidth: width }); };
-  const updateSubtitleWidth = (width: number) => { setSubtitleWidth(width); onUpdate({ subtitleWidth: width }); };
-  const updateButtonWidth = (width: number) => { setButtonWidth(width); onUpdate({ buttonWidth: width }); };
-
-  // ⭐ DRAG
-  const handleTitleMouseDown = (e: React.MouseEvent) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    setDraggingElement('title');
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setDragOffset({
-        x: (e.clientX - rect.left) / rect.width * 100 - titlePosition.x,
-        y: (e.clientY - rect.top) / rect.height * 100 - titlePosition.y,
-      });
-    }
-  };
-
-  const handleSubtitleMouseDown = (e: React.MouseEvent) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    setDraggingElement('subtitle');
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setDragOffset({
-        x: (e.clientX - rect.left) / rect.width * 100 - subtitlePosition.x,
-        y: (e.clientY - rect.top) / rect.height * 100 - subtitlePosition.y,
-      });
-    }
-  };
-
-  const handleButtonMouseDown = (e: React.MouseEvent) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    setDraggingElement('button');
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setDragOffset({
-        x: (e.clientX - rect.left) / rect.width * 100 - buttonPosition.x,
-        y: (e.clientY - rect.top) / rect.height * 100 - buttonPosition.y,
-      });
-    }
-  };
-
-  // ⭐ REDIMENSIONNEMENT
-  const handleResizeStart = (e: React.MouseEvent, element: string, direction: string) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    setResizingText(element);
-    setResizeDirection(direction);
-    
-    let currentWidth = 0;
-    let currentFontSize = 0;
-    
-    if (element === 'title') {
-      currentWidth = titleWidth;
-      currentFontSize = props.titleFontSize || 48;
-    } else if (element === 'subtitle') {
-      currentWidth = subtitleWidth;
-      currentFontSize = props.subtitleFontSize || 18;
-    } else {
-      currentWidth = buttonWidth;
-      currentFontSize = props.buttonFontSize || 16;
-    }
-    
-    setResizeStart({ width: currentWidth, fontSize: currentFontSize });
-    setResizeMouseStart({ x: e.clientX, y: e.clientY });
-  };
-
-  // ⭐ Mouvement global drag
-  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
-    if (!draggingElement || isEditing) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    let newX = (e.clientX - rect.left) / rect.width * 100 - dragOffset.x;
-    let newY = (e.clientY - rect.top) / rect.height * 100 - dragOffset.y;
-    newX = Math.max(5, Math.min(95, newX));
-    newY = Math.max(5, Math.min(95, newY));
-    if (draggingElement === 'title') updateTitlePosition(newX, newY);
-    else if (draggingElement === 'subtitle') updateSubtitlePosition(newX, newY);
-    else if (draggingElement === 'button') updateButtonPosition(newX, newY);
-  }, [draggingElement, isEditing, dragOffset]);
-
-  // ⭐ Mouvement global redimensionnement
-  const handleResizeMove = useCallback((e: MouseEvent) => {
-    if (!resizingText || !resizeDirection) return;
-    const dx = e.clientX - resizeMouseStart.x;
-    let newWidth = resizeStart.width;
-    let newFontSize = resizeStart.fontSize;
-    
-    if (resizeDirection === 'ne' || resizeDirection === 'nw' || 
-        resizeDirection === 'se' || resizeDirection === 'sw') {
-      let ratio = 1;
-      if (resizeDirection === 'ne' || resizeDirection === 'se') {
-        ratio = (resizeStart.width + dx) / Math.max(1, resizeStart.width);
-      } else if (resizeDirection === 'nw' || resizeDirection === 'sw') {
-        ratio = (resizeStart.width - dx) / Math.max(1, resizeStart.width);
-      }
-      ratio = Math.max(0.3, Math.min(5, ratio));
-      
-      newWidth = Math.max(50, Math.min(3000, Math.floor(resizeStart.width * ratio)));
-      newFontSize = Math.max(10, Math.min(200, Math.floor(resizeStart.fontSize * ratio)));
-      
-      if (resizingText === 'title') {
-        updateTitleWidth(Math.round(newWidth));
-        onUpdate({ titleFontSize: Math.round(newFontSize) });
-      } else if (resizingText === 'subtitle') {
-        updateSubtitleWidth(Math.round(newWidth));
-        onUpdate({ subtitleFontSize: Math.round(newFontSize) });
-      } else if (resizingText === 'button') {
-        updateButtonWidth(Math.round(newWidth));
-        onUpdate({ buttonFontSize: Math.round(newFontSize) });
-      }
-    }
-    else if (resizeDirection === 'e' || resizeDirection === 'w') {
-      if (resizeDirection === 'e') {
-        newWidth = Math.max(50, Math.min(3000, resizeStart.width + dx));
-      } else if (resizeDirection === 'w') {
-        newWidth = Math.max(50, Math.min(3000, resizeStart.width - dx));
-      }
-      
-      if (resizingText === 'title') {
-        updateTitleWidth(newWidth);
-      } else if (resizingText === 'subtitle') {
-        updateSubtitleWidth(newWidth);
-      } else if (resizingText === 'button') {
-        updateButtonWidth(newWidth);
-      }
-    }
-  }, [resizingText, resizeDirection, resizeMouseStart, resizeStart, onUpdate, updateTitleWidth, updateSubtitleWidth, updateButtonWidth]);
-
-  const handleGlobalMouseUp = useCallback(() => {
-    setDraggingElement(null);
-    setResizingText(null);
-    setResizeDirection(null);
-  }, []);
-
-  useEffect(() => {
-    if (draggingElement && !isEditing) {
-      window.addEventListener('mousemove', handleGlobalMouseMove);
-      window.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleGlobalMouseMove);
-        window.removeEventListener('mouseup', handleGlobalMouseUp);
-      };
-    }
-  }, [draggingElement, isEditing, handleGlobalMouseMove, handleGlobalMouseUp]);
-
-  useEffect(() => {
-    if (resizingText) {
-      window.addEventListener('mousemove', handleResizeMove);
-      window.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleResizeMove);
-        window.removeEventListener('mouseup', handleGlobalMouseUp);
-      };
-    }
-  }, [resizingText, handleResizeMove, handleGlobalMouseUp]);
-
-  // ⭐ Carrousel et crops
-  const [savedCrops, setSavedCrops] = useState<Record<number, { x: number; y: number; scale: number }>>(() => {
-    const crops: Record<number, { x: number; y: number; scale: number }> = {};
-    const imgList = props.images || [];
-    imgList.forEach((img: any, idx: number) => {
-      crops[idx] = img?.crop || { x: 0, y: 0, scale: 1 };
-    });
-    return crops;
-  });
   
-  const autoPlay = props.autoPlay !== false && hasMultipleImages;
-  const intervalTime = props.intervalTime || 5000;
-  const showArrows = props.showArrows !== false && hasMultipleImages;
-  const showDots = props.showDots !== false && hasMultipleImages;
-  const transitionEffect = props.transitionEffect || 'fade';
-  const transitionDuration = 300;
-
-  useEffect(() => {
-    if (!autoPlay || !hasMultipleImages || isHovered || isResizing || isEditing) return;
-    const interval = setInterval(() => {
-      if (!isEditing) setCurrentIndex((prev) => (prev + 1) % images.length);
-    }, intervalTime);
-    return () => clearInterval(interval);
-  }, [autoPlay, hasMultipleImages, intervalTime, isHovered, images.length, isResizing, isEditing]);
-
-  const goToPrevious = useCallback(() => { if (isEditing) return; setCurrentIndex((prev) => (prev - 1 + images.length) % images.length); }, [images.length, isEditing]);
-  const goToNext = useCallback(() => { if (isEditing) return; setCurrentIndex((prev) => (prev + 1) % images.length); }, [images.length, isEditing]);
-  const goToSlide = (index: number) => { if (isEditing) return; setCurrentIndex(index); };
-
-  const getCurrentCrop = useCallback(() => savedCrops[currentIndex] || { x: 0, y: 0, scale: 1 }, [savedCrops, currentIndex]);
-  const saveCurrentCrop = useCallback((x: number, y: number, scale: number) => {
-    const newCrops = { ...savedCrops, [currentIndex]: { x, y, scale } };
-    setSavedCrops(newCrops);
-    const newImages = [...images];
-    newImages[currentIndex] = { ...newImages[currentIndex], crop: { x, y, scale } };
-    onUpdate({ images: newImages });
-  }, [images, currentIndex, savedCrops, onUpdate]);
-
-  const currentImageUrl = images[currentIndex]?.url;
-
-  const handleDoubleClick = useCallback(() => {
-    if (currentImageUrl && !imageErrors[currentIndex]) {
-      const currentCrop = getCurrentCrop();
-      setEditOffsetX(currentCrop.x);
-      setEditOffsetY(currentCrop.y);
-      setEditZoom(currentCrop.scale);
-      editingImageIndexRef.current = currentIndex;
-      setIsEditing(true);
-    }
-  }, [currentImageUrl, imageErrors, currentIndex, getCurrentCrop]);
-
-  const exitEditMode = useCallback(() => {
-    saveCurrentCrop(editOffsetX, editOffsetY, editZoom);
-    setIsEditing(false);
-    setIsDragging(false);
-    editingImageIndexRef.current = null;
-  }, [editOffsetX, editOffsetY, editZoom, saveCurrentCrop]);
-
-  const cancelEditMode = useCallback(() => {
-    setIsEditing(false);
-    setIsDragging(false);
-    editingImageIndexRef.current = null;
-  }, []);
-
-  const handleImageMouseDown = (e: React.MouseEvent) => {
-    if (!isEditing) return;
-    e.stopPropagation();
-    e.preventDefault();
-    setIsDragging(true);
-    dragStart.current = { x: e.clientX, y: e.clientY, startX: editOffsetX, startY: editOffsetY };
+  const goToNext = () => {
+    const newIndex = (currentIndex + 1) % slides.length;
+    pendingIndexRef.current = newIndex;
+    setCurrentIndex(newIndex);
   };
-
-  const handleImageMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return;
-    const dx = e.clientX - dragStart.current.x;
-    const dy = e.clientY - dragStart.current.y;
-    setEditOffsetX(Math.max(-500, Math.min(500, dragStart.current.startX + dx)));
-    setEditOffsetY(Math.max(-500, Math.min(500, dragStart.current.startY + dy)));
-  }, [isDragging]);
-
-  const handleImageMouseUp = useCallback(() => { if (isDragging) setIsDragging(false); }, [isDragging]);
-
-  useEffect(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleImageMouseMove);
-      window.addEventListener('mouseup', handleImageMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleImageMouseMove);
-        window.removeEventListener('mouseup', handleImageMouseUp);
-      };
-    }
-  }, [isDragging, handleImageMouseMove, handleImageMouseUp]);
-
-  const handleZoomIn = useCallback(() => setEditZoom(prev => Math.min(4, prev + 0.2)), []);
-  const handleZoomOut = useCallback(() => setEditZoom(prev => Math.max(1, prev - 0.2)), []);
-  const handleReset = useCallback(() => { setEditOffsetX(0); setEditOffsetY(0); setEditZoom(1); }, []);
-
-  const getImageTransform = () => {
-    if (isEditing) return `translate(-50%, -50%) translate(${editOffsetX}px, ${editOffsetY}px) scale(${editZoom})`;
-    if (isResizing) return `translate(-50%, -50%) scale(1)`;
-    const currentCrop = getCurrentCrop();
-    return `translate(-50%, -50%) translate(${currentCrop.x}px, ${currentCrop.y}px) scale(${currentCrop.scale})`;
+  
+  const goToSlide = (index: number) => {
+    pendingIndexRef.current = index;
+    setCurrentIndex(index);
   };
-
-  const imageStyle = {
-    position: 'absolute' as const,
-    top: '50%',
-    left: '50%',
-    width: '100%',
-    height: '100%',
-    transform: getImageTransform(),
-    objectFit: 'cover' as const,
-    cursor: isEditing && isDragging ? 'grabbing' : (isEditing ? 'grab' : 'default'),
-    transition: isResizing || isEditing ? 'none' : 'transform 0.2s ease',
-    willChange: 'transform',
-  };
-
-  // ⭐ RENDER IMAGE - CORRECTION POUR QUE LA COULEUR DU BLOC S'APPLIQUE AUX IMAGES TRANSPARENTES
-  const renderImage = () => {
-    if (images.length === 0) return null;
+  
+  const currentSlide = slides.length > 0 ? slides[currentIndex] : null;
+  
+  // ⭐ RENDER IMAGE AVEC TRANSITIONS (FADE ou SLIDE)
+  const renderImageWithTransition = () => {
+    if (slides.length === 0) return null;
     
     const isFade = transitionEffect === 'fade';
-    const prevIndex = (currentIndex - 1 + images.length) % images.length;
-    const nextIndex = (currentIndex + 1) % images.length;
+    const prevIndex = (currentIndex - 1 + slides.length) % slides.length;
+    const nextIndex = (currentIndex + 1) % slides.length;
     
     return (
       <div className="absolute inset-0">
-        {images.map((image: any, idx: number) => {
-          // ⭐ STYLE DE FOND : priorité à l'image, sinon le bloc parent
+        {slides.map((slide, idx) => {
+          // Style de fond individuel pour chaque slide
           let backgroundStyle: React.CSSProperties = {};
           
-          // ⭐ 1. Si l'image a son propre fond (géré dans la gestion des images)
-          if (image.backgroundType === 'gradient' && image.backgroundValue) {
-            backgroundStyle = { background: image.backgroundValue };
-          }
-          else if (image.backgroundColor && image.backgroundColor !== 'transparent') {
-            backgroundStyle = { backgroundColor: image.backgroundColor };
-          }
-          // ⭐ 2. Sinon, utiliser le fond du bloc parent (défini dans ColorsPanel)
-          else if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
-            backgroundStyle = { background: blockBackgroundValue };
-          }
-          else if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
-            backgroundStyle = { backgroundColor: blockBackgroundColor };
-          }
-          // ⭐ 3. Par défaut : transparent
-          else {
+          if (slide.backgroundType === 'gradient' && slide.backgroundValue) {
+            backgroundStyle = { background: slide.backgroundValue };
+          } else if (slide.backgroundColor && slide.backgroundColor !== 'transparent') {
+            backgroundStyle = { backgroundColor: slide.backgroundColor };
+          } else {
             backgroundStyle = { backgroundColor: 'transparent' };
           }
           
@@ -536,31 +234,44 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
           let transformStyle: React.CSSProperties = {};
           
           if (isFade) {
+            // ✅ EFFET FADE (fondu)
             transformStyle = {
               opacity: isActive ? 1 : 0,
               transition: `opacity ${transitionDuration}ms ease-in-out`,
+              pointerEvents: isActive ? 'auto' : 'none',
             };
           } else {
+            // ✅ EFFET SLIDE (glissement)
             if (isActive) {
+              // Slide active : position normale
               transformStyle = {
                 transform: 'translateX(0)',
                 transition: `transform ${transitionDuration}ms ease-in-out`,
+                pointerEvents: 'auto',
               };
             } else {
+              // Slide inactive : placée à gauche ou à droite
               if (idx === prevIndex) {
+                // La slide précédente sort vers la gauche
                 transformStyle = {
                   transform: 'translateX(-100%)',
                   transition: `transform ${transitionDuration}ms ease-in-out`,
+                  pointerEvents: 'none',
                 };
               } else if (idx === nextIndex) {
+                // La slide suivante entre depuis la droite
                 transformStyle = {
                   transform: 'translateX(100%)',
                   transition: `transform ${transitionDuration}ms ease-in-out`,
+                  pointerEvents: 'none',
                 };
               } else {
+                // Les autres slides sont cachées
                 transformStyle = {
                   transform: 'translateX(100%)',
                   transition: 'none',
+                  pointerEvents: 'none',
+                  display: 'none',
                 };
               }
             }
@@ -572,19 +283,72 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
               className="absolute inset-0 w-full h-full"
               style={{ ...backgroundStyle, ...transformStyle }}
             >
-              {!imageErrors[idx] && image.url ? (
-                <img 
-                  src={image.url} 
-                  alt={image.alt || `Slide ${idx + 1}`} 
-                  style={imageStyle}
-                  onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))}
-                  draggable={false}
-                />
-              ) : !imageErrors[idx] && !image.url ? (
-                <div className="w-full h-full flex items-center justify-center text-gray-500">
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">🖼️</div>
-                    <div className="text-xs">URL manquante</div>
+              {!imageErrors[idx] && slide.url ? (
+                <div
+                  className="relative w-full h-full"
+                  style={{
+                    cursor: isSelected ? (isResizingImage ? 'grabbing' : 'move') : 'default',
+                  }}
+                  onMouseDown={isSelected && isActive ? (e) => {
+                    e.stopPropagation();
+                    setDraggingElement('image');
+                    const rect = containerRef.current?.getBoundingClientRect();
+                    if (rect) {
+                      setDragOffset({
+                        x: (e.clientX - rect.left) / rect.width * 100 - slide.imagePosition.x,
+                        y: (e.clientY - rect.top) / rect.height * 100 - slide.imagePosition.y,
+                      });
+                    }
+                  } : undefined}
+                >
+                  <div 
+                    className="relative"
+                    style={{
+                      position: 'absolute',
+                      left: `${slide.imagePosition?.x || 20}%`,
+                      top: `${slide.imagePosition?.y || 50}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: slide.imageWidth,
+                      height: slide.imageHeight,
+                      border: isSelected && isActive ? '2px solid #3b82f6' : 'none',
+                      borderRadius: '8px',
+                    }}
+                  >
+                    <img
+                      src={slide.url}
+                      alt={slide.alt}
+                      className="w-full h-full object-cover rounded-lg shadow-lg pointer-events-none"
+                      style={{
+                        transform: isCropping && isActive
+                          ? `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})`
+                          : slide.imageCrop
+                            ? `translate(${slide.imageCrop.x}px, ${slide.imageCrop.y}px) scale(${slide.imageCrop.scale})`
+                            : 'none',
+                      }}
+                      onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))}
+                    />
+                    
+                    {/* Poignées de redimensionnement */}
+                    {isSelected && isActive && !isCropping && (
+                      <>
+                        <div className="absolute -top-2 -left-2 w-4 h-4 bg-blue-500 rounded-full cursor-nw-resize border-2 border-white shadow-lg z-30" 
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageResizeStart(e, 'nw'); }} />
+                        <div className="absolute -top-2 -right-2 w-4 h-4 bg-blue-500 rounded-full cursor-ne-resize border-2 border-white shadow-lg z-30" 
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageResizeStart(e, 'ne'); }} />
+                        <div className="absolute -bottom-2 -left-2 w-4 h-4 bg-blue-500 rounded-full cursor-sw-resize border-2 border-white shadow-lg z-30" 
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageResizeStart(e, 'sw'); }} />
+                        <div className="absolute -bottom-2 -right-2 w-4 h-4 bg-blue-500 rounded-full cursor-se-resize border-2 border-white shadow-lg z-30" 
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageResizeStart(e, 'se'); }} />
+                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-blue-500 rounded-full cursor-n-resize border-2 border-white shadow-lg z-30" 
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageResizeStart(e, 'n'); }} />
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-blue-500 rounded-full cursor-s-resize border-2 border-white shadow-lg z-30" 
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageResizeStart(e, 's'); }} />
+                        <div className="absolute top-1/2 -left-2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full cursor-w-resize border-2 border-white shadow-lg z-30" 
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageResizeStart(e, 'w'); }} />
+                        <div className="absolute top-1/2 -right-2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full cursor-e-resize border-2 border-white shadow-lg z-30" 
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImageResizeStart(e, 'e'); }} />
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -595,412 +359,680 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
                   </div>
                 </div>
               )}
+              
+              {/* Overlay */}
+              <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: slide.overlayColor || '#000000', opacity: (slide.overlayOpacity || 30) / 100 }} />
             </div>
           );
         })}
       </div>
     );
   };
-
-  const overlayOpacity = props.overlayOpacity || 30;
-  const overlayColor = props.overlayColor || '#000000';
-  const currentCrop = getCurrentCrop();
-  const zoomPercent = Math.round((isEditing ? editZoom : currentCrop.scale) * 100);
-
-  const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => onUpdate({ title: e.currentTarget.innerText });
-  const handleSubtitleBlur = (e: React.FocusEvent<HTMLParagraphElement>) => onUpdate({ subtitle: e.currentTarget.innerText });
-  const handleButtonTextBlur = (e: React.FocusEvent<HTMLButtonElement>) => onUpdate({ buttonText: e.currentTarget.innerText });
-
-  if (images.length === 0 && !isEditing) {
+  
+  const addSlide = () => {
+    const newSlide: Slide = {
+      id: `slide-${Date.now()}-${Math.random()}`,
+      url: '',
+      alt: '',
+      imageWidth: 200,
+      imageHeight: 200,
+      imagePosition: { x: 20, y: 50 },
+      title: `Slide ${slides.length + 1}`,
+      titleFont: 'Poppins',
+      titleFontSize: 48,
+      titleFontWeight: '700',
+      titleColor: '#ffffff',
+      titleGradient: undefined,
+      titlePosition: { x: 50, y: 30 },
+      titleWidth: 300,
+      subtitle: 'Sous-titre de la slide',
+      subtitleFont: 'Inter',
+      subtitleFontSize: 18,
+      subtitleFontWeight: '400',
+      subtitleColor: '#ffffff',
+      subtitlePosition: { x: 50, y: 50 },
+      subtitleWidth: 300,
+      buttonText: 'Découvrir',
+      buttonFont: 'Inter',
+      buttonFontSize: 16,
+      buttonFontWeight: '500',
+      buttonColor: '#ffffff',
+      buttonBackgroundColor: '#2563EB',
+      buttonBorderRadius: 8,
+      buttonPosition: { x: 50, y: 70 },
+      buttonWidth: 200,
+      overlayOpacity: 30,
+      overlayColor: '#000000',
+      backgroundColor: undefined,
+      backgroundType: 'solid',
+      backgroundValue: undefined,
+      textOpacity: 100,
+      showTitle: true,
+      showSubtitle: true,
+      showButton: true,
+    };
+    onUpdate({ images: [...slides, newSlide] });
+  };
+  
+  const duplicateSlide = (slideId: string) => {
+    const slideToCopy = slides.find(s => s.id === slideId);
+    if (slideToCopy) {
+      const copiedSlide = {
+        ...slideToCopy,
+        id: `slide-${Date.now()}-${Math.random()}`,
+        title: `${slideToCopy.title} (copie)`,
+      };
+      onUpdate({ images: [...slides, copiedSlide] });
+    }
+  };
+  
+  const removeSlide = (slideId: string) => {
+    const newSlides = slides.filter(s => s.id !== slideId);
+    onUpdate({ images: newSlides });
+    if (currentIndex >= newSlides.length && newSlides.length > 0) {
+      const newIndex = newSlides.length - 1;
+      pendingIndexRef.current = newIndex;
+      setCurrentIndex(newIndex);
+    }
+  };
+  
+  const updateCurrentSlide = (updates: Partial<Slide>) => {
+    if (!currentSlide) return;
+    const newSlides = slides.map(slide =>
+      slide.id === currentSlide.id ? { ...slide, ...updates } : slide
+    );
+    onUpdate({ images: newSlides });
+  };
+  
+  const handleImageResizeStart = (e: React.MouseEvent, direction: string) => {
+    if (!currentSlide) return;
+    e.stopPropagation();
+    e.preventDefault();
+    setIsResizingImage(true);
+    setResizeDirection(direction);
+    setImageResizeStart({
+      width: currentSlide.imageWidth,
+      height: currentSlide.imageHeight,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+  
+  const handleTitleMouseDown = (e: React.MouseEvent) => {
+    if (!currentSlide) return;
+    e.stopPropagation();
+    setDraggingElement('title');
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: (e.clientX - rect.left) / rect.width * 100 - currentSlide.titlePosition.x,
+        y: (e.clientY - rect.top) / rect.height * 100 - currentSlide.titlePosition.y,
+      });
+    }
+  };
+  
+  const handleSubtitleMouseDown = (e: React.MouseEvent) => {
+    if (!currentSlide) return;
+    e.stopPropagation();
+    setDraggingElement('subtitle');
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: (e.clientX - rect.left) / rect.width * 100 - currentSlide.subtitlePosition.x,
+        y: (e.clientY - rect.top) / rect.height * 100 - currentSlide.subtitlePosition.y,
+      });
+    }
+  };
+  
+  const handleButtonMouseDown = (e: React.MouseEvent) => {
+    if (!currentSlide) return;
+    e.stopPropagation();
+    setDraggingElement('button');
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: (e.clientX - rect.left) / rect.width * 100 - currentSlide.buttonPosition.x,
+        y: (e.clientY - rect.top) / rect.height * 100 - currentSlide.buttonPosition.y,
+      });
+    }
+  };
+  
+  const handleTextResizeStart = (e: React.MouseEvent, element: string, direction: string) => {
+    if (!currentSlide) return;
+    e.stopPropagation();
+    setResizingText(element);
+    setResizeDirection(direction);
+    
+    let currentWidth = 0;
+    let currentFontSize = 0;
+    
+    if (element === 'title') {
+      currentWidth = currentSlide.titleWidth;
+      currentFontSize = currentSlide.titleFontSize;
+    } else if (element === 'subtitle') {
+      currentWidth = currentSlide.subtitleWidth;
+      currentFontSize = currentSlide.subtitleFontSize;
+    } else {
+      currentWidth = currentSlide.buttonWidth;
+      currentFontSize = currentSlide.buttonFontSize;
+    }
+    
+    setResizeStart({ width: currentWidth, fontSize: currentFontSize });
+    setResizeMouseStart({ x: e.clientX, y: e.clientY });
+  };
+  
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (draggingElement && currentSlide) {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (rect) {
+          let newX = (e.clientX - rect.left) / rect.width * 100 - dragOffset.x;
+          let newY = (e.clientY - rect.top) / rect.height * 100 - dragOffset.y;
+          newX = Math.max(0, Math.min(100, newX));
+          newY = Math.max(0, Math.min(100, newY));
+          
+          const updates: Partial<Slide> = {};
+          if (draggingElement === 'title') updates.titlePosition = { x: newX, y: newY };
+          else if (draggingElement === 'subtitle') updates.subtitlePosition = { x: newX, y: newY };
+          else if (draggingElement === 'button') updates.buttonPosition = { x: newX, y: newY };
+          updateCurrentSlide(updates);
+        }
+      }
+      
+      if (isResizingImage && currentSlide && resizeDirection) {
+        const dx = e.clientX - imageResizeStart.x;
+        const dy = e.clientY - imageResizeStart.y;
+        let newWidth = imageResizeStart.width;
+        let newHeight = imageResizeStart.height;
+        
+        if (resizeDirection === 'se') {
+          newWidth = Math.max(50, Math.min(500, imageResizeStart.width + dx));
+          newHeight = Math.max(50, Math.min(500, imageResizeStart.height + dy));
+        } else if (resizeDirection === 'e') {
+          newWidth = Math.max(50, Math.min(500, imageResizeStart.width + dx));
+        } else if (resizeDirection === 's') {
+          newHeight = Math.max(50, Math.min(500, imageResizeStart.height + dy));
+        } else if (resizeDirection === 'ne') {
+          newWidth = Math.max(50, Math.min(500, imageResizeStart.width + dx));
+          newHeight = Math.max(50, Math.min(500, imageResizeStart.height - dy));
+        } else if (resizeDirection === 'nw') {
+          newWidth = Math.max(50, Math.min(500, imageResizeStart.width - dx));
+          newHeight = Math.max(50, Math.min(500, imageResizeStart.height - dy));
+        } else if (resizeDirection === 'sw') {
+          newWidth = Math.max(50, Math.min(500, imageResizeStart.width - dx));
+          newHeight = Math.max(50, Math.min(500, imageResizeStart.height + dy));
+        } else if (resizeDirection === 'n') {
+          newHeight = Math.max(50, Math.min(500, imageResizeStart.height - dy));
+        } else if (resizeDirection === 'w') {
+          newWidth = Math.max(50, Math.min(500, imageResizeStart.width - dx));
+        }
+        
+        updateCurrentSlide({ imageWidth: newWidth, imageHeight: newHeight });
+      }
+      
+      if (resizingText && currentSlide && resizeDirection) {
+        const dx = e.clientX - resizeMouseStart.x;
+        let newWidth = resizeStart.width;
+        let newFontSize = resizeStart.fontSize;
+        
+        if (resizeDirection === 'ne' || resizeDirection === 'nw' || 
+            resizeDirection === 'se' || resizeDirection === 'sw') {
+          let ratio = 1;
+          if (resizeDirection === 'ne' || resizeDirection === 'se') {
+            ratio = (resizeStart.width + dx) / Math.max(1, resizeStart.width);
+          } else if (resizeDirection === 'nw' || resizeDirection === 'sw') {
+            ratio = (resizeStart.width - dx) / Math.max(1, resizeStart.width);
+          }
+          ratio = Math.max(0.3, Math.min(5, ratio));
+          
+          newWidth = Math.max(50, Math.min(3000, Math.floor(resizeStart.width * ratio)));
+          newFontSize = Math.max(10, Math.min(200, Math.floor(resizeStart.fontSize * ratio)));
+          
+          const updates: Partial<Slide> = {};
+          if (resizingText === 'title') {
+            updates.titleWidth = Math.round(newWidth);
+            updates.titleFontSize = Math.round(newFontSize);
+          } else if (resizingText === 'subtitle') {
+            updates.subtitleWidth = Math.round(newWidth);
+            updates.subtitleFontSize = Math.round(newFontSize);
+          } else if (resizingText === 'button') {
+            updates.buttonWidth = Math.round(newWidth);
+            updates.buttonFontSize = Math.round(newFontSize);
+          }
+          updateCurrentSlide(updates);
+        }
+        else if (resizeDirection === 'e' || resizeDirection === 'w') {
+          if (resizeDirection === 'e') {
+            newWidth = Math.max(50, Math.min(3000, resizeStart.width + dx));
+          } else if (resizeDirection === 'w') {
+            newWidth = Math.max(50, Math.min(3000, resizeStart.width - dx));
+          }
+          
+          const updates: Partial<Slide> = {};
+          if (resizingText === 'title') updates.titleWidth = newWidth;
+          else if (resizingText === 'subtitle') updates.subtitleWidth = newWidth;
+          else if (resizingText === 'button') updates.buttonWidth = newWidth;
+          updateCurrentSlide(updates);
+        }
+      }
+    };
+    
+    const handleMouseUp = () => {
+      setDraggingElement(null);
+      setIsResizingImage(false);
+      setResizingText(null);
+      setResizeDirection(null);
+    };
+    
+    if (draggingElement || isResizingImage || resizingText) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [draggingElement, isResizingImage, resizingText, currentSlide, dragOffset, imageResizeStart, resizeDirection, resizeStart, resizeMouseStart]);
+  
+  const handleImageUpload = async (files: FileList) => {
+    if (!shopId) {
+      toast.error('ID de boutique non disponible');
+      return;
+    }
+    for (const file of Array.from(files)) {
+      try {
+        const asset = await assetsService.uploadAsset(shopId, file, 'image', 'carousel');
+        const fullUrl = getImageUrl(asset.url);
+        updateCurrentSlide({ url: fullUrl, alt: asset.name });
+        toast.success(`Image uploadée: ${asset.name}`);
+      } catch (error) {
+        toast.error(`Erreur lors de l'upload`);
+      }
+    }
+  };
+  
+  const openAssetPicker = () => {
+    const event = new CustomEvent('openAssetPickerForCarousel', {
+      detail: { callback: (asset: any) => updateCurrentSlide({ url: getImageUrl(asset.url), alt: asset.name }) }
+    });
+    window.dispatchEvent(event);
+  };
+  
+  const startCropping = () => {
+    if (!currentSlide) return;
+    setIsCropping(true);
+    setCropOffsetX(currentSlide.imageCrop?.x || 0);
+    setCropOffsetY(currentSlide.imageCrop?.y || 0);
+    setCropZoom(currentSlide.imageCrop?.scale || 1);
+  };
+  
+  const saveCrop = () => {
+    updateCurrentSlide({ imageCrop: { x: cropOffsetX, y: cropOffsetY, scale: cropZoom } });
+    setIsCropping(false);
+  };
+  
+  // ⭐ Nettoyage au démontage
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+  
+  if (slides.length === 0) {
     return (
-      <div className={`relative cursor-pointer transition-all w-full h-full bg-gray-800 flex items-center justify-center ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''}`} onClick={onSelect}>
+      <div className={`relative w-full h-full bg-gray-800 flex items-center justify-center ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''}`} onClick={onSelect}>
         <div className="text-center text-gray-400 p-4">
           <div className="text-4xl mb-2">🎠</div>
-          <p className="text-sm">Mode carrousel activé</p>
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowImageManager(true); }}
-            className="mt-2 px-3 py-1 bg-primary text-white text-xs rounded-lg hover:bg-primary/80"
-          >
-            + Ajouter des images
-          </button>
+          <p className="text-sm">Carrousel personnalisé</p>
+          <button onClick={(e) => { e.stopPropagation(); setShowSlideManager(true); }} className="mt-2 px-3 py-1 bg-primary text-white text-xs rounded-lg">+ Créer ma première slide</button>
         </div>
       </div>
     );
   }
-
+  
+  if (!currentSlide) {
+    return (
+      <div className={`relative w-full h-full bg-gray-800 flex items-center justify-center ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''}`} onClick={onSelect}>
+        <div className="text-center text-gray-400 p-4">⚠️ Erreur de chargement de la slide</div>
+      </div>
+    );
+  }
+  
+  const slideTextOpacity = (currentSlide.textOpacity ?? 100) / 100;
+  
   return (
     <>
       <div
         ref={containerRef}
-        className={`relative cursor-pointer transition-all w-full h-full overflow-hidden ${isSelected && !isEditing ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : isHovered && !isEditing ? 'ring-1 ring-gray-300 rounded-lg' : ''}`}
-        onDoubleClick={handleDoubleClick}
+        className={`relative w-full h-full overflow-hidden ${isSelected && !isCropping ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''}`}
         onClick={onSelect}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div className="relative w-full h-full">
-          {/* Conteneur des images */}
-          <div className="absolute inset-0">
-            {renderImage()}
-          </div>
-          
-          {/* Overlay */}
-          <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: overlayColor, opacity: overlayOpacity / 100 }} />
-
-          {isEditing && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex gap-2 bg-black/80 rounded-full p-1 shadow-lg">
-              <button onMouseDown={(e) => { e.stopPropagation(); handleZoomOut(); }} className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full text-white font-bold text-lg">−</button>
-              <div className="px-3 py-1 text-white text-sm">{zoomPercent}%</div>
-              <button onMouseDown={(e) => { e.stopPropagation(); handleZoomIn(); }} className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full text-white font-bold text-lg">+</button>
-              <div className="w-px h-6 bg-gray-600 mx-1" />
-              <button onMouseDown={(e) => { e.stopPropagation(); handleReset(); }} className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 rounded-full text-white text-xs">Reset</button>
-              <div className="w-px h-6 bg-gray-600 mx-1" />
-              <button onMouseDown={(e) => { e.stopPropagation(); exitEditMode(); }} className="px-3 py-1 bg-green-600 hover:bg-green-500 rounded-full text-white text-sm">✓ Terminer</button>
-              <button onMouseDown={(e) => { e.stopPropagation(); cancelEditMode(); }} className="px-3 py-1 bg-red-600 hover:bg-red-500 rounded-full text-white text-sm">✕ Annuler</button>
-            </div>
-          )}
-
-          {!isEditing && !isResizing && showArrows && hasMultipleImages && (
-            <>
-              <button onMouseDown={(e) => { e.stopPropagation(); goToPrevious(); }} className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white"><FiChevronLeft size={24} /></button>
-              <button onMouseDown={(e) => { e.stopPropagation(); goToNext(); }} className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white"><FiChevronRight size={24} /></button>
-            </>
-          )}
-
-          {!isEditing && !isResizing && showDots && hasMultipleImages && (
-            <div className="absolute bottom-4 left-0 right-0 z-30 flex justify-center gap-2">
-              {images.map((_: any, idx: number) => (
-                <button key={idx} onMouseDown={(e) => { e.stopPropagation(); goToSlide(idx); }} className={`transition-all ${idx === currentIndex ? 'w-6 bg-white' : 'w-2 bg-white/50'} h-2 rounded-full`} />
-              ))}
-            </div>
-          )}
-
-          {/* ⭐ TITRE */}
-          {showTitle && (
-            <div className="absolute" style={{ left: `${titlePosition.x}%`, top: `${titlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
-              <div className="relative" style={{ 
+        {/* ⭐ FOND DE LA SLIDE (fallback) */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            backgroundColor: currentSlide.backgroundColor || customization?.primaryColor || '#1a1a2e',
+          }}
+        />
+        
+        {/* ⭐ RENDER DES IMAGES AVEC TRANSITIONS */}
+        {renderImageWithTransition()}
+        
+        {/* ⭐ TITRE */}
+        {currentSlide.showTitle !== false && currentSlide.title && (
+          <div
+            className="absolute"
+            style={{
+              left: `${currentSlide.titlePosition.x}%`,
+              top: `${currentSlide.titlePosition.y}%`,
+              transform: 'translate(-50%, -50%)',
+              cursor: isSelected ? 'move' : 'default',
+            }}
+            onMouseDown={isSelected ? handleTitleMouseDown : undefined}
+          >
+            <div 
+              className="relative"
+              style={{
                 display: 'inline-block',
-                width: `${titleWidth}px`,
+                width: `${currentSlide.titleWidth}px`,
                 minWidth: '50px',
                 maxWidth: '3000px',
                 border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
                 padding: '4px',
                 borderRadius: '4px',
-                transition: isResizing ? 'none' : 'all 0.1s ease',
-              }}>
-                <h1 className="mb-0" style={{
+              }}
+            >
+              <h1
+                className="font-bold"
+                style={{
                   display: 'block',
                   width: '100%',
-                  fontFamily: props.titleFont || 'Poppins',
-                  fontSize: `${props.titleFontSize || 48}px`,
-                  fontWeight: props.titleFontWeight || '700',
+                  fontFamily: currentSlide.titleFont || customization?.headingFont || 'Poppins',
+                  fontSize: currentSlide.titleFontSize,
+                  fontWeight: currentSlide.titleFontWeight,
                   lineHeight: 1.2,
                   letterSpacing: '-0.02em',
-                  marginBottom: '0',
-                  opacity: textOpacity,
-                  cursor: 'default',
+                  color: currentSlide.titleColor || '#ffffff',
+                  opacity: slideTextOpacity,
+                  textShadow: '0 2px 4px rgba(0,0,0,0.3)',
                   whiteSpace: 'normal',
                   wordBreak: 'break-word',
-                  overflowWrap: 'break-word',
-                  textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                  transition: isResizing ? 'none' : 'all 0.1s ease',
-                  ...(props?.titleGradient ? { backgroundImage: props.titleGradient, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } : { color: props.titleColor || '#ffffff' }),
+                  ...(currentSlide.titleGradient ? { 
+                    backgroundImage: currentSlide.titleGradient, 
+                    backgroundClip: 'text', 
+                    WebkitBackgroundClip: 'text', 
+                    color: 'transparent' 
+                  } : {}),
                 }}
-                contentEditable={isSelected && !isResizing && !resizingText}
-                onBlur={handleTitleBlur}
-                onMouseDown={isSelected && !isResizing && !resizingText ? handleTitleMouseDown : undefined}
-                suppressContentEditableWarning>
-                  {props.title || shop?.name || 'Bienvenue'}
-                </h1>
-                
-                {isSelected && !isEditing && !isResizing && !resizingText && (
-                  <>
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'ne')} />
-                    <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'nw')} />
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'se')} />
-                    <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'sw')} />
-                    
-                    <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'e')} />
-                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'w')} />
-                  </>
-                )}
-              </div>
+                contentEditable={isSelected}
+                onBlur={(e) => updateCurrentSlide({ title: e.currentTarget.innerText })}
+                suppressContentEditableWarning
+              >
+                {currentSlide.title}
+              </h1>
+              
+              {isSelected && (
+                <>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'title', 'ne')} />
+                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'title', 'nw')} />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'title', 'se')} />
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'title', 'sw')} />
+                  
+                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleTextResizeStart(e, 'title', 'e')} />
+                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleTextResizeStart(e, 'title', 'w')} />
+                </>
+              )}
             </div>
-          )}
-
-          {/* ⭐ SOUS-TITRE */}
-          {showSubtitle && (
-            <div className="absolute" style={{ left: `${subtitlePosition.x}%`, top: `${subtitlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
-              <div className="relative" style={{ 
+          </div>
+        )}
+        
+        {/* ⭐ SOUS-TITRE */}
+        {currentSlide.showSubtitle !== false && currentSlide.subtitle && (
+          <div
+            className="absolute"
+            style={{
+              left: `${currentSlide.subtitlePosition.x}%`,
+              top: `${currentSlide.subtitlePosition.y}%`,
+              transform: 'translate(-50%, -50%)',
+              cursor: isSelected ? 'move' : 'default',
+            }}
+            onMouseDown={isSelected ? handleSubtitleMouseDown : undefined}
+          >
+            <div 
+              className="relative"
+              style={{
                 display: 'inline-block',
-                width: `${subtitleWidth}px`,
+                width: `${currentSlide.subtitleWidth}px`,
                 minWidth: '50px',
                 maxWidth: '3000px',
                 border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
                 padding: '4px',
                 borderRadius: '4px',
-                transition: isResizing ? 'none' : 'all 0.1s ease',
-              }}>
-                <p className="mb-0" style={{
+              }}
+            >
+              <p
+                className="whitespace-normal"
+                style={{
                   display: 'block',
                   width: '100%',
-                  fontSize: `${props.subtitleFontSize || 18}px`,
-                  fontFamily: props.subtitleFont || 'Inter',
-                  fontWeight: props.subtitleFontWeight || '400',
-                  color: props.subtitleColor || '#ffffff',
-                  opacity: textOpacity,
-                  cursor: 'default',
+                  fontFamily: currentSlide.subtitleFont || customization?.bodyFont || 'Inter',
+                  fontSize: currentSlide.subtitleFontSize,
+                  fontWeight: currentSlide.subtitleFontWeight,
+                  color: currentSlide.subtitleColor,
+                  opacity: slideTextOpacity,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.3)',
                   whiteSpace: 'normal',
                   wordBreak: 'break-word',
-                  overflowWrap: 'break-word',
-                  textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                  transition: isResizing ? 'none' : 'all 0.1s ease',
                 }}
-                contentEditable={isSelected && !isResizing && !resizingText}
-                onBlur={handleSubtitleBlur}
-                onMouseDown={isSelected && !isResizing && !resizingText ? handleSubtitleMouseDown : undefined}
-                suppressContentEditableWarning>
-                  {props.subtitle || shop?.description || 'Découvrez nos produits'}
-                </p>
-                
-                {isSelected && !isEditing && !isResizing && !resizingText && (
-                  <>
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'ne')} />
-                    <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'nw')} />
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'se')} />
-                    <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'sw')} />
-                    
-                    <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'e')} />
-                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'w')} />
-                  </>
-                )}
-              </div>
+                contentEditable={isSelected}
+                onBlur={(e) => updateCurrentSlide({ subtitle: e.currentTarget.innerText })}
+                suppressContentEditableWarning
+              >
+                {currentSlide.subtitle}
+              </p>
+              
+              {isSelected && (
+                <>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'subtitle', 'ne')} />
+                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'subtitle', 'nw')} />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'subtitle', 'se')} />
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'subtitle', 'sw')} />
+                  
+                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleTextResizeStart(e, 'subtitle', 'e')} />
+                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleTextResizeStart(e, 'subtitle', 'w')} />
+                </>
+              )}
             </div>
-          )}
-
-          {/* ⭐ BOUTON */}
-          {showButton && (
-            <div className="absolute" style={{ left: `${buttonPosition.x}%`, top: `${buttonPosition.y}%`, transform: 'translate(-50%, -50%)' }}>
-              <div className="relative" style={{ 
+          </div>
+        )}
+        
+        {/* ⭐ BOUTON */}
+        {currentSlide.showButton !== false && currentSlide.buttonText && (
+          <div
+            className="absolute"
+            style={{
+              left: `${currentSlide.buttonPosition.x}%`,
+              top: `${currentSlide.buttonPosition.y}%`,
+              transform: 'translate(-50%, -50%)',
+              cursor: isSelected ? 'move' : 'default',
+            }}
+            onMouseDown={isSelected ? handleButtonMouseDown : undefined}
+          >
+            <div 
+              className="relative"
+              style={{
                 display: 'inline-block',
-                width: `${buttonWidth}px`,
+                width: `${currentSlide.buttonWidth}px`,
                 minWidth: '50px',
                 maxWidth: '3000px',
                 border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
                 padding: '4px',
                 borderRadius: '4px',
-                transition: isResizing ? 'none' : 'all 0.1s ease',
-              }}>
-                <button className="inline-block w-full" style={{
-                  fontFamily: props.buttonFont || 'Inter',
-                  fontSize: `${props.buttonFontSize || 16}px`,
-                  fontWeight: props.buttonFontWeight || '500',
-                  backgroundColor: props.buttonBackgroundColor || '#2563EB',
-                  color: props.buttonTextColor || '#ffffff',
+              }}
+            >
+              <button
+                className="w-full"
+                style={{
+                  fontFamily: currentSlide.buttonFont || customization?.primaryFont || 'Inter',
+                  fontSize: currentSlide.buttonFontSize,
+                  fontWeight: currentSlide.buttonFontWeight,
+                  backgroundColor: currentSlide.buttonBackgroundColor,
+                  color: currentSlide.buttonColor,
                   padding: '0.75rem 1rem',
-                  borderRadius: props.buttonBorderRadius || '0.5rem',
+                  borderRadius: `${currentSlide.buttonBorderRadius}px`,
                   border: 'none',
                   cursor: 'pointer',
                   transition: 'transform 0.2s ease',
-                  opacity: textOpacity,
+                  opacity: slideTextOpacity,
                   whiteSpace: 'normal',
                   wordBreak: 'break-word',
                 }}
-                contentEditable={isSelected && !isResizing && !resizingText}
-                onBlur={handleButtonTextBlur}
-                onMouseDown={isSelected && !isResizing && !resizingText ? handleButtonMouseDown : undefined}
-                suppressContentEditableWarning>
-                  {props.buttonText || 'Découvrir'}
-                </button>
-                
-                {isSelected && !isEditing && !isResizing && !resizingText && (
-                  <>
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'ne')} />
-                    <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'nw')} />
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'se')} />
-                    <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'sw')} />
-                    
-                    <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'e')} />
-                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
-                         title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'w')} />
-                  </>
-                )}
-              </div>
+                contentEditable={isSelected}
+                onBlur={(e) => updateCurrentSlide({ buttonText: e.currentTarget.innerText })}
+                suppressContentEditableWarning
+              >
+                {currentSlide.buttonText}
+              </button>
+              
+              {isSelected && (
+                <>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'button', 'ne')} />
+                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'button', 'nw')} />
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'button', 'se')} />
+                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleTextResizeStart(e, 'button', 'sw')} />
+                  
+                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleTextResizeStart(e, 'button', 'e')} />
+                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
+                       title="Ajuster la largeur" onMouseDown={(e) => handleTextResizeStart(e, 'button', 'w')} />
+                </>
+              )}
             </div>
-          )}
-        </div>
-
-        {isSelected && !isEditing && !isResizing && (
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap flex gap-2">
-            <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleTitle(); }}>{showTitle ? '📝 Titre' : '📝 (masqué)'}</span>
-            <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleSubtitle(); }}>{showSubtitle ? '📄 Sous-titre' : '📄 (masqué)'}</span>
-            <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleButton(); }}>{showButton ? '🔘 Bouton' : '🔘 (masqué)'}</span>
-            
-            {/* ⭐ Badge fond de l'image courante ou du bloc */}
-            {(() => {
-              const currentImage = images[currentIndex];
-              if (currentImage?.backgroundType === 'gradient' && currentImage?.backgroundValue) {
-                return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé</span>;
-              }
-              if (currentImage?.backgroundColor && currentImage.backgroundColor !== 'transparent') {
-                return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: currentImage.backgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond</span>;
-              }
-              // ⭐ Si l'image n'a pas de fond, afficher le fond du bloc
-              if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
-                return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé (global)</span>;
-              }
-              if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
-                return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: blockBackgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond (global)</span>;
-              }
-              if (currentImage && (!currentImage.backgroundColor || currentImage.backgroundColor === 'transparent') && !currentImage.backgroundValue) {
-                return <span className="px-1 py-0.5 bg-white/20 rounded text-xs text-white">🔲 Transparent</span>;
-              }
-              return null;
-            })()}
-            
-            <span className="ml-1">🎠 Carrousel ({images.length} images)</span>
-            <span className="px-1 py-0.5 bg-green-600 rounded cursor-pointer hover:bg-green-500" onClick={(e) => { e.stopPropagation(); setShowImageManager(true); }}>📸 Gérer</span>
-            {currentCrop.scale !== 1 && <span className="ml-1 text-yellow-300">(Zoomé {Math.round(currentCrop.scale * 100)}%)</span>}
-            <span className="ml-1 text-yellow-300">🔵Zone+Police (max 200px) 🟢Largeur (max 3000px)</span>
+          </div>
+        )}
+        
+        {/* Flèches de navigation */}
+        {!isCropping && showArrows && hasMultipleSlides && (
+          <>
+            <button onClick={goToPrevious} className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white">
+              <FiChevronLeft size={24} />
+            </button>
+            <button onClick={goToNext} className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2 bg-black/50 hover:bg-black/70 rounded-full text-white">
+              <FiChevronRight size={24} />
+            </button>
+          </>
+        )}
+        
+        {/* Dots de navigation */}
+        {!isCropping && showDots && hasMultipleSlides && (
+          <div className="absolute bottom-4 left-0 right-0 z-30 flex justify-center gap-2">
+            {slides.map((_, idx) => (
+              <button
+                key={`dot-${idx}`}
+                onClick={() => goToSlide(idx)}
+                className={`transition-all ${idx === currentIndex ? 'w-6 bg-white' : 'w-2 bg-white/50'} h-2 rounded-full`}
+              />
+            ))}
+          </div>
+        )}
+        
+        {/* Barre d'outils */}
+        {isSelected && !isCropping && (
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 rounded-lg shadow-lg z-40 flex gap-1 p-1 whitespace-nowrap">
+            <button onClick={addSlide} className="px-2 py-1 bg-primary text-white text-xs rounded">+ Slide</button>
+            <button onClick={() => duplicateSlide(currentSlide.id)} className="px-2 py-1 bg-gray-700 text-white text-xs rounded">📋 Dupliquer</button>
+            <button onClick={() => removeSlide(currentSlide.id)} className="px-2 py-1 bg-red-600 text-white text-xs rounded">🗑️ Supprimer</button>
+            <button onClick={() => setShowSlideManager(true)} className="px-2 py-1 bg-gray-700 text-white text-xs rounded">📋 Gérer</button>
+            {currentSlide.url && (
+              <button onClick={startCropping} className="px-2 py-1 bg-yellow-600 text-white text-xs rounded">✂️ Recadrer</button>
+            )}
+            <button onClick={openAssetPicker} className="px-2 py-1 bg-purple-600 text-white text-xs rounded">🖼️ Image</button>
+          </div>
+        )}
+        
+        {/* Mode crop */}
+        {isCropping && currentSlide.url && (
+          <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
+            <div className="relative w-96 h-96 bg-gray-800 rounded-lg overflow-hidden">
+              <img
+                src={currentSlide.url}
+                alt="Crop"
+                className="w-full h-full object-contain cursor-grab"
+                style={{ transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})` }}
+                onMouseDown={(e) => {
+                  let startX = e.clientX, startY = e.clientY;
+                  const startOffsetX = cropOffsetX, startOffsetY = cropOffsetY;
+                  const onMouseMove = (moveEvent: MouseEvent) => {
+                    setCropOffsetX(startOffsetX + (moveEvent.clientX - startX));
+                    setCropOffsetY(startOffsetY + (moveEvent.clientY - startY));
+                  };
+                  window.addEventListener('mousemove', onMouseMove);
+                  window.addEventListener('mouseup', () => window.removeEventListener('mousemove', onMouseMove), { once: true });
+                }}
+              />
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setCropZoom(z => Math.max(1, z - 0.2))} className="px-4 py-2 bg-gray-700 rounded-lg text-white">- Zoom</button>
+              <span className="px-4 py-2 text-white">{Math.round(cropZoom * 100)}%</span>
+              <button onClick={() => setCropZoom(z => Math.min(3, z + 0.2))} className="px-4 py-2 bg-gray-700 rounded-lg text-white">+ Zoom</button>
+              <button onClick={() => { setCropOffsetX(0); setCropOffsetY(0); setCropZoom(1); }} className="px-4 py-2 bg-yellow-600 rounded-lg text-white">Reset</button>
+              <button onClick={saveCrop} className="px-4 py-2 bg-green-600 rounded-lg text-white">✓ Valider</button>
+              <button onClick={() => setIsCropping(false)} className="px-4 py-2 bg-red-600 rounded-lg text-white">✕ Annuler</button>
+            </div>
           </div>
         )}
       </div>
-
-      {/* ⭐ MODAL GESTION DES IMAGES */}
-      {showImageManager && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowImageManager(false)}>
-          <div className="bg-gray-800 rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+      
+      {/* Modal de gestion des slides */}
+      {showSlideManager && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowSlideManager(false)}>
+          <div className="bg-gray-800 rounded-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center p-4 border-b border-gray-700">
-              <h3 className="text-white font-semibold">Gérer les images du carrousel</h3>
-              <button onClick={() => setShowImageManager(false)} className="text-gray-400 hover:text-white"><FiX size={20} /></button>
+              <h3 className="text-white font-semibold">Gérer les slides ({slides.length})</h3>
+              <button onClick={() => setShowSlideManager(false)} className="text-gray-400 hover:text-white"><FiX size={20} /></button>
             </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Liste des images existantes */}
-              <div className="space-y-2">
-                <h4 className="text-white text-sm font-medium">Images ({images.length})</h4>
-                {images.length === 0 ? (
-                  <div className="text-center text-gray-500 py-4">Aucune image</div>
-                ) : (
-                  images.map((image: any, idx: number) => (
-                    <div
-                      key={idx}
-                      draggable
-                      onDragStart={(e) => handleImageDragStart(e, idx)}
-                      onDragOver={(e) => handleImageDragOver(e, idx)}
-                      onDragEnd={handleImageDragEnd}
-                      className={`flex items-center gap-3 p-2 bg-gray-700 rounded-lg cursor-move transition-all ${draggedImageIndex === idx ? 'opacity-50' : ''}`}
-                    >
-                      <FiMove className="text-gray-400 cursor-grab" size={16} />
-                      <div className="w-12 h-12 bg-gray-600 rounded overflow-hidden flex-shrink-0">
-                        {image.url && !imageErrors[idx] ? (
-                          <img src={image.url} alt={image.alt} className="w-full h-full object-cover" onError={() => setImageErrors(prev => ({ ...prev, [idx]: true }))} />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">🖼️</div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <input
-                          type="text"
-                          value={image.url || ''}
-                          onChange={(e) => {
-                            const newImages = [...images];
-                            newImages[idx] = { ...image, url: e.target.value };
-                            onUpdate({ images: newImages });
-                          }}
-                          className="w-full bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-xs"
-                          placeholder="URL de l'image"
-                        />
-                        <input
-                          type="text"
-                          value={image.alt || ''}
-                          onChange={(e) => {
-                            const newImages = [...images];
-                            newImages[idx] = { ...image, alt: e.target.value };
-                            onUpdate({ images: newImages });
-                          }}
-                          className="w-full mt-1 bg-gray-600 border border-gray-500 rounded px-2 py-1 text-white text-xs"
-                          placeholder="Texte alternatif"
-                        />
-                      </div>
-                      <button onClick={() => removeImage(idx)} className="p-1.5 text-red-400 hover:text-red-300 rounded">
-                        <FiTrash2 size={16} />
-                      </button>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {slides.map((slide, idx) => (
+                <div key={slide.id} className={`p-3 rounded-lg border ${idx === currentIndex ? 'border-primary bg-primary/10' : 'border-gray-700 bg-gray-700/50'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-16 h-16 bg-gray-600 rounded overflow-hidden">
+                      {slide.url ? <img src={slide.url} alt={slide.alt} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400">🖼️</div>}
                     </div>
-                  ))
-                )}
-              </div>
-              
-              {/* Ajouter une nouvelle image par URL */}
-              <div className="border-t border-gray-700 pt-4">
-                <h4 className="text-white text-sm font-medium mb-3">Ajouter par URL</h4>
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    placeholder="URL de l'image"
-                    value={newImageUrl}
-                    onChange={(e) => setNewImageUrl(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Texte alternatif (optionnel)"
-                    value={newImageAlt}
-                    onChange={(e) => setNewImageAlt(e.target.value)}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
-                  />
-                  <button
-                    onClick={addImage}
-                    disabled={!newImageUrl.trim()}
-                    className="w-full flex items-center justify-center gap-2 py-2 bg-primary hover:bg-primary/80 text-white rounded-lg transition-colors text-sm disabled:opacity-50"
-                  >
-                    <FiPlus size={16} /> Ajouter l'image
-                  </button>
+                    <div className="flex-1">
+                      <span className="text-white font-medium">Slide {idx + 1}</span>
+                      <div className="text-gray-500 text-xs">{slide.title || 'Pas de titre'}</div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => { pendingIndexRef.current = idx; setCurrentIndex(idx); setShowSlideManager(false); }} className="p-1 bg-blue-600 rounded text-white text-xs">Voir</button>
+                      <button onClick={() => duplicateSlide(slide.id)} className="p-1 bg-gray-600 rounded text-white text-xs">📋</button>
+                      <button onClick={() => removeSlide(slide.id)} className="p-1 bg-red-600 rounded text-white text-xs">🗑️</button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              {/* Upload depuis l'ordinateur */}
-              <div className="border-t border-gray-700 pt-4">
-                <h4 className="text-white text-sm font-medium mb-3">Upload depuis l'ordinateur</h4>
-                <label className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors">
-                  <FiUpload size={24} className="text-gray-400 mb-2" />
-                  <span className="text-gray-400 text-sm">Cliquer ou glisser des images</span>
-                  <span className="text-gray-500 text-xs mt-1">PNG, JPG, GIF, WebP (max 10MB)</span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    multiple
-                    accept="image/*"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        handleImageUpload(e.target.files);
-                        e.target.value = '';
-                      }
-                    }}
-                  />
-                </label>
-              </div>
+              ))}
+              <button onClick={addSlide} className="w-full py-2 bg-primary text-white rounded-lg">+ Ajouter une slide</button>
             </div>
-            
-            <div className="p-4 border-t border-gray-700 flex justify-end">
-              <button onClick={() => setShowImageManager(false)} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg">Fermer</button>
+            <div className="p-4 border-t border-gray-700 flex justify-end gap-2">
+              <button onClick={() => setShowSlideManager(false)} className="px-4 py-2 bg-gray-700 rounded-lg">Fermer</button>
             </div>
           </div>
         </div>

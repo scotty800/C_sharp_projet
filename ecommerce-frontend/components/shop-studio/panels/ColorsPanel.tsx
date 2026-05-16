@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { FiUpload } from 'react-icons/fi';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import toast from 'react-hot-toast';
@@ -52,6 +52,11 @@ export default function ColorsPanel({
   const [newImageUrl, setNewImageUrl] = useState('');
   const [newImageAlt, setNewImageAlt] = useState('');
 
+  // ⭐ États pour le carrousel
+  const currentSlideIndexRef = useRef(0);
+  const [currentSlide, setCurrentSlide] = useState<any>(null);
+  const [, forceUpdate] = useState(0);
+
   const isCanvasSelected = isBackgroundSelected;
   const isBlockSelected = !isCanvasSelected && selectedBlock !== null;
   const target = selectedTarget;
@@ -60,6 +65,195 @@ export default function ColorsPanel({
   const isCarouselBanner = selectedBlock?.type === 'carousel-banner';
   const images = selectedBlock?.props?.images || [];
 
+  // ⭐ Fonction pour mettre à jour l'état local à partir du bloc
+  const updateFromBlock = useCallback(() => {
+    if (!selectedBlock?.props?.images) return;
+    
+    const savedIndex = selectedBlock.props.currentIndex;
+    if (savedIndex !== undefined && savedIndex !== currentSlideIndexRef.current) {
+      currentSlideIndexRef.current = savedIndex;
+    }
+    
+    const slide = selectedBlock.props.images[currentSlideIndexRef.current];
+    if (slide) {
+      setCurrentSlide(slide);
+    }
+    forceUpdate(prev => prev + 1);
+  }, [selectedBlock]);
+
+  // ⭐ Mettre à jour quand le bloc change
+  useEffect(() => {
+    updateFromBlock();
+  }, [updateFromBlock, selectedBlock?.props?.images, selectedBlock?.props?.currentIndex]);
+
+  // ⭐ Écouter l'événement pour les changements en direct
+  useEffect(() => {
+    const handleCarouselIndexChange = (event: CustomEvent) => {
+      const newIndex = event.detail;
+      currentSlideIndexRef.current = newIndex;
+      
+      const slides = selectedBlock?.props?.images || [];
+      const slide = slides[newIndex];
+      if (slide) {
+        setCurrentSlide(slide);
+      }
+      forceUpdate(prev => prev + 1);
+    };
+    
+    window.addEventListener('carouselIndexChange', handleCarouselIndexChange as EventListener);
+    return () => window.removeEventListener('carouselIndexChange', handleCarouselIndexChange as EventListener);
+  }, [selectedBlock]);
+
+  // ⭐ Mettre à jour la slide courante
+  const updateCurrentSlide = useCallback((updates: any) => {
+    const slides = selectedBlock?.props?.images || [];
+    const currentIdx = currentSlideIndexRef.current;
+    const currentSlideData = slides[currentIdx];
+    
+    if (!currentSlideData) return;
+    
+    const newSlides = [...slides];
+    newSlides[currentIdx] = { ...currentSlideData, ...updates };
+    onUpdateBlock(selectedBlock.id, { images: newSlides });
+    
+    setCurrentSlide((prev: any) => prev ? { ...prev, ...updates } : null);
+  }, [selectedBlock, onUpdateBlock]);
+
+  // ⭐ Appliquer la couleur au fond de la slide courante
+  const applySolidColorToSlide = useCallback((color: string) => {
+    updateCurrentSlide({ backgroundColor: color, backgroundType: 'solid', backgroundValue: null });
+  }, [updateCurrentSlide]);
+
+  // ⭐ Appliquer le dégradé au fond de la slide courante
+  const applyGradientToSlide = useCallback((gradient: string) => {
+    updateCurrentSlide({ backgroundType: 'gradient', backgroundValue: gradient, backgroundColor: null });
+  }, [updateCurrentSlide]);
+
+  // ⭐ Créer une slide par défaut pour le carrousel
+  const createDefaultSlide = useCallback(() => {
+    if (!selectedBlock) return;
+    
+    const defaultSlide = {
+      id: `slide-${Date.now()}-${Math.random()}`,
+      url: '',
+      alt: 'Slide par défaut',
+      crop: { x: 0, y: 0, scale: 1 },
+      backgroundColor: null,
+      backgroundType: null,
+    };
+    
+    onUpdateBlock(selectedBlock.id, { images: [defaultSlide] });
+    toast.success('Slide créée ! Vous pouvez maintenant ajouter une image');
+  }, [selectedBlock, onUpdateBlock]);
+
+  // ⭐ Fonction commune pour le rendu du carrousel
+  const renderCarouselContent = () => (
+    <div className="space-y-3">
+      {!selectedBlock.props?.isCarousel && !isCarouselBanner ? (
+        <button onClick={() => { 
+          onUpdateBlock(selectedBlock.id, { 
+            isCarousel: true, 
+            images: [
+              { url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' }, 
+              { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' }, 
+              { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }
+            ] 
+          }); 
+          setActiveTab('carousel'); 
+        }} className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors">
+          🎠 Activer le carrousel
+        </button>
+      ) : (
+        <>
+          <div className="flex justify-between items-center">
+            <h4 className="text-white text-xs font-semibold">Images du carrousel ({images.length})</h4>
+            <button onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })} className="text-xs text-red-400 hover:text-red-300">✕ Désactiver</button>
+          </div>
+
+          <DragDropContext onDragEnd={(result) => {
+            if (!result.destination) return;
+            const newImages = [...images];
+            const [removed] = newImages.splice(result.source.index, 1);
+            newImages.splice(result.destination.index, 0, removed);
+            onUpdateBlock(selectedBlock.id, { images: newImages });
+          }}>
+            <Droppable droppableId="carousel-images">
+              {(provided) => (
+                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 max-h-60 overflow-y-auto">
+                  {images.map((img: any, idx: number) => (
+                    <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
+                      {(provided, snapshot) => (
+                        <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'}`}>
+                          <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">⋮⋮</div>
+                          <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
+                            <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <input type="text" value={img.url || ''} onChange={(e) => { const newImages = [...images]; newImages[idx] = { ...img, url: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="URL de l'image" />
+                            <input type="text" value={img.alt || ''} onChange={(e) => { const newImages = [...images]; newImages[idx] = { ...img, alt: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="Texte alternatif" />
+                          </div>
+                          <div className="text-xs text-gray-500 w-8 text-center">#{idx + 1}</div>
+                          <button onClick={() => { const newImages = images.filter((_: any, i: number) => i !== idx); onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0" title="Supprimer">🗑️</button>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+
+          <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 mt-2">
+            <div className="text-center">
+              <FiUpload className="mx-auto text-gray-400 mb-2" size={24} />
+              <p className="text-xs text-gray-400 mb-2">Glissez-déposez vos images ici</p>
+              <p className="text-xs text-gray-500">ou</p>
+              <div className="flex gap-2 mt-2 justify-center">
+                <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">
+                  📁 Parcourir mon ordinateur
+                  <input type="file" className="hidden" multiple accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { handleImageUpload(e.target.files); } e.target.value = ''; }} />
+                </label>
+                <button onClick={openAssetPicker} className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">📚 Bibliothèque d'images</button>
+              </div>
+            </div>
+          </div>
+          
+          <button onClick={() => { const newImages = [...images, { url: `https://picsum.photos/1200/500?random=${images.length + 1}`, alt: 'Nouvelle image' }]; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1">+ Ajouter une image par URL</button>
+
+          <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-gray-400">▶️ Défilement automatique</label>
+              <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
+            </div>
+            {selectedBlock.props?.autoPlay !== false && (
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">⏱️ Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
+                <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-gray-400">⬅️➡️ Afficher les flèches</label>
+              <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-gray-400">● Afficher les points</label>
+              <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">✨ Effet de transition</label>
+              <select value={selectedBlock.props?.transitionEffect || 'fade'} onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
+                <option value="fade">Fondu (fade)</option>
+                <option value="slide">Glissement (slide)</option>
+              </select>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // ⭐ applySolidColor - CORRIGÉE
   const applySolidColor = useCallback((color: string) => {
     if (isCanvasSelected) {
       onUpdateCustomization({ 
@@ -68,6 +262,16 @@ export default function ColorsPanel({
         backgroundValue: null
       });
     } else if (isBlockSelected) {
+      // ⭐ Vérifier si le bloc est un carrousel activé
+      const isCarouselActive = (isBanner && selectedBlock.props?.isCarousel) || 
+                                (isScreenBanner && selectedBlock.props?.isCarousel) || 
+                                isCarouselBanner;
+      
+      if (isCarouselActive && target === 'text') {
+        updateCurrentSlide({ titleColor: color, titleGradient: null });
+        return;
+      }
+      
       if (target === 'text') {
         const updates: any = {};
         switch (selectedBlock.type) {
@@ -89,8 +293,9 @@ export default function ColorsPanel({
         });
       }
     }
-  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
+  }, [isCanvasSelected, isBlockSelected, isCarouselBanner, isBanner, isScreenBanner, target, selectedBlock, onUpdateBlock, onUpdateCustomization, updateCurrentSlide]);
 
+  // ⭐ applyGradient - CORRIGÉE
   const applyGradient = useCallback((gradient: string) => {
     if (isCanvasSelected) {
       onUpdateCustomization({ 
@@ -99,6 +304,16 @@ export default function ColorsPanel({
         backgroundColor: null
       });
     } else if (isBlockSelected) {
+      // ⭐ Vérifier si le bloc est un carrousel activé
+      const isCarouselActive = (isBanner && selectedBlock.props?.isCarousel) || 
+                                (isScreenBanner && selectedBlock.props?.isCarousel) || 
+                                isCarouselBanner;
+      
+      if (isCarouselActive && target === 'text') {
+        updateCurrentSlide({ titleGradient: gradient, titleColor: null });
+        return;
+      }
+      
       if (target === 'text') {
         const updates: any = {};
         switch (selectedBlock.type) {
@@ -120,7 +335,7 @@ export default function ColorsPanel({
         });
       }
     }
-  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
+  }, [isCanvasSelected, isBlockSelected, isCarouselBanner, isBanner, isScreenBanner, target, selectedBlock, onUpdateBlock, onUpdateCustomization, updateCurrentSlide]);
 
   // ⭐ Détection de transparence pour l'upload
   const handleImageUpload = async (files: FileList) => {
@@ -141,6 +356,7 @@ export default function ColorsPanel({
                                      file.name.toLowerCase().endsWith('.webp');
         
         const newImage = {
+          id: `slide-${Date.now()}-${Math.random()}`,
           url: fullUrl,
           alt: asset.name,
           crop: { x: 0, y: 0, scale: 1 },
@@ -171,6 +387,7 @@ export default function ColorsPanel({
                                        asset.type === 'image/webp';
           
           const newImage = {
+            id: `slide-${Date.now()}-${Math.random()}`,
             url: fullUrl,
             alt: asset.name,
             crop: { x: 0, y: 0, scale: 1 },
@@ -196,7 +413,7 @@ export default function ColorsPanel({
         case 'title': return selectedBlock.props?.textColor || '#000000';
         case 'banner': return selectedBlock.props?.titleColor || '#ffffff';
         case 'screen-banner': return selectedBlock.props?.titleColor || '#ffffff';
-        case 'carousel-banner': return selectedBlock.props?.titleColor || '#ffffff';
+        case 'carousel-banner': return currentSlide?.titleColor || '#ffffff';
         case 'button': return selectedBlock.props?.textColor || '#ffffff';
         case 'products': return selectedBlock.props?.titleColor || '#1F2937';
         case 'image': return selectedBlock.props?.backgroundColor || 'transparent';
@@ -207,12 +424,12 @@ export default function ColorsPanel({
       return selectedBlock.props?.backgroundColor || 
         (selectedBlock.type === 'banner' ? '#2563EB' : 
          selectedBlock.type === 'screen-banner' ? '#1e1e2f' :
-         selectedBlock.type === 'carousel-banner' ? '#1e1e2f' :
+         selectedBlock.type === 'carousel-banner' ? currentSlide?.backgroundColor || '#1e1e2f' :
          selectedBlock.type === 'button' ? '#2563EB' : 
          selectedBlock.type === 'image' ? 'transparent' : '#ffffff');
     }
     return '#000000';
-  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization]);
+  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization, currentSlide]);
 
   const currentGradient = useMemo(() => {
     if (isCanvasSelected) {
@@ -224,17 +441,17 @@ export default function ColorsPanel({
         case 'title': return selectedBlock.props?.textGradient;
         case 'banner': return selectedBlock.props?.titleGradient;
         case 'screen-banner': return selectedBlock.props?.titleGradient;
-        case 'carousel-banner': return selectedBlock.props?.titleGradient;
+        case 'carousel-banner': return currentSlide?.titleGradient || null;
         case 'button': return selectedBlock.props?.textGradient;
         case 'products': return selectedBlock.props?.titleGradient;
         default: return null;
       }
     }
     if (isBlockSelected && target === 'background') {
-      return selectedBlock.props?.backgroundValue;
+      return selectedBlock.props?.backgroundValue || currentSlide?.backgroundValue;
     }
     return null;
-  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization]);
+  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization, currentSlide]);
 
   const isGradientActive = currentGradient !== null && currentGradient !== undefined;
 
@@ -351,261 +568,7 @@ export default function ColorsPanel({
     </div>
   );
 
-  // ⭐ POUR LE BLOC IMAGE
-  if (selectedBlock?.type === 'image' && target === 'background') {
-    return (
-      <div className="space-y-3">
-        <h3 className="text-white font-semibold text-sm">🎨 Fond de l'image</h3>
-        <p className="text-xs text-gray-400 mb-2">Utile pour les images PNG transparentes</p>
-
-        <div className="flex gap-2 border-b border-gray-700 pb-2">
-          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
-          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
-        </div>
-
-        {activeTab === 'solid' && renderSolidColors()}
-
-        {activeTab === 'gradient' && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
-              <div className="grid grid-cols-2 gap-2">
-                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => applyGradient(grad.value)}
-                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
-                      isGradientActive && currentGradient === grad.value
-                        ? 'border-primary ring-2 ring-primary/50'
-                        : 'border-gray-600'
-                    }`}
-                    style={{ background: grad.value }}
-                    title={grad.name}
-                  >
-                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
-                  </button>
-                ))}
-              </div>
-              {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
-            </div>
-            <div className="pt-2">
-              <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ⭐ POUR LE BLOC CARROUSEL-BANNER
-  if (isCarouselBanner && target === 'background') {
-    return (
-      <div className="space-y-3">
-        <h3 className="text-white font-semibold text-sm">🎨 Fond du carrousel</h3>
-        <p className="text-xs text-gray-400 mb-2">Visible uniquement si l'image a de la transparence</p>
-
-        <div className="flex gap-2 border-b border-gray-700 pb-2">
-          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
-          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
-          <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🖼️ Images</button>
-        </div>
-
-        {activeTab === 'solid' && (
-          <div className="space-y-3">
-            {renderSolidColors()}
-            <div className="text-xs text-blue-400 mt-1">
-              💡 La couleur s'appliquera sous les images PNG/WEBP transparentes
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'gradient' && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
-              <div className="grid grid-cols-2 gap-2">
-                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => applyGradient(grad.value)}
-                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
-                      isGradientActive && currentGradient === grad.value
-                        ? 'border-primary ring-2 ring-primary/50'
-                        : 'border-gray-600'
-                    }`}
-                    style={{ background: grad.value }}
-                    title={grad.name}
-                  >
-                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
-                  </button>
-                ))}
-              </div>
-              {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 30}%</label>
-              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 30} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'carousel' && (
-          <div className="space-y-3">
-            {/* Liste des images */}
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {images.length === 0 ? (
-                <div className="text-center py-4 text-gray-400 text-xs">Aucune image. Ajoutez-en ci-dessous.</div>
-              ) : (
-                <DragDropContext onDragEnd={(result) => {
-                  if (!result.destination) return;
-                  const newImages = [...images];
-                  const [removed] = newImages.splice(result.source.index, 1);
-                  newImages.splice(result.destination.index, 0, removed);
-                  onUpdateBlock(selectedBlock.id, { images: newImages });
-                }}>
-                  <Droppable droppableId="carousel-images">
-                    {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                        {images.map((img: any, idx: number) => (
-                          <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
-                            {(provided, snapshot) => (
-                              <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'}`}>
-                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">⋮⋮</div>
-                                <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                                  <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <input
-                                    type="text"
-                                    value={img.url || ''}
-                                    onChange={(e) => {
-                                      const newImages = [...images];
-                                      newImages[idx] = { ...img, url: e.target.value };
-                                      onUpdateBlock(selectedBlock.id, { images: newImages });
-                                    }}
-                                    className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                                    placeholder="URL de l'image"
-                                  />
-                                  <input
-                                    type="text"
-                                    value={img.alt || ''}
-                                    onChange={(e) => {
-                                      const newImages = [...images];
-                                      newImages[idx] = { ...img, alt: e.target.value };
-                                      onUpdateBlock(selectedBlock.id, { images: newImages });
-                                    }}
-                                    className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                                    placeholder="Texte alternatif"
-                                  />
-                                </div>
-                                <button onClick={() => {
-                                  const newImages = images.filter((_: any, i: number) => i !== idx);
-                                  onUpdateBlock(selectedBlock.id, { images: newImages });
-                                }} className="text-red-400 hover:text-red-300 p-1 opacity-0 group-hover:opacity-100 transition-opacity">🗑️</button>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
-              )}
-            </div>
-
-            {/* Ajout d'images par URL */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="URL de l'image"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
-              />
-              <button
-                onClick={() => {
-                  if (!newImageUrl.trim()) return;
-                  const isTransparentUrl = newImageUrl.toLowerCase().includes('.png') || 
-                                            newImageUrl.toLowerCase().includes('.webp');
-                  
-                  const newImages = [...images, { 
-                    url: newImageUrl, 
-                    alt: newImageAlt || `Image ${images.length + 1}`, 
-                    crop: { x: 0, y: 0, scale: 1 },
-                    backgroundColor: isTransparentUrl ? 'transparent' : null,
-                    backgroundType: isTransparentUrl ? 'solid' : null,
-                  }];
-                  onUpdateBlock(selectedBlock.id, { images: newImages });
-                  setNewImageUrl('');
-                  setNewImageAlt('');
-                }}
-                disabled={!newImageUrl.trim()}
-                className="px-3 py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm disabled:opacity-50"
-              >
-                +
-              </button>
-            </div>
-            <input
-              type="text"
-              placeholder="Texte alternatif (optionnel)"
-              value={newImageAlt}
-              onChange={(e) => setNewImageAlt(e.target.value)}
-              className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm"
-            />
-
-            {/* Upload depuis l'ordinateur */}
-            <label className="flex items-center justify-center gap-2 p-2 border border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-primary transition-colors">
-              <FiUpload size={14} className="text-gray-400" />
-              <span className="text-gray-400 text-xs">📁 Importer depuis l'ordinateur</span>
-              <input type="file" className="hidden" multiple accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { handleImageUpload(e.target.files); e.target.value = ''; } }} />
-            </label>
-
-            {/* Lien vers bibliothèque */}
-            <button onClick={openAssetPicker} className="w-full py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1">
-              📚 Parcourir la bibliothèque d'images
-            </button>
-
-            {/* Options du carrousel (transitions) */}
-            <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-gray-400">▶️ Défilement automatique</label>
-                <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
-              </div>
-              {selectedBlock.props?.autoPlay !== false && (
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">⏱️ Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
-                  <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-gray-400">⬅️➡️ Afficher les flèches</label>
-                <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
-              </div>
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-gray-400">● Afficher les points</label>
-                <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">✨ Effet de transition</label>
-                <select value={selectedBlock.props?.transitionEffect || 'fade'} onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
-                  <option value="fade">Fondu (fade)</option>
-                  <option value="slide">Glissement (slide)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ⭐ POUR LE BLOC BANNER (existant, non modifié)
+  // ⭐ POUR LE BLOC BANNER - FOND (avec carrousel)
   if (isBanner && target === 'background') {
     return (
       <div className="space-y-3">
@@ -653,109 +616,13 @@ export default function ColorsPanel({
           </div>
         )}
 
-        {activeTab === 'carousel' && (
-          <div className="space-y-3">
-            {!selectedBlock.props?.isCarousel && (
-              <button onClick={() => { onUpdateBlock(selectedBlock.id, { isCarousel: true, images: [{ url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' }, { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' }, { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }] }); setActiveTab('carousel'); }} className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors">🎠 Activer le carrousel</button>
-            )}
-            {selectedBlock.props?.isCarousel && (
-              <>
-                <div className="flex justify-between items-center">
-                  <h4 className="text-white text-xs font-semibold">Images du carrousel ({images.length})</h4>
-                  <button onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })} className="text-xs text-red-400 hover:text-red-300">✕ Désactiver</button>
-                </div>
-
-                <DragDropContext onDragEnd={(result) => {
-                  if (!result.destination) return;
-                  const newImages = [...images];
-                  const [removed] = newImages.splice(result.source.index, 1);
-                  newImages.splice(result.destination.index, 0, removed);
-                  onUpdateBlock(selectedBlock.id, { images: newImages });
-                }}>
-                  <Droppable droppableId="carousel-images">
-                    {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 max-h-60 overflow-y-auto">
-                        {images.map((img: any, idx: number) => (
-                          <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
-                            {(provided, snapshot) => (
-                              <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'}`}>
-                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">⋮⋮</div>
-                                <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                                  <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <input type="text" value={img.url || ''} onChange={(e) => { const newImages = [...images]; newImages[idx] = { ...img, url: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="URL de l'image" />
-                                  <input type="text" value={img.alt || ''} onChange={(e) => { const newImages = [...images]; newImages[idx] = { ...img, alt: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="Texte alternatif" />
-                                </div>
-                                <div className="text-xs text-gray-500 w-8 text-center">#{idx + 1}</div>
-                                <button onClick={() => { const newImages = images.filter((_: any, i: number) => i !== idx); onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0" title="Supprimer">🗑️</button>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
-
-                <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 mt-2">
-                  <div className="text-center">
-                    <FiUpload className="mx-auto text-gray-400 mb-2" size={24} />
-                    <p className="text-xs text-gray-400 mb-2">Glissez-déposez vos images ici</p>
-                    <p className="text-xs text-gray-500">ou</p>
-                    <div className="flex gap-2 mt-2 justify-center">
-                      <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">
-                        📁 Parcourir mon ordinateur
-                        <input type="file" className="hidden" multiple accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { handleImageUpload(e.target.files); } e.target.value = ''; }} />
-                      </label>
-                      <button onClick={openAssetPicker} className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">📚 Bibliothèque d'images</button>
-                    </div>
-                  </div>
-                </div>
-                
-                <button onClick={() => { const newImages = [...images, { url: `https://picsum.photos/1200/500?random=${images.length + 1}`, alt: 'Nouvelle image' }]; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1">+ Ajouter une image par URL</button>
-
-                <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-gray-400">Défilement automatique</label>
-                    <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
-                  </div>
-                  {selectedBlock.props?.autoPlay !== false && (
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
-                      <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-gray-400">Afficher les flèches</label>
-                    <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-gray-400">Afficher les points</label>
-                    <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1">Effet de transition</label>
-                    <select value={selectedBlock.props?.transitionEffect || 'fade'} onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
-                      <option value="fade">Fondu</option>
-                      <option value="slide">Glissement</option>
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {activeTab === 'carousel' && renderCarouselContent()}
       </div>
     );
   }
 
-  // ⭐ POUR LE BLOC SCREEN-BANNER (existant, non modifié)
+  // ⭐ POUR LE BLOC SCREEN-BANNER - FOND (avec carrousel)
   if (isScreenBanner && target === 'background') {
-    const screenImages = selectedBlock.props?.images || [];
-    const isScreenCarousel = selectedBlock.props?.isCarousel || false;
-    
     return (
       <div className="space-y-3">
         <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
@@ -802,100 +669,7 @@ export default function ColorsPanel({
           </div>
         )}
 
-        {activeTab === 'carousel' && (
-          <div className="space-y-3">
-            {!isScreenCarousel && (
-              <button onClick={() => { onUpdateBlock(selectedBlock.id, { isCarousel: true, images: [{ url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' }, { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' }, { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }] }); setActiveTab('carousel'); }} className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors">🎠 Activer le carrousel</button>
-            )}
-            {isScreenCarousel && (
-              <>
-                <div className="flex justify-between items-center">
-                  <h4 className="text-white text-xs font-semibold">Images du carrousel ({screenImages.length})</h4>
-                  <button onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })} className="text-xs text-red-400 hover:text-red-300">✕ Désactiver</button>
-                </div>
-
-                <DragDropContext onDragEnd={(result) => {
-                  if (!result.destination) return;
-                  const newImages = [...screenImages];
-                  const [removed] = newImages.splice(result.source.index, 1);
-                  newImages.splice(result.destination.index, 0, removed);
-                  onUpdateBlock(selectedBlock.id, { images: newImages });
-                }}>
-                  <Droppable droppableId="carousel-images">
-                    {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 max-h-60 overflow-y-auto">
-                        {screenImages.map((img: any, idx: number) => (
-                          <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
-                            {(provided, snapshot) => (
-                              <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'}`}>
-                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">⋮⋮</div>
-                                <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                                  <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <input type="text" value={img.url || ''} onChange={(e) => { const newImages = [...screenImages]; newImages[idx] = { ...img, url: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="URL de l'image" />
-                                  <input type="text" value={img.alt || ''} onChange={(e) => { const newImages = [...screenImages]; newImages[idx] = { ...img, alt: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="Texte alternatif" />
-                                </div>
-                                <div className="text-xs text-gray-500 w-8 text-center">#{idx + 1}</div>
-                                <button onClick={() => { const newImages = screenImages.filter((_: any, i: number) => i !== idx); onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0" title="Supprimer">🗑️</button>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
-
-                <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 mt-2">
-                  <div className="text-center">
-                    <FiUpload className="mx-auto text-gray-400 mb-2" size={24} />
-                    <p className="text-xs text-gray-400 mb-2">Glissez-déposez vos images ici</p>
-                    <p className="text-xs text-gray-500">ou</p>
-                    <div className="flex gap-2 mt-2 justify-center">
-                      <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">
-                        📁 Parcourir mon ordinateur
-                        <input type="file" className="hidden" multiple accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { handleImageUpload(e.target.files); } e.target.value = ''; }} />
-                      </label>
-                      <button onClick={openAssetPicker} className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">📚 Bibliothèque d'images</button>
-                    </div>
-                  </div>
-                </div>
-                
-                <button onClick={() => { const newImages = [...screenImages, { url: `https://picsum.photos/1200/500?random=${screenImages.length + 1}`, alt: 'Nouvelle image' }]; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1">+ Ajouter une image par URL</button>
-
-                <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-gray-400">Défilement automatique</label>
-                    <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
-                  </div>
-                  {selectedBlock.props?.autoPlay !== false && (
-                    <div>
-                      <label className="text-xs text-gray-400 block mb-1">Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
-                      <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-gray-400">Afficher les flèches</label>
-                    <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-gray-400">Afficher les points</label>
-                    <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1">Effet de transition</label>
-                    <select value={selectedBlock.props?.transitionEffect || 'fade'} onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
-                      <option value="fade">Fondu</option>
-                      <option value="slide">Glissement</option>
-                    </select>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {activeTab === 'carousel' && renderCarouselContent()}
 
         <div className="border-t border-gray-700 pt-3 mt-2 space-y-3">
           <h4 className="text-white text-xs font-semibold">🖼️ Bordure</h4>
@@ -932,12 +706,133 @@ export default function ColorsPanel({
     );
   }
 
-  // ⭐ RENDU NORMAL
+  // ⭐ POUR LE BLOC CARROUSEL-BANNER - FOND
+  if (isCarouselBanner && target === 'background') {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h3 className="text-white font-semibold text-sm">🎨 Fond du carrousel</h3>
+          <span className="text-xs text-gray-500">Slide {currentSlideIndexRef.current + 1}/{selectedBlock?.props?.images?.length || 0}</span>
+        </div>
+        
+        <p className="text-xs text-gray-400 mb-2">Chaque slide a son propre fond indépendant</p>
+
+        <div className="flex gap-2 border-b border-gray-700 pb-2">
+          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Fond unie</button>
+          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
+          <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🖼️ Images</button>
+        </div>
+
+        {activeTab === 'solid' && (
+          <div className="space-y-3">
+            <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-8 h-8 rounded-lg border-2 border-gray-600 shadow-md cursor-pointer flex-shrink-0"
+                  style={{ backgroundColor: currentSlide?.backgroundColor || '#1a1a2e' }}
+                  onClick={(e) => {
+                    const rect = (e.target as HTMLElement).getBoundingClientRect();
+                    const input = document.createElement('input');
+                    input.type = 'color';
+                    input.value = currentSlide?.backgroundColor || '#1a1a2e';
+                    input.style.position = 'fixed';
+                    input.style.left = `${rect.left}px`;
+                    input.style.top = `${rect.bottom + 10}px`;
+                    input.style.width = '0';
+                    input.style.height = '0';
+                    input.style.opacity = '0';
+                    input.style.pointerEvents = 'none';
+                    document.body.appendChild(input);
+                    input.addEventListener('input', (event) => {
+                      applySolidColorToSlide((event.target as HTMLInputElement).value);
+                    });
+                    input.addEventListener('blur', () => {
+                      document.body.removeChild(input);
+                    });
+                    input.click();
+                  }}
+                />
+                <input
+                  type="text"
+                  value={currentSlide?.backgroundColor || '#1a1a2e'}
+                  onChange={(e) => applySolidColorToSlide(e.target.value)}
+                  className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs font-mono"
+                  placeholder="#1a1a2e"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end mb-1">
+              <button
+                onClick={() => setShowExtendedColors(!showExtendedColors)}
+                className="text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                {showExtendedColors ? 'Voir moins' : 'Voir plus (+' + (QUICK_COLORS.length - 12) + ')'}
+              </button>
+            </div>
+            <div className="grid grid-cols-6 gap-1.5">
+              {displayedColors.map((color: string) => (
+                <button
+                  key={color}
+                  className="w-7 h-7 rounded-lg border border-gray-600 hover:scale-110 transition-transform shadow-sm"
+                  style={{ backgroundColor: color }}
+                  onClick={() => applySolidColorToSlide(color)}
+                  title={color}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'gradient' && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-gray-400 block mb-2">Dégradés pour cette slide</label>
+              <div className="grid grid-cols-2 gap-2">
+                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => applyGradientToSlide(grad.value)}
+                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
+                      currentSlide?.backgroundValue === grad.value
+                        ? 'border-primary ring-2 ring-primary/50'
+                        : 'border-gray-600'
+                    }`}
+                    style={{ background: grad.value }}
+                    title={grad.name}
+                  >
+                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {currentSlide?.overlayOpacity || 30}%</label>
+              <input type="range" min="0" max="100" value={currentSlide?.overlayOpacity || 30} onChange={(e) => updateCurrentSlide({ overlayOpacity: parseInt(e.target.value) })} className="w-full" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Couleur overlay</label>
+              <div className="flex items-center gap-2">
+                <input type="color" value={currentSlide?.overlayColor || '#000000'} onChange={(e) => updateCurrentSlide({ overlayColor: e.target.value })} className="w-8 h-8 rounded border-0 cursor-pointer" />
+                <input type="text" value={currentSlide?.overlayColor || '#000000'} onChange={(e) => updateCurrentSlide({ overlayColor: e.target.value })} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'carousel' && renderCarouselContent()}
+      </div>
+    );
+  }
+
+  // ⭐ RENDU NORMAL (pour le texte des carrousels et autres)
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
-        <span className="text-xs text-gray-500">{isGradientActive ? 'Dégradé' : 'Couleur unie'}</span>
+        {isCarouselBanner && target === 'text' && (
+          <span className="text-xs text-gray-500">Slide {currentSlideIndexRef.current + 1}</span>
+        )}
       </div>
 
       <div className="flex gap-2 border-b border-gray-700 pb-2">
