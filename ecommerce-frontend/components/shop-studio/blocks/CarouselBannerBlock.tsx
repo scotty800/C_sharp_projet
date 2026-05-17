@@ -209,6 +209,8 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
     return (
       <div className="absolute inset-0">
         {slides.map((slide, idx) => {
+          // ⭐ GESTION DU FOND - CORRIGÉE
+          // Ne jamais mettre 'transparent' comme backgroundColor
           let backgroundStyle: React.CSSProperties = {};
           
           if (slide.backgroundType === 'gradient' && slide.backgroundValue) {
@@ -216,7 +218,8 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
           } else if (slide.backgroundColor && slide.backgroundColor !== 'transparent') {
             backgroundStyle = { backgroundColor: slide.backgroundColor };
           } else {
-            backgroundStyle = { backgroundColor: 'transparent' };
+            // Utiliser la couleur par défaut de la customization ou une couleur sombre
+            backgroundStyle = { backgroundColor: customization?.primaryColor || '#1a1a2e' };
           }
           
           const isActive = idx === currentIndex;
@@ -687,8 +690,7 @@ export function CarouselBannerBlock({ shop, block, customization, isSelected, on
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {/* ⭐ AUCUNE BARRE DE DRAG - le drag se fait directement sur le fond du carrousel */}
-        
+        {/* ⭐ FOND DE LA SLIDE - CORRIGÉ : Jamais transparent */}
         <div 
           className="absolute inset-0"
           style={{

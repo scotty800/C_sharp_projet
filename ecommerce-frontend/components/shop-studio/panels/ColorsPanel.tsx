@@ -337,7 +337,7 @@ export default function ColorsPanel({
     }
   }, [isCanvasSelected, isBlockSelected, isCarouselBanner, isBanner, isScreenBanner, target, selectedBlock, onUpdateBlock, onUpdateCustomization, updateCurrentSlide]);
 
-  // ⭐ Détection de transparence pour l'upload
+  // ⭐ Détection de transparence pour l'upload - CORRIGÉE (plus de backgroundColor: 'transparent')
   const handleImageUpload = async (files: FileList) => {
     if (!shopId) {
       toast.error('ID de boutique non disponible');
@@ -350,18 +350,15 @@ export default function ColorsPanel({
         const asset = await assetsService.uploadAsset(shopId, file, 'image', 'carousel');
         const fullUrl = getImageUrl(asset.url);
         
-        const isTransparentFormat = file.type === 'image/png' || 
-                                     file.type === 'image/webp' ||
-                                     file.name.toLowerCase().endsWith('.png') ||
-                                     file.name.toLowerCase().endsWith('.webp');
-        
+        // ⭐ CRUCIAL: On NE définit PLUS backgroundColor à 'transparent'
+        // Le fond transparent doit provenir UNIQUEMENT de l'image elle-même
         const newImage = {
           id: `slide-${Date.now()}-${Math.random()}`,
           url: fullUrl,
           alt: asset.name,
           crop: { x: 0, y: 0, scale: 1 },
-          backgroundColor: isTransparentFormat ? 'transparent' : null,
-          backgroundType: isTransparentFormat ? 'solid' : null,
+          backgroundColor: null,  // ← CORRECTION: plus de 'transparent'
+          backgroundType: null,   // ← CORRECTION: plus de 'solid'
         };
         
         const newImages = [...images, newImage];
@@ -374,25 +371,21 @@ export default function ColorsPanel({
     }
   };
 
-  // ⭐ Détection de transparence pour la bibliothèque
+  // ⭐ Détection de transparence pour la bibliothèque - CORRIGÉE
   const openAssetPicker = () => {
     const event = new CustomEvent('openAssetPickerForCarousel', { 
       detail: { 
         callback: (asset: any) => {
           const fullUrl = getImageUrl(asset.url);
           
-          const isTransparentFormat = asset.url?.toLowerCase().includes('.png') || 
-                                       asset.url?.toLowerCase().includes('.webp') ||
-                                       asset.type === 'image/png' ||
-                                       asset.type === 'image/webp';
-          
+          // ⭐ CRUCIAL: On NE définit PLUS backgroundColor à 'transparent'
           const newImage = {
             id: `slide-${Date.now()}-${Math.random()}`,
             url: fullUrl,
             alt: asset.name,
             crop: { x: 0, y: 0, scale: 1 },
-            backgroundColor: isTransparentFormat ? 'transparent' : null,
-            backgroundType: isTransparentFormat ? 'solid' : null,
+            backgroundColor: null,  // ← CORRECTION: plus de 'transparent'
+            backgroundType: null,   // ← CORRECTION: plus de 'solid'
           };
           
           const newImages = [...images, newImage];
