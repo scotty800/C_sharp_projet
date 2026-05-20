@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface Props {
   shop: any;
@@ -10,33 +10,64 @@ interface Props {
   onSelect: () => void;
   onUpdate: (updates: any) => void;
   textOpacity?: number;
+  isResizing?: boolean;
 }
 
-export function TextBlock({ block, customization, isSelected, onSelect, onUpdate, textOpacity = 1 }: Props) {
-  const { props } = block;
+export function TextBlock({ block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing }: Props) {
+  const { props, position } = block;
+  const textRef = useRef<HTMLDivElement>(null);
   const [localContent, setLocalContent] = useState(props?.content || 'Saisissez votre texte ici...');
+  const [fontSize, setFontSize] = useState(props?.fontSize || 16);
 
+  // ⭐ Redimensionner le texte quand la taille du bloc change
   useEffect(() => {
-    setLocalContent(props?.content || 'Saisissez votre texte ici...');
-  }, [props?.content]);
+    if (props.fontSize) {
+      setFontSize(Math.min(props.fontSize, position?.height * 0.8));
+      return;
+    }
+    
+    const blockHeight = position?.height || 100;
+    
+    let newSize = Math.min(blockHeight * 0.4, 24);
+    newSize = Math.max(12, Math.min(24, newSize));
+    
+    setFontSize(newSize);
+  }, [position?.height, props.fontSize]);
 
-  // ⭐ STYLE DE BASE (avec opacité et userSelect conditionnel)
-  const textStyle: React.CSSProperties = {
-    fontFamily: props?.fontFamily || 'Inter',
-    fontSize: `${props?.fontSize || 16}px`,
-    fontWeight: props?.fontWeight || '400',
-    textAlign: props?.textAlign || 'left',
-    lineHeight: 1.5,
-    padding: '8px',
+  // ⭐ Style du conteneur
+  const containerStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
-    overflow: 'auto',
-    opacity: textOpacity,
-    userSelect: isSelected ? 'text' : 'none',
-    WebkitUserSelect: isSelected ? 'text' : 'none',
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: props?.textAlign === 'left' ? 'flex-start' : props?.textAlign === 'right' ? 'flex-end' : 'center',
+    padding: '8px 12px',
+    boxSizing: 'border-box',
+    overflow: 'hidden', // ⭐ Empêche le débordement
   };
 
-  // ⭐ Vérifier si c'est un dégradé (prioritaire)
+  // ⭐ Style du texte
+  let textStyle: React.CSSProperties = {
+    fontSize: `${fontSize}px`,
+    fontWeight: props?.fontWeight || '400',
+    textAlign: props?.textAlign || 'left',
+    fontFamily: props?.fontFamily || 'Inter',
+    lineHeight: 1.5,
+    opacity: textOpacity,
+    margin: 0,
+    padding: 0,
+    wordBreak: 'break-word',
+    overflowWrap: 'break-word',
+    width: '100%',
+    color: props?.textColor || '#000000',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    display: '-webkit-box',
+    WebkitLineClamp: 6, // ⭐ Limite à 6 lignes maximum
+    WebkitBoxOrient: 'vertical',
+  };
+
+  // Gestion du dégradé
   const isGradient = props?.textGradient && props?.textGradient !== '';
   
   if (isGradient) {
@@ -44,13 +75,9 @@ export function TextBlock({ block, customization, isSelected, onSelect, onUpdate
     textStyle.backgroundClip = 'text';
     textStyle.WebkitBackgroundClip = 'text';
     textStyle.color = 'transparent';
-    delete textStyle.backgroundColor;
   } else {
     textStyle.color = props?.textColor || '#000000';
     textStyle.backgroundColor = props?.backgroundColor || 'transparent';
-    delete textStyle.backgroundImage;
-    delete textStyle.backgroundClip;
-    delete textStyle.WebkitBackgroundClip;
   }
 
   const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
@@ -59,39 +86,27 @@ export function TextBlock({ block, customization, isSelected, onSelect, onUpdate
     onUpdate({ content: newContent });
   };
 
-  const getOpacityLabel = () => {
-    if (textOpacity !== 1) {
-      return ` (Opacité: ${Math.round(textOpacity * 100)}%)`;
-    }
-    return '';
-  };
-
-  const getGradientLabel = () => {
-    if (isGradient) {
-      return ' (Dégradé)';
-    }
-    return '';
-  };
-
   return (
     <div 
-      className={`relative w-full h-full cursor-text ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded' : ''}`}
+      className={`relative w-full h-full cursor-text transition-all ${
+        isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''
+      }`}
       onClick={onSelect}
     >
-      <div 
-        style={textStyle}
-        contentEditable={isSelected}
-        onBlur={handleBlur}
-        suppressContentEditableWarning
-      >
-        {localContent}
+      <div style={containerStyle}>
+        <div 
+          ref={textRef}
+          style={textStyle}
+          contentEditable={isSelected}
+          onBlur={handleBlur}
+          suppressContentEditableWarning
+          className="outline-none w-full"
+        >
+          {localContent}
+        </div>
       </div>
 
-      {isSelected && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap">
-          Texte{getGradientLabel()}{getOpacityLabel()}
-        </div>
-      )}
+      {/* ⭐ TAG SUPPRIMÉ - Plus aucun badge flottant */}
     </div>
   );
 }

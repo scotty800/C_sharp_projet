@@ -231,6 +231,9 @@ export interface BlockUI {
   order: number;
   position?: { x: number; y: number; width?: number; height?: number; zIndex?: number };
   isVisible?: boolean;
+  parentId?: string | null;
+  isLocked?: boolean;
+  children?: BlockUI[];
 }
 
 // Interface principale SHOP CUSTOMIZATION (mise à jour avec blocks)

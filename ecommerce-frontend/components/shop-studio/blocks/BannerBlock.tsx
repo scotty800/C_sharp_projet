@@ -20,30 +20,10 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
   
-  // ⭐ États pour l'affichage
+  // ⭐ États pour l'affichage (maintenant gérés par les blocs enfants, gardés pour compatibilité)
   const [showTitle, setShowTitle] = useState(props.showTitle !== undefined ? props.showTitle : true);
-  const [showSubtitle, setShowSubtitle] = useState(props.showSubtitle !== undefined ? props.showSubtitle : false);
-  const [showButton, setShowButton] = useState(props.showButton !== undefined ? props.showButton : false);
-  
-  // ⭐ Positions
-  const [titlePosition, setTitlePosition] = useState(props.titlePosition || { x: 50, y: 30 });
-  const [subtitlePosition, setSubtitlePosition] = useState(props.subtitlePosition || { x: 50, y: 50 });
-  const [buttonPosition, setButtonPosition] = useState(props.buttonPosition || { x: 50, y: 70 });
-  
-  // ⭐ Dimensions des conteneurs
-  const [titleWidth, setTitleWidth] = useState(props.titleWidth || 300);
-  const [subtitleWidth, setSubtitleWidth] = useState(props.subtitleWidth || 300);
-  const [buttonWidth, setButtonWidth] = useState(props.buttonWidth || 200);
-  
-  // ⭐ États pour le drag
-  const [draggingElement, setDraggingElement] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  
-  // ⭐ États pour le redimensionnement
-  const [resizingText, setResizingText] = useState<string | null>(null);
-  const [resizeDirection, setResizeDirection] = useState<string | null>(null);
-  const [resizeStart, setResizeStart] = useState({ width: 0, fontSize: 0 });
-  const [resizeMouseStart, setResizeMouseStart] = useState({ x: 0, y: 0 });
+  const [showSubtitle, setShowSubtitle] = useState(props.showSubtitle !== undefined ? props.showSubtitle : true);
+  const [showButton, setShowButton] = useState(props.showButton !== undefined ? props.showButton : true);
   
   // ⭐ Références
   const editingImageIndexRef = useRef<number | null>(null);
@@ -65,185 +45,9 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   // ⭐ Synchronisation
   useEffect(() => {
     setShowTitle(props.showTitle !== undefined ? props.showTitle : true);
-    setShowSubtitle(props.showSubtitle !== undefined ? props.showSubtitle : false);
-    setShowButton(props.showButton !== undefined ? props.showButton : false);
-    setTitlePosition(props.titlePosition || { x: 50, y: 30 });
-    setSubtitlePosition(props.subtitlePosition || { x: 50, y: 50 });
-    setButtonPosition(props.buttonPosition || { x: 50, y: 70 });
-    setTitleWidth(props.titleWidth || 300);
-    setSubtitleWidth(props.subtitleWidth || 300);
-    setButtonWidth(props.buttonWidth || 200);
+    setShowSubtitle(props.showSubtitle !== undefined ? props.showSubtitle : true);
+    setShowButton(props.showButton !== undefined ? props.showButton : true);
   }, [props]);
-
-  // ⭐ Toggles
-  const toggleTitle = () => { const newValue = !showTitle; setShowTitle(newValue); onUpdate({ showTitle: newValue }); };
-  const toggleSubtitle = () => { const newValue = !showSubtitle; setShowSubtitle(newValue); onUpdate({ showSubtitle: newValue }); };
-  const toggleButton = () => { const newValue = !showButton; setShowButton(newValue); onUpdate({ showButton: newValue }); };
-
-  // ⭐ Positions
-  const updateTitlePosition = (x: number, y: number) => { const newPos = { x, y }; setTitlePosition(newPos); onUpdate({ titlePosition: newPos }); };
-  const updateSubtitlePosition = (x: number, y: number) => { const newPos = { x, y }; setSubtitlePosition(newPos); onUpdate({ subtitlePosition: newPos }); };
-  const updateButtonPosition = (x: number, y: number) => { const newPos = { x, y }; setButtonPosition(newPos); onUpdate({ buttonPosition: newPos }); };
-
-  // ⭐ Dimensions largeur
-  const updateTitleWidth = (width: number) => { setTitleWidth(width); onUpdate({ titleWidth: width }); };
-  const updateSubtitleWidth = (width: number) => { setSubtitleWidth(width); onUpdate({ subtitleWidth: width }); };
-  const updateButtonWidth = (width: number) => { setButtonWidth(width); onUpdate({ buttonWidth: width }); };
-
-  // ⭐ DRAG
-  const handleTitleMouseDown = (e: React.MouseEvent) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    setDraggingElement('title');
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setDragOffset({
-        x: (e.clientX - rect.left) / rect.width * 100 - titlePosition.x,
-        y: (e.clientY - rect.top) / rect.height * 100 - titlePosition.y,
-      });
-    }
-  };
-
-  const handleSubtitleMouseDown = (e: React.MouseEvent) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    setDraggingElement('subtitle');
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setDragOffset({
-        x: (e.clientX - rect.left) / rect.width * 100 - subtitlePosition.x,
-        y: (e.clientY - rect.top) / rect.height * 100 - subtitlePosition.y,
-      });
-    }
-  };
-
-  const handleButtonMouseDown = (e: React.MouseEvent) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    setDraggingElement('button');
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setDragOffset({
-        x: (e.clientX - rect.left) / rect.width * 100 - buttonPosition.x,
-        y: (e.clientY - rect.top) / rect.height * 100 - buttonPosition.y,
-      });
-    }
-  };
-
-  // ⭐ REDIMENSIONNEMENT
-  const handleResizeStart = (e: React.MouseEvent, element: string, direction: string) => {
-    if (isEditing) return;
-    e.stopPropagation();
-    setResizingText(element);
-    setResizeDirection(direction);
-    
-    let currentWidth = 0;
-    let currentFontSize = 0;
-    
-    if (element === 'title') {
-      currentWidth = titleWidth;
-      currentFontSize = props.titleFontSize || 48;
-    } else if (element === 'subtitle') {
-      currentWidth = subtitleWidth;
-      currentFontSize = props.subtitleFontSize || 18;
-    } else {
-      currentWidth = buttonWidth;
-      currentFontSize = props.buttonFontSize || 16;
-    }
-    
-    setResizeStart({ width: currentWidth, fontSize: currentFontSize });
-    setResizeMouseStart({ x: e.clientX, y: e.clientY });
-  };
-
-  // ⭐ Mouvement global drag
-  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
-    if (!draggingElement || isEditing) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    let newX = (e.clientX - rect.left) / rect.width * 100 - dragOffset.x;
-    let newY = (e.clientY - rect.top) / rect.height * 100 - dragOffset.y;
-    newX = Math.max(5, Math.min(95, newX));
-    newY = Math.max(5, Math.min(95, newY));
-    if (draggingElement === 'title') updateTitlePosition(newX, newY);
-    else if (draggingElement === 'subtitle') updateSubtitlePosition(newX, newY);
-    else if (draggingElement === 'button') updateButtonPosition(newX, newY);
-  }, [draggingElement, isEditing, dragOffset]);
-
-  // ⭐ Mouvement global redimensionnement
-  const handleResizeMove = useCallback((e: MouseEvent) => {
-    if (!resizingText || !resizeDirection) return;
-    const dx = e.clientX - resizeMouseStart.x;
-    let newWidth = resizeStart.width;
-    let newFontSize = resizeStart.fontSize;
-    
-    if (resizeDirection === 'ne' || resizeDirection === 'nw' || 
-        resizeDirection === 'se' || resizeDirection === 'sw') {
-      let ratio = 1;
-      if (resizeDirection === 'ne' || resizeDirection === 'se') {
-        ratio = (resizeStart.width + dx) / Math.max(1, resizeStart.width);
-      } else if (resizeDirection === 'nw' || resizeDirection === 'sw') {
-        ratio = (resizeStart.width - dx) / Math.max(1, resizeStart.width);
-      }
-      ratio = Math.max(0.3, Math.min(5, ratio));
-      
-      newWidth = Math.max(50, Math.min(3000, Math.floor(resizeStart.width * ratio)));
-      newFontSize = Math.max(10, Math.min(200, Math.floor(resizeStart.fontSize * ratio)));
-      
-      if (resizingText === 'title') {
-        updateTitleWidth(Math.round(newWidth));
-        onUpdate({ titleFontSize: Math.round(newFontSize) });
-      } else if (resizingText === 'subtitle') {
-        updateSubtitleWidth(Math.round(newWidth));
-        onUpdate({ subtitleFontSize: Math.round(newFontSize) });
-      } else if (resizingText === 'button') {
-        updateButtonWidth(Math.round(newWidth));
-        onUpdate({ buttonFontSize: Math.round(newFontSize) });
-      }
-    }
-    else if (resizeDirection === 'e' || resizeDirection === 'w') {
-      if (resizeDirection === 'e') {
-        newWidth = Math.max(50, Math.min(3000, resizeStart.width + dx));
-      } else if (resizeDirection === 'w') {
-        newWidth = Math.max(50, Math.min(3000, resizeStart.width - dx));
-      }
-      
-      if (resizingText === 'title') {
-        updateTitleWidth(newWidth);
-      } else if (resizingText === 'subtitle') {
-        updateSubtitleWidth(newWidth);
-      } else if (resizingText === 'button') {
-        updateButtonWidth(newWidth);
-      }
-    }
-  }, [resizingText, resizeDirection, resizeMouseStart, resizeStart, onUpdate, updateTitleWidth, updateSubtitleWidth, updateButtonWidth]);
-
-  const handleGlobalMouseUp = useCallback(() => {
-    setDraggingElement(null);
-    setResizingText(null);
-    setResizeDirection(null);
-  }, []);
-
-  useEffect(() => {
-    if (draggingElement && !isEditing) {
-      window.addEventListener('mousemove', handleGlobalMouseMove);
-      window.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleGlobalMouseMove);
-        window.removeEventListener('mouseup', handleGlobalMouseUp);
-      };
-    }
-  }, [draggingElement, isEditing, handleGlobalMouseMove, handleGlobalMouseUp]);
-
-  useEffect(() => {
-    if (resizingText) {
-      window.addEventListener('mousemove', handleResizeMove);
-      window.addEventListener('mouseup', handleGlobalMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleResizeMove);
-        window.removeEventListener('mouseup', handleGlobalMouseUp);
-      };
-    }
-  }, [resizingText, handleResizeMove, handleGlobalMouseUp]);
 
   // ⭐ Carrousel et crops
   const [savedCrops, setSavedCrops] = useState<Record<number, { x: number; y: number; scale: number }>>(() => {
@@ -491,10 +295,6 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   const currentCrop = getCurrentCrop();
   const zoomPercent = Math.round((isEditing ? editZoom : currentCrop.scale) * 100);
 
-  const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => onUpdate({ title: e.currentTarget.innerText });
-  const handleSubtitleBlur = (e: React.FocusEvent<HTMLParagraphElement>) => onUpdate({ subtitle: e.currentTarget.innerText });
-  const handleButtonTextBlur = (e: React.FocusEvent<HTMLButtonElement>) => onUpdate({ buttonText: e.currentTarget.innerText });
-
   if (isCarousel && images.length === 0 && !isEditing) {
     return (
       <div className={`relative cursor-pointer transition-all w-full h-full bg-gray-800 flex items-center justify-center ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''}`} onClick={onSelect}>
@@ -516,7 +316,7 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* ⭐ Conteneur principal : fond normal sauf en mode carrousel */}
+      {/* ⭐ Conteneur principal */}
       <div className="relative w-full h-full" style={isCarousel ? { backgroundColor: 'transparent' } : defaultBackgroundStyle}>
         <div className="absolute inset-0 overflow-hidden" onMouseDown={handleImageMouseDown} style={{ cursor: isEditing ? 'grab' : 'default' }}>
           {renderImage()}
@@ -551,205 +351,13 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
           </div>
         )}
 
-        {/* ⭐ TITRE */}
-        {showTitle && (
-          <div className="absolute" style={{ left: `${titlePosition.x}%`, top: `${titlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
-            <div className="relative" style={{ 
-              display: 'inline-block',
-              width: `${titleWidth}px`,
-              minWidth: '50px',
-              maxWidth: '3000px',
-              border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: isResizing ? 'none' : 'all 0.1s ease',
-            }}>
-              <h1 className="mb-0" style={{
-                display: 'block',
-                width: '100%',
-                fontFamily: props.titleFont || 'Poppins',
-                fontSize: `${props.titleFontSize || 48}px`,
-                fontWeight: props.titleFontWeight || '700',
-                lineHeight: 1.2,
-                letterSpacing: '-0.02em',
-                marginBottom: '0',
-                opacity: textOpacity,
-                cursor: 'default',
-                whiteSpace: 'normal',
-                wordBreak: 'break-word',
-                overflowWrap: 'break-word',
-                textShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                transition: isResizing ? 'none' : 'all 0.1s ease',
-                ...(props?.titleGradient ? { backgroundImage: props.titleGradient, backgroundClip: 'text', WebkitBackgroundClip: 'text', color: 'transparent' } : { color: props.titleColor || '#ffffff' }),
-              }}
-              contentEditable={isSelected && !isResizing && !resizingText}
-              onBlur={handleTitleBlur}
-              onMouseDown={isSelected && !isResizing && !resizingText ? handleTitleMouseDown : undefined}
-              suppressContentEditableWarning>
-                {props.title || shop?.name || 'Bienvenue'}
-              </h1>
-              
-              {isSelected && !isEditing && !isResizing && !resizingText && (
-                <>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'ne')} />
-                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'nw')} />
-                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'se')} />
-                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'title', 'sw')} />
-                  
-                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'e')} />
-                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'title', 'w')} />
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ⭐ SOUS-TITRE */}
-        {showSubtitle && (
-          <div className="absolute" style={{ left: `${subtitlePosition.x}%`, top: `${subtitlePosition.y}%`, transform: 'translate(-50%, -50%)' }}>
-            <div className="relative" style={{ 
-              display: 'inline-block',
-              width: `${subtitleWidth}px`,
-              minWidth: '50px',
-              maxWidth: '3000px',
-              border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: isResizing ? 'none' : 'all 0.1s ease',
-            }}>
-              <p className="mb-0" style={{
-                display: 'block',
-                width: '100%',
-                fontSize: `${props.subtitleFontSize || 18}px`,
-                fontFamily: props.subtitleFont || 'Inter',
-                fontWeight: props.subtitleFontWeight || '400',
-                color: props.subtitleColor || '#ffffff',
-                opacity: textOpacity,
-                cursor: 'default',
-                whiteSpace: 'normal',
-                wordBreak: 'break-word',
-                overflowWrap: 'break-word',
-                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                transition: isResizing ? 'none' : 'all 0.1s ease',
-              }}
-              contentEditable={isSelected && !isResizing && !resizingText}
-              onBlur={handleSubtitleBlur}
-              onMouseDown={isSelected && !isResizing && !resizingText ? handleSubtitleMouseDown : undefined}
-              suppressContentEditableWarning>
-                {props.subtitle || shop?.description || 'Découvrez nos produits'}
-              </p>
-              
-              {isSelected && !isEditing && !isResizing && !resizingText && (
-                <>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'ne')} />
-                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'nw')} />
-                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'se')} />
-                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'sw')} />
-                  
-                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'e')} />
-                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'subtitle', 'w')} />
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ⭐ BOUTON */}
-        {showButton && (
-          <div className="absolute" style={{ left: `${buttonPosition.x}%`, top: `${buttonPosition.y}%`, transform: 'translate(-50%, -50%)' }}>
-            <div className="relative" style={{ 
-              display: 'inline-block',
-              width: `${buttonWidth}px`,
-              minWidth: '50px',
-              maxWidth: '3000px',
-              border: isSelected ? '1px dashed rgba(255,255,255,0.3)' : 'none',
-              padding: '4px',
-              borderRadius: '4px',
-              transition: isResizing ? 'none' : 'all 0.1s ease',
-            }}>
-              <button className="inline-block w-full" style={{
-                fontFamily: props.buttonFont || 'Inter',
-                fontSize: `${props.buttonFontSize || 16}px`,
-                fontWeight: props.buttonFontWeight || '500',
-                backgroundColor: props.buttonBackgroundColor || '#2563EB',
-                color: props.buttonTextColor || '#ffffff',
-                padding: '0.75rem 1rem',
-                borderRadius: props.buttonBorderRadius || '0.5rem',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease',
-                opacity: textOpacity,
-                whiteSpace: 'normal',
-                wordBreak: 'break-word',
-              }}
-              contentEditable={isSelected && !isResizing && !resizingText}
-              onBlur={handleButtonTextBlur}
-              onMouseDown={isSelected && !isResizing && !resizingText ? handleButtonMouseDown : undefined}
-              suppressContentEditableWarning>
-                {props.buttonText || 'Découvrir'}
-              </button>
-              
-              {isSelected && !isEditing && !isResizing && !resizingText && (
-                <>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-ne-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'ne')} />
-                  <div className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-nw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'nw')} />
-                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-blue-500 rounded-full cursor-se-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'se')} />
-                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-500 rounded-full cursor-sw-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Agrandir la zone (texte proportionnel)" onMouseDown={(e) => handleResizeStart(e, 'button', 'sw')} />
-                  
-                  <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-e-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'e')} />
-                  <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-3 h-6 bg-green-500 rounded-full cursor-w-resize border border-white z-30 hover:scale-125 transition-transform" 
-                       title="Ajuster la largeur" onMouseDown={(e) => handleResizeStart(e, 'button', 'w')} />
-                </>
-              )}
-            </div>
-          </div>
-        )}
+        {/* ⭐ Note : Les titres, sous-titres et boutons sont maintenant gérés par des blocs enfants indépendants */}
       </div>
 
       {isSelected && !isEditing && !isResizing && (
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap flex gap-2">
-          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleTitle(); }}>{showTitle ? '📝 Titre' : '📝 (masqué)'}</span>
-          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleSubtitle(); }}>{showSubtitle ? '📄 Sous-titre' : '📄 (masqué)'}</span>
-          <span className="px-1 py-0.5 bg-white/20 rounded cursor-pointer hover:bg-white/30" onClick={(e) => { e.stopPropagation(); toggleButton(); }}>{showButton ? '🔘 Bouton' : '🔘 (masqué)'}</span>
-          
-          {/* ⭐ Badge fond de l'image courante ou du bloc (uniquement en carrousel) */}
-          {isCarousel && (() => {
-            const currentImage = images[currentIndex];
-            if (currentImage?.backgroundType === 'gradient' && currentImage?.backgroundValue) {
-              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé</span>;
-            }
-            if (currentImage?.backgroundColor && currentImage.backgroundColor !== 'transparent') {
-              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: currentImage.backgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond</span>;
-            }
-            if (blockBackgroundType === 'gradient' && blockBackgroundValue) {
-              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white">🌈 Dégradé (global)</span>;
-            }
-            if (blockBackgroundColor && blockBackgroundColor !== 'transparent') {
-              return <span className="px-1 py-0.5 rounded text-xs flex items-center gap-1 text-white" style={{ backgroundColor: blockBackgroundColor, textShadow: '0 0 2px rgba(0,0,0,0.5)' }}>🟦 Fond (global)</span>;
-            }
-            return null;
-          })()}
-          
           <span className="ml-1">{isCarousel ? `🎠 Carrousel (${images.length} images)` : (singleImage ? '🖼️ Bannière' : '🎨 Bannière')}</span>
           {currentCrop.scale !== 1 && <span className="ml-1 text-yellow-300">(Zoomé {Math.round(currentCrop.scale * 100)}%)</span>}
-          <span className="ml-1 text-yellow-300">🔵Zone+Police (max 200px) 🟢Largeur (max 3000px)</span>
         </div>
       )}
     </div>
