@@ -13,6 +13,7 @@ import AddBlockPanel from './add/AddBlockPanel';
 import AddToParentPanel from './add/AddToParentPanel';
 import FloatingLayersPanel from './FloatingLayersPanel';
 import { GoogleFontsLoader } from './GoogleFontsLoader';
+import { useGroupManager } from '@/hooks/useGroupManager';
 
 export interface BlockPosition {
   x: number;
@@ -33,7 +34,7 @@ export interface BlockUI {
   isVisible: boolean;
   parentId?: string | null;
   isLocked?: boolean;
-  children?: BlockUI[];
+  groupId?: string | null;
 }
 
 export interface StudioState {
@@ -65,6 +66,7 @@ const DEFAULT_POSITION: BlockPosition = {
 const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>): any[] => {
   const blockMap = new Map<string, any>();
   const childrenMap = new Map<string, string[]>();
+  const groupsMap = new Map<string, string[]>();
   
   blocks.forEach(block => {
     blockMap.set(block.id, block);
@@ -73,6 +75,12 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
         childrenMap.set(block.parentId, []);
       }
       childrenMap.get(block.parentId)!.push(block.id);
+    }
+    if (block.groupId) {
+      if (!groupsMap.has(block.groupId)) {
+        groupsMap.set(block.groupId, []);
+      }
+      groupsMap.get(block.groupId)!.push(block.id);
     }
   });
   
@@ -98,13 +106,58 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
       blockId: block.id,
       isExpanded: expandedLayers.has(block.id),
       isInternal: false,
+      groupId: block.groupId,
     };
   };
   
-  const rootBlocks = blocks.filter(block => !block.parentId);
-  const sortedRoots = [...rootBlocks].sort((a, b) => (a.position?.zIndex || 0) - (b.position?.zIndex || 0));
+  const buildTree = (): any[] => {
+    const rootBlocks = blocks.filter(block => !block.parentId);
+    const groupedBlocks = new Map<string, any[]>();
+    const ungroupedBlocks: any[] = [];
+    
+    for (const block of rootBlocks) {
+      if (block.groupId) {
+        if (!groupedBlocks.has(block.groupId)) {
+          groupedBlocks.set(block.groupId, []);
+        }
+        groupedBlocks.get(block.groupId)!.push(block);
+      } else {
+        ungroupedBlocks.push(block);
+      }
+    }
+    
+    const result: any[] = [];
+    
+    for (const [groupId, members] of groupedBlocks) {
+      const firstMember = members[0];
+      result.push({
+        id: groupId,
+        name: `Groupe ${groupId.slice(-6)}`,
+        type: 'group-container',
+        zIndex: Math.max(...members.map(m => m.position?.zIndex || 0)),
+        visible: members.every(m => m.isVisible !== false),
+        locked: members.every(m => m.isLocked === true),
+        children: [],
+        parentId: null,
+        blockId: groupId,
+        isExpanded: expandedLayers.has(groupId),
+        isInternal: false,
+        isGroupContainer: true,
+        groupMembers: members.map(m => buildNode(m.id)),
+        groupMembersCount: members.length,
+      });
+    }
+    
+    for (const block of ungroupedBlocks) {
+      result.push(buildNode(block.id));
+    }
+    
+    result.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    
+    return result;
+  };
   
-  return sortedRoots.map(block => buildNode(block.id));
+  return buildTree();
 };
 
 export default function StudioLayout() {
@@ -140,6 +193,18 @@ export default function StudioLayout() {
   const refreshCanvas = useCallback(() => {
     setZIndexVersion(prev => prev + 1);
   }, []);
+
+  const groupManager = useGroupManager({
+    blocks: state.blocks,
+    setBlocks: (blocksOrUpdater) => {
+      setState(prev => ({
+        ...prev,
+        blocks: typeof blocksOrUpdater === 'function' ? blocksOrUpdater(prev.blocks) : blocksOrUpdater,
+        isDirty: true,
+      }));
+    },
+    refreshCanvas,
+  });
 
   const deleteInternalElement = useCallback((elementId: string, parentBlockId: string) => {
     setState(prev => {
@@ -177,9 +242,6 @@ export default function StudioLayout() {
     refreshCanvas();
   }, [refreshCanvas]);
 
-  // ==================== SYSTÈME PARENT/ENFANT (sans groupes) ====================
-  
-  // ⭐ REPARENT LAYER - Version pour parent/enfant (bannières → enfants)
   const reparentLayer = useCallback((layerId: string, newParentId: string | null) => {
     console.log('🔄 Reparent layer:', { layerId, newParentId });
     
@@ -190,7 +252,11 @@ export default function StudioLayout() {
         return prev;
       }
       
-      // Vérifier qu'on ne crée pas de cycle
+      if (blockToMove.groupId) {
+        console.warn('❌ Un bloc groupé ne peut pas être déplacé individuellement');
+        return prev;
+      }
+      
       let current = newParentId;
       while (current) {
         const parent = prev.blocks.find(b => b.id === current);
@@ -208,14 +274,11 @@ export default function StudioLayout() {
       
       let newPosition: BlockPosition;
       
-      // Si on déplace vers un nouveau parent
       if (newParent) {
         if (isBannerType) {
-          // Pour les bannières, conserver les dimensions en pixels
           const currentWidth = blockToMove.position?.width ?? 200;
           const currentHeight = blockToMove.position?.height ?? 100;
           
-          // Calculer la position relative en pourcentage
           let relX = ((blockToMove.position?.x ?? 0) - newParent.position.x) / newParent.position.width * 100;
           let relY = ((blockToMove.position?.y ?? 0) - newParent.position.y) / newParent.position.height * 100;
           
@@ -248,9 +311,7 @@ export default function StudioLayout() {
           newPosition.height = Math.max(10, Math.min(90, newPosition.height));
         }
       } 
-      // SI ON RETIRE DU PARENT POUR LE METTRE À LA RACINE
       else if (oldParent) {
-        // Fonction pour obtenir la position absolue en remontant toute la chaîne
         const getAbsolutePosition = (block: BlockUI): { x: number; y: number; width: number; height: number } => {
           let absX = block.position?.x ?? 0;
           let absY = block.position?.y ?? 0;
@@ -285,13 +346,11 @@ export default function StudioLayout() {
         let absW = absolutePos.width;
         let absH = absolutePos.height;
         
-        // Pour les bannières, conserver les dimensions originales
         if (isBannerType) {
           absW = blockToMove.position?.width ?? absW;
           absH = blockToMove.position?.height ?? absH;
         }
         
-        // Borner les valeurs pour rester dans l'écran
         absX = Math.max(20, Math.min(1200, absX));
         absY = Math.max(20, Math.min(800, absY));
         absW = Math.max(50, Math.min(800, absW));
@@ -306,11 +365,7 @@ export default function StudioLayout() {
           rotation: blockToMove.position?.rotation ?? 0,
           positionType: 'absolute' as const,
         };
-        
-        console.log('📐 Position absolue conservée:', newPosition, 'Type:', blockToMove.type);
-        
       } 
-      // Reste à la racine
       else {
         let x = blockToMove.position?.x ?? 100;
         let y = blockToMove.position?.y ?? 100;
@@ -332,8 +387,6 @@ export default function StudioLayout() {
         };
       }
       
-      console.log('✅ Nouvelle position finale:', newPosition);
-      
       const updatedBlocks = prev.blocks.map(b => {
         if (b.id === layerId) {
           return { 
@@ -350,7 +403,6 @@ export default function StudioLayout() {
     refreshCanvas();
   }, [refreshCanvas]);
 
-  // ⭐ SUPPRESSION D'UN CALQUE (et ses enfants)
   const deleteLayer = useCallback((layerId: string) => {
     const getChildrenIds = (id: string, blocksList: BlockUI[]): string[] => {
       const children = blocksList.filter(b => b.parentId === id);
@@ -372,8 +424,6 @@ export default function StudioLayout() {
     }));
     refreshCanvas();
   }, [state.blocks, refreshCanvas]);
-
-  // ==================== FIN SYSTÈME PARENT/ENFANT ====================
 
   const toggleLayerVisibility = useCallback((layerId: string) => {
     setState(prev => {
@@ -547,6 +597,7 @@ export default function StudioLayout() {
       isVisible: true,
       parentId: parentId,
       isLocked: false,
+      groupId: null,
     };
     
     setState(prev => ({
@@ -620,6 +671,7 @@ export default function StudioLayout() {
             isVisible: b.isVisible !== false,
             parentId: b.parentId ?? null,
             isLocked: b.isLocked ?? false,
+            groupId: b.groupId ?? null,
           }));
         }
 
@@ -686,6 +738,7 @@ export default function StudioLayout() {
           isVisible: block.isVisible,
           parentId: block.parentId || null,
           isLocked: block.isLocked || false,
+          groupId: block.groupId || null,
           position: positionToSave,
           settings: { ...block.props },
         };
@@ -694,6 +747,7 @@ export default function StudioLayout() {
       console.log('💾 Sauvegarde des blocs:', blocksToSave.map(b => ({ 
         id: b.id, 
         parentId: b.parentId, 
+        groupId: b.groupId,
         position: b.position
       })));
       
@@ -789,6 +843,7 @@ export default function StudioLayout() {
         order: state.blocks.length,
         parentId: block.parentId || null,
         isLocked: false,
+        groupId: null,
       };
       setState(prev => ({
         ...prev,
@@ -990,8 +1045,8 @@ export default function StudioLayout() {
             onReparentLayer={reparentLayer}
             onToggleLayerVisibility={toggleLayerVisibility}
             onToggleLayerLock={toggleLayerLock}
-            onGroupLayers={() => {}} // Désactivé
-            onUngroupLayer={() => {}} // Désactivé
+            onGroupLayers={groupManager.createGroup}
+            onUngroupLayer={groupManager.ungroup}
             onReorderLayers={reorderLayers}
             onDeleteInternalElement={deleteInternalElement}
             shopId={Number(id)}
@@ -1025,6 +1080,10 @@ export default function StudioLayout() {
                 onDeleteBlock={deleteBlock}
                 onDuplicateBlock={duplicateBlock}
                 isCropperOpen={isCropperOpen}
+                onMoveGroup={groupManager.moveGroup}
+                getGroupMembers={groupManager.getGroupMembers}
+                onResizeGroup={groupManager.resizeGroup}
+                getGroupBounds={groupManager.getGroupBounds}
               />
             </div>
             
@@ -1072,8 +1131,8 @@ export default function StudioLayout() {
             onDuplicateLayer={duplicateBlock}
             onReparentLayer={reparentLayer}
             onReorderLayers={reorderLayers}
-            onGroupLayers={() => {}} // Désactivé
-            onUngroupLayer={() => {}} // Désactivé
+            onGroupLayers={groupManager.createGroup}
+            onUngroupLayer={groupManager.ungroup}
             onDeleteInternalElement={deleteInternalElement}
             getLayerIndexInParent={getLayerIndexInParent}
             onClose={() => setShowFloatingLayers(false)}

@@ -12,6 +12,7 @@ import { SpacerBlock } from './blocks/SpacerBlock';
 import { ShapeBlock } from './blocks/ShapeBlock';
 import { ScreenBannerBlock } from './blocks/ScreenBannerBlock';
 import { CarouselBannerBlock } from './blocks/CarouselBannerBlock';
+import { GroupOverlay } from './GroupOverlay';
 
 interface Props {
   shop: any;
@@ -29,6 +30,10 @@ interface Props {
   onDeleteBlock: (id: string) => void;
   onDuplicateBlock: (id: string) => void;
   isCropperOpen?: boolean;
+  onMoveGroup?: (movedBlockId: string, deltaX: number, deltaY: number) => void;
+  getGroupMembers?: (groupId: string) => any[];
+  onResizeGroup?: (groupId: string, bounds: { x: number; y: number; width: number; height: number }) => void;
+  getGroupBounds?: (groupId: string) => { x: number; y: number; width: number; height: number } | null;
 }
 
 export default function StudioCanvas({
@@ -45,6 +50,10 @@ export default function StudioCanvas({
   onDeleteBlock,
   onDuplicateBlock,
   isCropperOpen = false,
+  onMoveGroup,
+  getGroupMembers,
+  onResizeGroup,
+  getGroupBounds,
 }: Props) {
   const [draggingBlock, setDraggingBlock] = useState<string | null>(null);
   const [resizingBlock, setResizingBlock] = useState<string | null>(null);
@@ -54,6 +63,11 @@ export default function StudioCanvas({
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeForceUpdate, setResizeForceUpdate] = useState(0);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [groupBounds, setGroupBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  
+  // ⭐ Ref pour le container principal (utilisée par GroupOverlay)
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   
   const dragRafId = useRef<number | null>(null);
   const resizeRafId = useRef<number | null>(null);
@@ -102,11 +116,67 @@ export default function StudioCanvas({
     return blocks.filter(b => b.parentId === parentId);
   }, [blocks]);
 
+  // Récupère la bounding box du groupe sélectionné
+  const updateGroupBounds = useCallback(() => {
+    if (!selectedGroupId || !getGroupBounds) {
+      setGroupBounds(null);
+      return;
+    }
+    
+    const bounds = getGroupBounds(selectedGroupId);
+    if (bounds) {
+      setGroupBounds(bounds);
+    } else {
+      setGroupBounds(null);
+    }
+  }, [selectedGroupId, getGroupBounds]);
+
+  // Met à jour les bounds à chaque rendu ou quand les blocks changent
+  useEffect(() => {
+    updateGroupBounds();
+  }, [blocks, selectedGroupId, updateGroupBounds]);
+
+  // Gère le redimensionnement du groupe
+  const handleGroupResize = useCallback((groupId: string, newBounds: { x: number; y: number; width: number; height: number }) => {
+    if (onResizeGroup) {
+      onResizeGroup(groupId, newBounds);
+      updateGroupBounds();
+    }
+  }, [onResizeGroup, updateGroupBounds]);
+
+  // Sélectionne un groupe quand on clique sur un élément groupé
+  const handleSelectBlockWithGroup = useCallback((blockId: string | null, target?: 'text' | 'background') => {
+    if (blockId) {
+      const block = blocks.find(b => b.id === blockId);
+      if (block?.groupId) {
+        setSelectedGroupId(block.groupId);
+      } else {
+        setSelectedGroupId(null);
+      }
+    } else {
+      setSelectedGroupId(null);
+    }
+    onSelectBlock(blockId, target);
+  }, [blocks, onSelectBlock]);
+
+  // handleMouseMove avec gestion des groupes
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (draggingBlock && !isCropperOpen) {
       if (dragRafId.current) return;
       dragRafId.current = requestAnimationFrame(() => {
         const block = blocks.find(b => b.id === draggingBlock);
+        
+        // Si le bloc fait partie d'un groupe, on utilise onMoveGroup
+        if (block?.groupId && onMoveGroup) {
+          const dx = e.clientX - dragStart.x;
+          const dy = e.clientY - dragStart.y;
+          onMoveGroup(draggingBlock, dx, dy);
+          setDragStart({ x: e.clientX, y: e.clientY });
+          dragRafId.current = null;
+          return;
+        }
+        
+        // Sinon, comportement normal
         const isChild = block?.parentId !== null && block?.parentId !== undefined;
         const parent = isChild ? blocks.find(b => b.id === block?.parentId) : null;
         
@@ -137,7 +207,7 @@ export default function StudioCanvas({
         dragRafId.current = null;
       });
     }
-  }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition, isCropperOpen, blocks]);
+  }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition, onMoveGroup, isCropperOpen, blocks]);
 
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
     if (isCropperOpen) return;
@@ -314,25 +384,26 @@ export default function StudioCanvas({
           b.type === 'title' || b.type === 'text' || b.type === 'button'
         ));
         if (childBlock) {
-          onSelectBlock(childBlock.id, 'text');
+          handleSelectBlockWithGroup(childBlock.id, 'text');
         } else {
-          onSelectBlock(blockId, 'text');
+          handleSelectBlockWithGroup(blockId, 'text');
         }
       } else {
-        onSelectBlock(blockId, 'background');
+        handleSelectBlockWithGroup(blockId, 'background');
       }
       return;
     }
     
     if (isTextElement) {
-      onSelectBlock(blockId, 'text');
+      handleSelectBlockWithGroup(blockId, 'text');
     } else {
-      onSelectBlock(blockId, 'background');
+      handleSelectBlockWithGroup(blockId, 'background');
     }
   };
 
   const handleCanvasClick = () => {
     if (isCropperOpen) return;
+    setSelectedGroupId(null);
     onSelectBackground();
   };
 
@@ -394,7 +465,7 @@ export default function StudioCanvas({
     if (isCropperOpen) return;
     e.stopPropagation();
     setEditingTextId(blockId);
-    onSelectBlock(blockId, 'text');
+    handleSelectBlockWithGroup(blockId, 'text');
   };
 
   const handleTextBlur = (blockId: string, newContent: string) => {
@@ -433,7 +504,7 @@ export default function StudioCanvas({
       isResizing,
       onSelect: () => {
         if (isCropperOpen) return;
-        onSelectBlock(block.id, 'background');
+        handleSelectBlockWithGroup(block.id, 'background');
       },
       onUpdate: (updates: any) => onUpdateBlock(block.id, updates),
       onDelete: () => onDeleteBlock(block.id),
@@ -445,6 +516,7 @@ export default function StudioCanvas({
       onTextBlur: (content: string) => handleTextBlur(block.id, content),
     };
 
+    // Note: Le rendu des groupes n'est plus utilisé car on utilise le système groupId
     if (block.type === 'group') {
       const groupChildren = getChildren(block.id);
       const isSelectedGroup = selectedBlockId === block.id && !isCropperOpen;
@@ -464,7 +536,7 @@ export default function StudioCanvas({
           }}
           onClick={(e) => {
             e.stopPropagation();
-            onSelectBlock(block.id, 'background');
+            handleSelectBlockWithGroup(block.id, 'background');
           }}
           onMouseDown={(e) => {
             if (isSelectedGroup && !isCropperOpen) {
@@ -491,7 +563,7 @@ export default function StudioCanvas({
                 style={childStyle}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSelectBlock(child.id, 'background');
+                  handleSelectBlockWithGroup(child.id, 'background');
                 }}
               >
                 {renderBlock(child, true)}
@@ -527,7 +599,7 @@ export default function StudioCanvas({
                   return;
                 }
                 e.stopPropagation();
-                onSelectBlock(block.id, 'background');
+                handleSelectBlockWithGroup(block.id, 'background');
               }}
               onMouseDown={(e) => {
                 handleMouseDown(e, block.id, block);
@@ -564,7 +636,7 @@ export default function StudioCanvas({
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectBlock(child.id, 'text');
+                          handleSelectBlockWithGroup(child.id, 'text');
                         }}
                       >
                         {renderBlock(child, true)}
@@ -681,7 +753,7 @@ export default function StudioCanvas({
                     style={childStyle}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSelectBlock(child.id, 'text');
+                      handleSelectBlockWithGroup(child.id, 'text');
                     }}
                   >
                     {renderBlock(child, true)}
@@ -722,9 +794,9 @@ export default function StudioCanvas({
         )}
       </div>
     );
-  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, shop, customization, onSelectBlock, onUpdateBlock, onDeleteBlock, onDuplicateBlock, onUpdateBlockPosition]);
+  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, shop, customization, onUpdateBlock, onDeleteBlock, onDuplicateBlock, onUpdateBlockPosition]);
 
-  // ⭐ STYLE BACKGROUND CORRIGÉ - Pas de mélange entre background et backgroundColor
+  // STYLE BACKGROUND CORRIGÉ - Pas de mélange entre background et backgroundColor
   let backgroundStyle: React.CSSProperties = {
     minHeight: '100vh',
     width: '100%',
@@ -764,6 +836,7 @@ export default function StudioCanvas({
 
   return (
     <div 
+      ref={canvasContainerRef}
       className={`relative w-full min-h-screen ${isBackgroundSelected ? 'ring-4 ring-primary ring-offset-4 rounded-lg' : ''}`}
       onClick={handleCanvasClick}
     >
@@ -771,6 +844,17 @@ export default function StudioCanvas({
       <div style={blocksContainerStyle}>
         {rootBlocks.map(block => renderBlock(block))}
       </div>
+      
+      {/* Overlay pour le groupe sélectionné */}
+      {selectedGroupId && groupBounds && onResizeGroup && (
+        <GroupOverlay
+          groupId={selectedGroupId}
+          bounds={groupBounds}
+          containerRef={canvasContainerRef}
+          isSelected={true}
+          onResize={handleGroupResize}
+        />
+      )}
     </div>
   );
 }

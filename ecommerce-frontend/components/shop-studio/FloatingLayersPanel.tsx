@@ -19,6 +19,9 @@ interface Layer {
   blockId: string;
   isExpanded: boolean;
   isInternal?: boolean;
+  groupId?: string | null; // ⭐ Nouveau champ pour les groupes
+  isGroupContainer?: boolean; // ⭐ Indique si c'est un conteneur de groupe
+  groupMembers?: Layer[]; // ⭐ Les membres du groupe
 }
 
 interface Props {
@@ -33,13 +36,250 @@ interface Props {
   onDeleteLayer: (layerId: string) => void;
   onDuplicateLayer: (layerId: string) => void;
   onGroupLayers?: (layerIds: string[]) => void;
-  onUngroupLayer?: (layerId: string) => void;
+  onUngroupLayer?: (groupId: string) => void; // ⭐ Maintenant prend un groupId
   onReparentLayer?: (layerId: string, newParentId: string | null) => void;
   onReorderLayers?: (startIndex: number, endIndex: number, parentId?: string | null) => void;
   onDeleteInternalElement?: (elementId: string, parentId: string) => void;
   getLayerIndexInParent?: (targetLayerId: string, parentId: string | null, layersList: Layer[]) => number;
   onClose: () => void;
 }
+
+// ⭐ Composant pour afficher un groupe (avec ses membres)
+const GroupItem = ({ 
+  groupId,
+  groupName,
+  members,
+  depth,
+  selectedLayerId,
+  onSelectLayer,
+  onToggleVisibility,
+  onToggleLock,
+  onDeleteLayer,
+  onDuplicateLayer,
+  onGroupLayers,
+  onUngroupLayer,
+  onReparentLayer,
+  onReorderLayers,
+  onDeleteInternalElement,
+  selectedLayers,
+  setSelectedLayers,
+  getLayerIndexInParent,
+  layersList,
+}: any) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+  const [dragOverPosition, setDragOverPosition] = useState<'top' | 'bottom' | 'inside' | null>(null);
+
+  const isSelected = selectedLayerId === groupId;
+  const isChecked = selectedLayers.has(groupId);
+  const primaryColor = '#8B5CF6';
+
+  const handleDragStart = (e: React.DragEvent, layerId: string) => {
+    e.dataTransfer.setData('text/plain', layerId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  // Vérifier si tous les membres sont visibles/vérrouillés
+  const allMembersVisible = members.every((m: any) => m.visible);
+  const allMembersLocked = members.every((m: any) => m.locked);
+
+  const handleToggleVisibility = () => {
+    members.forEach((member: any) => {
+      onToggleVisibility(member.id);
+    });
+  };
+
+  const handleToggleLock = () => {
+    members.forEach((member: any) => {
+      onToggleLock(member.id);
+    });
+  };
+
+  return (
+    <div className="relative">
+      {/* Zone de drop au-dessus */}
+      <div
+        className={`h-0.5 rounded transition-all ${dragOverTarget === `top-${groupId}` ? 'h-1' : 'h-0.5'}`}
+        style={{ 
+          margin: '1px 0',
+          backgroundColor: dragOverTarget === `top-${groupId}` ? primaryColor : 'transparent',
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'move';
+          setDragOverTarget(`top-${groupId}`);
+          setDragOverPosition('top');
+        }}
+        onDragLeave={() => {
+          setDragOverTarget(null);
+          setDragOverPosition(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const draggedLayerId = e.dataTransfer.getData('text/plain');
+          if (draggedLayerId && draggedLayerId !== groupId && onReorderLayers && getLayerIndexInParent) {
+            const targetIndex = getLayerIndexInParent(groupId, null, layersList);
+            const draggedIndex = getLayerIndexInParent(draggedLayerId, null, layersList);
+            if (draggedIndex !== -1 && targetIndex !== -1) {
+              const newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+              onReorderLayers(draggedIndex, Math.max(0, newIndex), null);
+            }
+          }
+          setDragOverTarget(null);
+          setDragOverPosition(null);
+        }}
+      />
+
+      {/* En-tête du groupe */}
+      <div
+        data-layer-id={groupId}
+        className={`flex items-center py-1.5 px-2 rounded cursor-pointer transition-colors bg-purple-900/30 border-l-2 border-purple-500 ${
+          isSelected ? 'bg-purple-700/40' : 'hover:bg-gray-800'
+        }`}
+        style={{ marginLeft: `${depth * 16}px` }}
+        onClick={() => onSelectLayer(members[0]?.id)} // Sélectionne le premier membre
+      >
+        {/* Drag handle */}
+        <div
+          draggable={true}
+          onDragStart={(e) => handleDragStart(e, groupId)}
+          className="cursor-grab mr-1"
+        >
+          <FiMove size={12} className="text-gray-500" />
+        </div>
+
+        {/* Checkbox pour sélection multiple */}
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={(e) => {
+            e.stopPropagation();
+            if (e.target.checked) {
+              setSelectedLayers((prev: Set<string>) => new Set(prev).add(groupId));
+            } else {
+              setSelectedLayers((prev: Set<string>) => {
+                const newSet = new Set(prev);
+                newSet.delete(groupId);
+                return newSet;
+              });
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="mr-1 w-3 h-3 cursor-pointer"
+        />
+
+        {/* Expand/Collapse */}
+        <button
+          onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+          className="mr-1 text-gray-500 hover:text-white w-4"
+        >
+          {isExpanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
+        </button>
+
+        {/* Icon groupe */}
+        <span className="mr-2 text-sm">📁</span>
+
+        {/* Name */}
+        <span className={`flex-1 text-sm truncate font-medium text-purple-400`}>
+          {groupName} ({members.length})
+        </span>
+
+        {/* Actions du groupe */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleToggleVisibility(); }}
+            className="p-1 text-gray-500 hover:text-white transition-colors"
+            title={allMembersVisible ? 'Masquer le groupe' : 'Afficher le groupe'}
+          >
+            {allMembersVisible ? <FiEye size={14} /> : <FiEyeOff size={14} />}
+          </button>
+
+          <button
+            onClick={(e) => { e.stopPropagation(); handleToggleLock(); }}
+            className="p-1 text-gray-500 hover:text-white transition-colors"
+            title={allMembersLocked ? 'Déverrouiller le groupe' : 'Verrouiller le groupe'}
+          >
+            {allMembersLocked ? <FiLock size={14} /> : <FiUnlock size={14} />}
+          </button>
+
+          <button
+            onClick={(e) => { e.stopPropagation(); onUngroupLayer?.(groupId); }}
+            className="p-1 text-gray-500 hover:text-yellow-400 transition-colors"
+            title="Dégrouper"
+          >
+            <FiMinimize2 size={12} />
+          </button>
+        </div>
+      </div>
+
+      {/* Zone de drop en-dessous */}
+      <div
+        className={`h-0.5 rounded transition-all ${dragOverTarget === `bottom-${groupId}` ? 'h-1' : 'h-0.5'}`}
+        style={{ 
+          margin: '1px 0',
+          backgroundColor: dragOverTarget === `bottom-${groupId}` ? primaryColor : 'transparent',
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'move';
+          setDragOverTarget(`bottom-${groupId}`);
+          setDragOverPosition('bottom');
+        }}
+        onDragLeave={() => {
+          setDragOverTarget(null);
+          setDragOverPosition(null);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const draggedLayerId = e.dataTransfer.getData('text/plain');
+          if (draggedLayerId && draggedLayerId !== groupId && onReorderLayers && getLayerIndexInParent) {
+            const targetIndex = getLayerIndexInParent(groupId, null, layersList);
+            const draggedIndex = getLayerIndexInParent(draggedLayerId, null, layersList);
+            if (draggedIndex !== -1 && targetIndex !== -1) {
+              const newIndex = draggedIndex < targetIndex ? targetIndex : targetIndex + 1;
+              onReorderLayers(draggedIndex, newIndex, null);
+            }
+          }
+          setDragOverTarget(null);
+          setDragOverPosition(null);
+        }}
+      />
+
+      {/* Membres du groupe */}
+      {isExpanded && members.length > 0 && (
+        <div className="ml-4 border-l-2 border-purple-500/30 pl-2">
+          {members.map((member: Layer) => (
+            <LayerItem
+              key={member.id}
+              layer={member}
+              depth={depth + 1}
+              selectedLayerId={selectedLayerId}
+              onSelectLayer={onSelectLayer}
+              onToggleVisibility={onToggleVisibility}
+              onToggleLock={onToggleLock}
+              onDeleteLayer={onDeleteLayer}
+              onDuplicateLayer={onDuplicateLayer}
+              onGroupLayers={onGroupLayers}
+              onUngroupLayer={onUngroupLayer}
+              onReparentLayer={onReparentLayer}
+              onReorderLayers={onReorderLayers}
+              onDeleteInternalElement={onDeleteInternalElement}
+              selectedLayers={selectedLayers}
+              setSelectedLayers={setSelectedLayers}
+              getLayerIndexInParent={getLayerIndexInParent}
+              layersList={layersList}
+              isInGroup={true}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const LayerItem = ({ 
   layer, 
@@ -59,6 +299,7 @@ const LayerItem = ({
   setSelectedLayers,
   getLayerIndexInParent,
   layersList,
+  isInGroup = false,
 }: any) => {
   const [isExpanded, setIsExpanded] = useState(layer.isExpanded !== false);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
@@ -68,11 +309,14 @@ const LayerItem = ({
   const isChecked = selectedLayers.has(layer.id);
   const isGroup = layer.type === 'group';
   const isInternal = layer.isInternal === true;
-  const canHaveChildren = ['banner', 'screen-banner', 'carousel-banner', 'section', 'group'].includes(layer.type);
+  const canHaveChildren = ['banner', 'screen-banner', 'carousel-banner', 'section'].includes(layer.type);
   const children = layer.children;
 
+  // Si l'élément est dans un groupe, il ne peut pas être déplacé individuellement
+  const isInGroupAndLocked = isInGroup;
+
   const handleDragStart = (e: React.DragEvent, layerId: string) => {
-    if (layer.locked) {
+    if (layer.locked || isInGroupAndLocked) {
       e.preventDefault();
       return;
     }
@@ -93,15 +337,14 @@ const LayerItem = ({
   const primaryColor = '#8B5CF6';
 
   return (
-    <div key={layer.id} className="relative">
-      {/* Zone de drop au-dessus */}
-      {!isInternal && !layer.locked && (
+    <div className="relative">
+      {/* Zone de drop au-dessus - seulement si pas dans un groupe */}
+      {!isInternal && !layer.locked && !isInGroup && (
         <div
           className={`h-0.5 rounded transition-all ${dragOverTarget === `top-${layer.id}` ? 'h-1' : 'h-0.5'}`}
           style={{ 
             margin: '1px 0',
             backgroundColor: dragOverTarget === `top-${layer.id}` ? primaryColor : 'transparent',
-            transition: 'all 0.2s ease',
           }}
           onDragOver={(e) => {
             e.preventDefault();
@@ -137,7 +380,7 @@ const LayerItem = ({
         data-layer-id={layer.id}
         className={`flex items-center py-1.5 px-2 rounded cursor-pointer transition-colors ${
           isSelected ? 'bg-primary/30 border-l-2 border-primary' : 'hover:bg-gray-800'
-        } ${isInternal ? 'opacity-80' : ''}`}
+        } ${isInternal ? 'opacity-80' : ''} ${isInGroup ? 'opacity-70' : ''}`}
         style={{ 
           marginLeft: `${depth * 16}px`,
           ...(dragOverTarget === layer.id && dragOverPosition === 'inside' && {
@@ -147,6 +390,7 @@ const LayerItem = ({
           })
         }}
         onDragOver={(e) => {
+          if (isInGroup) return;
           e.preventDefault();
           e.stopPropagation();
           e.dataTransfer.dropEffect = 'move';
@@ -158,16 +402,14 @@ const LayerItem = ({
           setDragOverPosition(null);
         }}
         onDrop={(e) => {
+          if (isInGroup) return;
           e.preventDefault();
           e.stopPropagation();
           const draggedLayerId = e.dataTransfer.getData('text/plain');
           
-          // ⭐ PLUS DE RESTRICTION - on peut déposer sur N'IMPORTE quel calque (même ceux qui n'ont pas canHaveChildren)
           if (draggedLayerId && draggedLayerId !== layer.id && onReparentLayer) {
             console.log(`📦 Drop: ${draggedLayerId} devient enfant de ${layer.id}`);
-            // Appeler onReparentLayer pour changer le parent
             onReparentLayer(draggedLayerId, layer.id);
-            // ⭐ Forcer l'expansion du parent pour voir l'enfant
             setIsExpanded(true);
           }
           setDragOverTarget(null);
@@ -175,8 +417,8 @@ const LayerItem = ({
         }}
         onClick={() => onSelectLayer(layer.id)}
       >
-        {/* Drag handle */}
-        {!isInternal && !layer.locked && (
+        {/* Drag handle - pas si dans un groupe */}
+        {!isInternal && !layer.locked && !isInGroup && (
           <div
             draggable={true}
             onDragStart={(e) => handleDragStart(e, layer.id)}
@@ -186,6 +428,7 @@ const LayerItem = ({
           </div>
         )}
         {isInternal && <div className="w-4 mr-1" />}
+        {isInGroup && <div className="w-4 mr-1" />}
 
         {/* Checkbox pour sélection multiple */}
         <input
@@ -207,7 +450,7 @@ const LayerItem = ({
           className="mr-1 w-3 h-3 cursor-pointer"
         />
 
-        {/* Expand/Collapse pour les groupes */}
+        {/* Expand/Collapse */}
         {children.length > 0 && (
           <button
             onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
@@ -225,17 +468,11 @@ const LayerItem = ({
 
         {/* Name */}
         <span 
-          className={`flex-1 text-sm truncate ${isSelected ? 'text-primary font-medium' : 'text-gray-300'}`}
+          className={`flex-1 text-sm truncate ${isSelected ? 'text-primary font-medium' : 'text-gray-300'} ${isInGroup ? 'italic' : ''}`}
         >
           {layer.name}
+          {isInGroup && <span className="text-xs text-gray-500 ml-1">(groupé)</span>}
         </span>
-
-        {/* Nombre d'enfants pour les groupes */}
-        {isGroup && children.length > 0 && (
-          <span className="text-xs text-gray-500 mr-2 px-1 bg-gray-800 rounded">
-            {children.length}
-          </span>
-        )}
 
         {/* Z-index */}
         {!isInternal && (
@@ -254,7 +491,7 @@ const LayerItem = ({
             {layer.visible ? <FiEye size={14} /> : <FiEyeOff size={14} />}
           </button>
 
-          {!isInternal && (
+          {!isInternal && !isInGroup && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleLock?.(layer.id); }}
               className="p-1 text-gray-500 hover:text-white transition-colors"
@@ -264,7 +501,7 @@ const LayerItem = ({
             </button>
           )}
 
-          {!isInternal && canHaveChildren && (
+          {!isInternal && !isInGroup && canHaveChildren && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -280,17 +517,7 @@ const LayerItem = ({
             </button>
           )}
 
-          {isGroup && onUngroupLayer && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onUngroupLayer(layer.id); }}
-              className="p-1 text-gray-500 hover:text-yellow-400 transition-colors"
-              title="Dégrouper"
-            >
-              <FiMinimize2 size={12} />
-            </button>
-          )}
-
-          {!isInternal && (
+          {!isInternal && !isInGroup && (
             <button
               onClick={(e) => { e.stopPropagation(); onDuplicateLayer(layer.id); }}
               className="p-1 text-gray-500 hover:text-green-400 transition-colors"
@@ -310,7 +537,7 @@ const LayerItem = ({
             </button>
           )}
 
-          {!isInternal && (
+          {!isInternal && !isInGroup && (
             <button
               onClick={(e) => { e.stopPropagation(); onDeleteLayer(layer.id); }}
               className="p-1 text-gray-500 hover:text-red-400 transition-colors"
@@ -322,14 +549,13 @@ const LayerItem = ({
         </div>
       </div>
 
-      {/* Zone de drop en-dessous */}
-      {!isInternal && !layer.locked && (
+      {/* Zone de drop en-dessous - seulement si pas dans un groupe */}
+      {!isInternal && !layer.locked && !isInGroup && (
         <div
           className={`h-0.5 rounded transition-all ${dragOverTarget === `bottom-${layer.id}` ? 'h-1' : 'h-0.5'}`}
           style={{ 
             margin: '1px 0',
             backgroundColor: dragOverTarget === `bottom-${layer.id}` ? primaryColor : 'transparent',
-            transition: 'all 0.2s ease',
           }}
           onDragOver={(e) => {
             e.preventDefault();
@@ -383,6 +609,7 @@ const LayerItem = ({
               setSelectedLayers={setSelectedLayers}
               getLayerIndexInParent={getLayerIndexInParent}
               layersList={layersList}
+              isInGroup={isInGroup}
             />
           ))}
         </div>
@@ -420,7 +647,10 @@ export default function FloatingLayersPanel({
 
   const primaryColor = '#8B5CF6';
 
-  const rootLayers = layers.filter(layer => !layer.parentId);
+  // ⭐ Séparer les calques normaux et les groupes
+  const normalLayers = layers.filter(layer => !layer.parentId && !layer.groupId);
+  const groups = layers.filter(layer => layer.isGroupContainer === true);
+
   const showGroupButton = selectedLayers.size > 1;
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -579,7 +809,34 @@ export default function FloatingLayersPanel({
                 }
               }}
             >
-              {rootLayers.map((layer) => (
+              {/* Afficher les groupes en premier */}
+              {groups.map((group) => (
+                <GroupItem
+                  key={group.id}
+                  groupId={group.id}
+                  groupName={group.name}
+                  members={group.groupMembers || []}
+                  depth={0}
+                  selectedLayerId={selectedLayerId}
+                  onSelectLayer={onSelectLayer}
+                  onToggleVisibility={onToggleVisibility}
+                  onToggleLock={onToggleLock}
+                  onDeleteLayer={onDeleteLayer}
+                  onDuplicateLayer={onDuplicateLayer}
+                  onGroupLayers={onGroupLayers}
+                  onUngroupLayer={onUngroupLayer}
+                  onReparentLayer={onReparentLayer}
+                  onReorderLayers={onReorderLayers}
+                  onDeleteInternalElement={onDeleteInternalElement}
+                  selectedLayers={selectedLayers}
+                  setSelectedLayers={setSelectedLayers}
+                  getLayerIndexInParent={getLayerIndexInParent}
+                  layersList={layers}
+                />
+              ))}
+              
+              {/* Afficher les calques normaux */}
+              {normalLayers.map((layer) => (
                 <LayerItem
                   key={layer.id}
                   layer={layer}
@@ -613,6 +870,7 @@ export default function FloatingLayersPanel({
             <div className="text-xs text-gray-500 mt-3 p-2 bg-gray-800/50 rounded">
               💡 Astuces:
               <ul className="list-disc list-inside mt-1 space-y-0.5 text-gray-400">
+                <li>📁 Les groupes sont affichés en violet et peuvent être dépliés/repliés</li>
                 <li>🖱️ Glissez-déposez SUR un calque pour le rendre enfant</li>
                 <li>🖱️ Glissez-déposez ENTRE deux calques pour réorganiser l'ordre</li>
                 <li>🖱️ Glissez dans la zone vide pour rendre indépendant</li>
