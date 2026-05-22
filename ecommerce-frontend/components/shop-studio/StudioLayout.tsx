@@ -63,36 +63,39 @@ const DEFAULT_POSITION: BlockPosition = {
   positionType: 'absolute',
 };
 
-// ⭐ VERSION DOSSIER PATCHÉE — Groupes correctement placés (ignore les blocs groupés dans childrenMap)
+// ⭐ VERSION SIMPLIFIÉE ET CORRECTE — Groupes imbriqués + bannière dans groupe OK
 const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>): any[] => {
   const blockMap = new Map<string, BlockUI>();
-  const childrenMap = new Map<string, string[]>();
+  const childrenMap = new Map<string, string[]>(); // uniquement blockId → blockId
+  const groupsByParent = new Map<string | null, string[]>(); // parentId → groupId[]
 
-  // ⭐ Indexation (PATCH : ne pas ajouter les blocs groupés dans childrenMap)
+  // INDEXATION
   blocks.forEach(block => {
     blockMap.set(block.id, block);
 
-    // ❌ Avant : if (block.parentId)
-    // ✅ Maintenant : on ignore les blocs groupés
-    if (block.parentId && !block.groupId) {
+    // enfants structurels (UNIQUEMENT blockId)
+    if (block.parentId) {
       if (!childrenMap.has(block.parentId)) {
         childrenMap.set(block.parentId, []);
       }
       childrenMap.get(block.parentId)!.push(block.id);
     }
+
+    // rattacher le groupe à son parent réel
+    if (block.groupId) {
+      const parentId = block.parentId || null;
+      if (!groupsByParent.has(parentId)) {
+        groupsByParent.set(parentId, []);
+      }
+      const arr = groupsByParent.get(parentId)!;
+      if (!arr.includes(block.groupId)) {
+        arr.push(block.groupId);
+      }
+    }
   });
 
-  // Trouver le parent commun d'un groupe
-  const getGroupParentId = (groupId: string): string | null => {
-    const members = blocks.filter(b => b.groupId === groupId);
-    if (members.length === 0) return null;
-
-    const parentIds = [...new Set(members.map(m => m.parentId || null))];
-    return parentIds.length === 1 ? parentIds[0] : null;
-  };
-
-  // ⭐ Construire un conteneur de groupe (DOSSIER)
-  const buildGroupContainer = (groupId: string): any => {
+  // GROUPE VIRTUEL
+  const buildGroupContainer = (groupId: string, parentId: string | null): any => {
     const members = blocks.filter(b => b.groupId === groupId);
 
     const sortedMembers = [...members].sort(
@@ -101,61 +104,56 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
 
     const memberNodes = sortedMembers
       .map(m => buildNode(m.id))
-      .filter(n => n !== null);
+      .filter(Boolean);
 
     return {
       id: groupId,
       name: `Groupe ${groupId.slice(-6)}`,
       type: "group-container",
-      zIndex: sortedMembers.length > 0
-        ? Math.max(...sortedMembers.map(m => m.position?.zIndex || 0))
-        : 0,
+      zIndex: sortedMembers.length ? Math.max(...sortedMembers.map(m => m.position?.zIndex || 0)) : 0,
       visible: sortedMembers.every(m => m.isVisible !== false),
       locked: sortedMembers.every(m => m.isLocked === true),
-
-      // ⭐⭐ Tous les groupes utilisent children ⭐⭐
       children: memberNodes,
-
-      parentId: getGroupParentId(groupId),
+      parentId,
       blockId: groupId,
       isExpanded: expandedLayers.has(groupId),
       isGroupContainer: true,
     };
   };
 
-  // Construire un nœud normal
+  // NOEUD NORMAL
   const buildNode = (blockId: string): any => {
-    if (!blockId) return null;
-
-    if (!blockMap.has(blockId)) {
-      const isGroup = blocks.some(b => b.groupId === blockId);
-      if (isGroup) return buildGroupContainer(blockId);
-      return null;
-    }
-
     const block = blockMap.get(blockId);
     if (!block) return null;
 
-    const children = childrenMap.get(blockId) || [];
+    const rawChildren = childrenMap.get(block.id) || [];
 
-    const sortedChildren = [...children].sort((a, b) => {
-      const A = blockMap.get(a);
-      const B = blockMap.get(b);
-      return (A?.position?.zIndex || 0) - (B?.position?.zIndex || 0);
+    // enfants non groupés
+    const nonGroupedChildren = rawChildren.filter(childId => {
+      const child = blockMap.get(childId);
+      return child && !child.groupId;
     });
+
+    // groupes dont le parent réel est ce bloc
+    const groupChildrenIds = groupsByParent.get(block.id) || [];
+
+    const childNodes = [
+      ...nonGroupedChildren.map(id => buildNode(id)),
+      ...groupChildrenIds.map(gid => buildGroupContainer(gid, block.id)),
+    ].filter(Boolean);
 
     return {
       id: block.id,
-      name: block.props?.title || block.props?.text || block.props?.content || `${block.type} ${block.order + 1}`,
+      name:
+        block.props?.title ||
+        block.props?.text ||
+        block.props?.content ||
+        `${block.type} ${block.order + 1}`,
       type: block.type,
       zIndex: block.position?.zIndex || block.order,
       visible: block.isVisible !== false,
       locked: block.isLocked || false,
-
-      children: sortedChildren
-        .map(childId => buildNode(childId))
-        .filter(n => n !== null),
-
+      children: childNodes,
       parentId: block.parentId || null,
       blockId: block.id,
       isExpanded: expandedLayers.has(block.id),
@@ -163,36 +161,22 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
     };
   };
 
-  // Construction finale
+  // ARBRE FINAL
   const buildTree = (): any[] => {
-    const groupIds = new Set<string>();
-    blocks.forEach(b => b.groupId && groupIds.add(b.groupId));
-
     const root: any[] = [];
 
-    // Ajouter les groupes dans leur parent
-    for (const groupId of groupIds) {
-      const parentId = getGroupParentId(groupId);
+    // groupes root
+    const rootGroups = groupsByParent.get(null) || [];
+    rootGroups.forEach(gid => root.push(buildGroupContainer(gid, null)));
 
-      if (!parentId) {
-        root.push(buildGroupContainer(groupId));
-      } else {
-        if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
-        childrenMap.get(parentId)!.push(groupId);
-      }
-    }
-
-    // Ajouter les blocs racines non groupés
+    // blocs root non groupés
     const rootBlocks = blocks.filter(b => !b.parentId && !b.groupId);
-
-    for (const block of rootBlocks) {
-      const node = buildNode(block.id);
+    rootBlocks.forEach(b => {
+      const node = buildNode(b.id);
       if (node) root.push(node);
-    }
+    });
 
-    return root
-      .filter(n => n !== null)
-      .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    return root.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
   };
 
   return buildTree();
