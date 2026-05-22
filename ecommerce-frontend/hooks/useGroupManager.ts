@@ -112,10 +112,26 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   } | null>(null);
 
   // ───────────────────────────────────────────────────────────────
-  // CREATE GROUP
+  // CREATE GROUP — AVEC PROTECTIONS ANTI‑CYCLE
   // ───────────────────────────────────────────────────────────────
   const createGroup = useCallback((layerIds: string[]): string | null => {
     if (layerIds.length < 2) return null;
+
+    const list = blocksRef.current;
+    const members = list.filter(b => layerIds.includes(b.id));
+
+    // 🚫 ANTI‑CYCLE 1 : empêcher de grouper un parent avec son enfant
+    for (const m of members) {
+      let current = m.parentId;
+      while (current) {
+        if (layerIds.includes(current)) {
+          console.warn("❌ Impossible de grouper un parent avec son enfant :", m.id, current);
+          return null;
+        }
+        const parent = list.find(b => b.id === current);
+        current = parent?.parentId || null;
+      }
+    }
 
     const groupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -123,9 +139,6 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
     setBlocks(prev =>
       prev.map(b => (layerIds.includes(b.id) ? { ...b, groupId } : b))
     );
-
-    const list = blocksRef.current;
-    const members = list.filter(b => layerIds.includes(b.id));
 
     // 2) Détecter parent commun
     const parentIds = [...new Set(members.map(m => m.parentId || null))];
@@ -206,14 +219,34 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   }, [setBlocks, refreshCanvas]);
 
   // ───────────────────────────────────────────────────────────────
-  // ⭐ ADD TO GROUP (VERSION AVEC GESTION DU PARENT RÉEL VIA LES MEMBRES)
+  // ADD TO GROUP — AVEC PROTECTIONS ANTI‑CYCLE
   // ───────────────────────────────────────────────────────────────
   const addToGroup = useCallback((blockId: string, groupId: string): boolean => {
     const block = blocksRef.current.find(b => b.id === blockId);
     if (!block) return false;
 
-    // ⭐ Trouver le parent réel du groupe (le même pour tous les membres)
     const groupMembers = blocksRef.current.filter(b => b.groupId === groupId);
+
+    // 🚫 ANTI‑CYCLE 2 : empêcher d’ajouter un parent dans son enfant
+    for (const m of groupMembers) {
+      let current = m.parentId;
+      while (current) {
+        if (current === blockId) {
+          console.warn("❌ Cycle détecté : impossible d'ajouter un parent dans son enfant");
+          return false;
+        }
+        const parent = blocksRef.current.find(b => b.id === current);
+        current = parent?.parentId || null;
+      }
+    }
+
+    // 🚫 ANTI‑CYCLE 3 : empêcher d’ajouter un groupe dans un groupe qui le contient déjà
+    if (block.groupId === groupId) {
+      console.warn("❌ Cycle : un groupe ne peut pas contenir un groupe qui le contient déjà");
+      return false;
+    }
+
+    // ⭐ Trouver le parent réel du groupe (le même pour tous les membres)
     const parentId = groupMembers.length > 0 ? groupMembers[0].parentId : null;
 
     let parentAbs = null;
@@ -450,7 +483,7 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   return {
     createGroup,
     ungroup,
-    addToGroup, // ⭐ Fonction patchée avec gestion du parent réel via les membres
+    addToGroup, // ⭐ Fonction patchée avec gestion du parent réel via les membres et protections anti-cycle
     moveGroup,
     startGroupResize,
     resizeGroup,
