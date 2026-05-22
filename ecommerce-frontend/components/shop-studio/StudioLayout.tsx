@@ -63,37 +63,87 @@ const DEFAULT_POSITION: BlockPosition = {
   positionType: 'absolute',
 };
 
+// ⭐ VERSION DOSSIER PATCHÉE — Groupes correctement placés (ignore les blocs groupés dans childrenMap)
 const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>): any[] => {
-  const blockMap = new Map<string, any>();
+  const blockMap = new Map<string, BlockUI>();
   const childrenMap = new Map<string, string[]>();
-  const groupsMap = new Map<string, string[]>();
-  
+
+  // ⭐ Indexation (PATCH : ne pas ajouter les blocs groupés dans childrenMap)
   blocks.forEach(block => {
     blockMap.set(block.id, block);
-    if (block.parentId) {
+
+    // ❌ Avant : if (block.parentId)
+    // ✅ Maintenant : on ignore les blocs groupés
+    if (block.parentId && !block.groupId) {
       if (!childrenMap.has(block.parentId)) {
         childrenMap.set(block.parentId, []);
       }
       childrenMap.get(block.parentId)!.push(block.id);
     }
-    if (block.groupId) {
-      if (!groupsMap.has(block.groupId)) {
-        groupsMap.set(block.groupId, []);
-      }
-      groupsMap.get(block.groupId)!.push(block.id);
-    }
   });
-  
+
+  // Trouver le parent commun d'un groupe
+  const getGroupParentId = (groupId: string): string | null => {
+    const members = blocks.filter(b => b.groupId === groupId);
+    if (members.length === 0) return null;
+
+    const parentIds = [...new Set(members.map(m => m.parentId || null))];
+    return parentIds.length === 1 ? parentIds[0] : null;
+  };
+
+  // ⭐ Construire un conteneur de groupe (DOSSIER)
+  const buildGroupContainer = (groupId: string): any => {
+    const members = blocks.filter(b => b.groupId === groupId);
+
+    const sortedMembers = [...members].sort(
+      (a, b) => (a.position?.zIndex || 0) - (b.position?.zIndex || 0)
+    );
+
+    const memberNodes = sortedMembers
+      .map(m => buildNode(m.id))
+      .filter(n => n !== null);
+
+    return {
+      id: groupId,
+      name: `Groupe ${groupId.slice(-6)}`,
+      type: "group-container",
+      zIndex: sortedMembers.length > 0
+        ? Math.max(...sortedMembers.map(m => m.position?.zIndex || 0))
+        : 0,
+      visible: sortedMembers.every(m => m.isVisible !== false),
+      locked: sortedMembers.every(m => m.isLocked === true),
+
+      // ⭐⭐ Tous les groupes utilisent children ⭐⭐
+      children: memberNodes,
+
+      parentId: getGroupParentId(groupId),
+      blockId: groupId,
+      isExpanded: expandedLayers.has(groupId),
+      isGroupContainer: true,
+    };
+  };
+
+  // Construire un nœud normal
   const buildNode = (blockId: string): any => {
+    if (!blockId) return null;
+
+    if (!blockMap.has(blockId)) {
+      const isGroup = blocks.some(b => b.groupId === blockId);
+      if (isGroup) return buildGroupContainer(blockId);
+      return null;
+    }
+
     const block = blockMap.get(blockId);
+    if (!block) return null;
+
     const children = childrenMap.get(blockId) || [];
-    
+
     const sortedChildren = [...children].sort((a, b) => {
-      const blockA = blockMap.get(a);
-      const blockB = blockMap.get(b);
-      return (blockA?.position?.zIndex || 0) - (blockB?.position?.zIndex || 0);
+      const A = blockMap.get(a);
+      const B = blockMap.get(b);
+      return (A?.position?.zIndex || 0) - (B?.position?.zIndex || 0);
     });
-    
+
     return {
       id: block.id,
       name: block.props?.title || block.props?.text || block.props?.content || `${block.type} ${block.order + 1}`,
@@ -101,62 +151,50 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
       zIndex: block.position?.zIndex || block.order,
       visible: block.isVisible !== false,
       locked: block.isLocked || false,
-      children: sortedChildren.map(childId => buildNode(childId)),
+
+      children: sortedChildren
+        .map(childId => buildNode(childId))
+        .filter(n => n !== null),
+
       parentId: block.parentId || null,
       blockId: block.id,
       isExpanded: expandedLayers.has(block.id),
-      isInternal: false,
       groupId: block.groupId,
     };
   };
-  
+
+  // Construction finale
   const buildTree = (): any[] => {
-    const rootBlocks = blocks.filter(block => !block.parentId);
-    const groupedBlocks = new Map<string, any[]>();
-    const ungroupedBlocks: any[] = [];
-    
-    for (const block of rootBlocks) {
-      if (block.groupId) {
-        if (!groupedBlocks.has(block.groupId)) {
-          groupedBlocks.set(block.groupId, []);
-        }
-        groupedBlocks.get(block.groupId)!.push(block);
+    const groupIds = new Set<string>();
+    blocks.forEach(b => b.groupId && groupIds.add(b.groupId));
+
+    const root: any[] = [];
+
+    // Ajouter les groupes dans leur parent
+    for (const groupId of groupIds) {
+      const parentId = getGroupParentId(groupId);
+
+      if (!parentId) {
+        root.push(buildGroupContainer(groupId));
       } else {
-        ungroupedBlocks.push(block);
+        if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
+        childrenMap.get(parentId)!.push(groupId);
       }
     }
-    
-    const result: any[] = [];
-    
-    for (const [groupId, members] of groupedBlocks) {
-      const firstMember = members[0];
-      result.push({
-        id: groupId,
-        name: `Groupe ${groupId.slice(-6)}`,
-        type: 'group-container',
-        zIndex: Math.max(...members.map(m => m.position?.zIndex || 0)),
-        visible: members.every(m => m.isVisible !== false),
-        locked: members.every(m => m.isLocked === true),
-        children: [],
-        parentId: null,
-        blockId: groupId,
-        isExpanded: expandedLayers.has(groupId),
-        isInternal: false,
-        isGroupContainer: true,
-        groupMembers: members.map(m => buildNode(m.id)),
-        groupMembersCount: members.length,
-      });
+
+    // Ajouter les blocs racines non groupés
+    const rootBlocks = blocks.filter(b => !b.parentId && !b.groupId);
+
+    for (const block of rootBlocks) {
+      const node = buildNode(block.id);
+      if (node) root.push(node);
     }
-    
-    for (const block of ungroupedBlocks) {
-      result.push(buildNode(block.id));
-    }
-    
-    result.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-    
-    return result;
+
+    return root
+      .filter(n => n !== null)
+      .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
   };
-  
+
   return buildTree();
 };
 
@@ -1084,6 +1122,8 @@ export default function StudioLayout() {
                 getGroupMembers={groupManager.getGroupMembers}
                 onResizeGroup={groupManager.resizeGroup}
                 getGroupBounds={groupManager.getGroupBounds}
+                onResizeGroupStart={groupManager.startGroupResize}
+                onResizeGroupEnd={groupManager.endGroupResize}
               />
             </div>
             

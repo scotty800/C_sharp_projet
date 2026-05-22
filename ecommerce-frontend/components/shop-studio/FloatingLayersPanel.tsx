@@ -19,9 +19,8 @@ interface Layer {
   blockId: string;
   isExpanded: boolean;
   isInternal?: boolean;
-  groupId?: string | null; // ⭐ Nouveau champ pour les groupes
-  isGroupContainer?: boolean; // ⭐ Indique si c'est un conteneur de groupe
-  groupMembers?: Layer[]; // ⭐ Les membres du groupe
+  groupId?: string | null;
+  isGroupContainer?: boolean;
 }
 
 interface Props {
@@ -36,7 +35,7 @@ interface Props {
   onDeleteLayer: (layerId: string) => void;
   onDuplicateLayer: (layerId: string) => void;
   onGroupLayers?: (layerIds: string[]) => void;
-  onUngroupLayer?: (groupId: string) => void; // ⭐ Maintenant prend un groupId
+  onUngroupLayer?: (groupId: string) => void;
   onReparentLayer?: (layerId: string, newParentId: string | null) => void;
   onReorderLayers?: (startIndex: number, endIndex: number, parentId?: string | null) => void;
   onDeleteInternalElement?: (elementId: string, parentId: string) => void;
@@ -44,11 +43,11 @@ interface Props {
   onClose: () => void;
 }
 
-// ⭐ Composant pour afficher un groupe (avec ses membres)
+// ⭐ Composant pour afficher un groupe (avec ses membres via children)
 const GroupItem = ({ 
   groupId,
   groupName,
-  members,
+  groupNode,
   depth,
   selectedLayerId,
   onSelectLayer,
@@ -73,15 +72,16 @@ const GroupItem = ({
   const isSelected = selectedLayerId === groupId;
   const isChecked = selectedLayers.has(groupId);
   const primaryColor = '#8B5CF6';
+  const members = groupNode.children || [];
 
   const handleDragStart = (e: React.DragEvent, layerId: string) => {
     e.dataTransfer.setData('text/plain', layerId);
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  // Vérifier si tous les membres sont visibles/vérrouillés
-  const allMembersVisible = members.every((m: any) => m.visible);
-  const allMembersLocked = members.every((m: any) => m.locked);
+  // Vérifier si tous les membres sont visibles/verrouillés
+  const allMembersVisible = members.length > 0 && members.every((m: any) => m.visible);
+  const allMembersLocked = members.length > 0 && members.every((m: any) => m.locked);
 
   const handleToggleVisibility = () => {
     members.forEach((member: any) => {
@@ -139,7 +139,7 @@ const GroupItem = ({
           isSelected ? 'bg-purple-700/40' : 'hover:bg-gray-800'
         }`}
         style={{ marginLeft: `${depth * 16}px` }}
-        onClick={() => onSelectLayer(members[0]?.id)} // Sélectionne le premier membre
+        onClick={() => onSelectLayer(members[0]?.id || groupId)}
       >
         {/* Drag handle */}
         <div
@@ -171,12 +171,15 @@ const GroupItem = ({
         />
 
         {/* Expand/Collapse */}
-        <button
-          onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
-          className="mr-1 text-gray-500 hover:text-white w-4"
-        >
-          {isExpanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
-        </button>
+        {members.length > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+            className="mr-1 text-gray-500 hover:text-white w-4"
+          >
+            {isExpanded ? <FiChevronDown size={12} /> : <FiChevronRight size={12} />}
+          </button>
+        )}
+        {members.length === 0 && <div className="w-4" />}
 
         {/* Icon groupe */}
         <span className="mr-2 text-sm">📁</span>
@@ -249,32 +252,62 @@ const GroupItem = ({
         }}
       />
 
-      {/* Membres du groupe */}
+      {/* Membres du groupe via children */}
       {isExpanded && members.length > 0 && (
         <div className="ml-4 border-l-2 border-purple-500/30 pl-2">
-          {members.map((member: Layer) => (
-            <LayerItem
-              key={member.id}
-              layer={member}
-              depth={depth + 1}
-              selectedLayerId={selectedLayerId}
-              onSelectLayer={onSelectLayer}
-              onToggleVisibility={onToggleVisibility}
-              onToggleLock={onToggleLock}
-              onDeleteLayer={onDeleteLayer}
-              onDuplicateLayer={onDuplicateLayer}
-              onGroupLayers={onGroupLayers}
-              onUngroupLayer={onUngroupLayer}
-              onReparentLayer={onReparentLayer}
-              onReorderLayers={onReorderLayers}
-              onDeleteInternalElement={onDeleteInternalElement}
-              selectedLayers={selectedLayers}
-              setSelectedLayers={setSelectedLayers}
-              getLayerIndexInParent={getLayerIndexInParent}
-              layersList={layersList}
-              isInGroup={true}
-            />
-          ))}
+          {members.map((member: Layer) => {
+            // Si le membre est lui-même un groupe
+            if (member.isGroupContainer) {
+              return (
+                <GroupItem
+                  key={member.id}
+                  groupId={member.id}
+                  groupName={member.name}
+                  groupNode={member}
+                  depth={depth + 1}
+                  selectedLayerId={selectedLayerId}
+                  onSelectLayer={onSelectLayer}
+                  onToggleVisibility={onToggleVisibility}
+                  onToggleLock={onToggleLock}
+                  onDeleteLayer={onDeleteLayer}
+                  onDuplicateLayer={onDuplicateLayer}
+                  onGroupLayers={onGroupLayers}
+                  onUngroupLayer={onUngroupLayer}
+                  onReparentLayer={onReparentLayer}
+                  onReorderLayers={onReorderLayers}
+                  onDeleteInternalElement={onDeleteInternalElement}
+                  selectedLayers={selectedLayers}
+                  setSelectedLayers={setSelectedLayers}
+                  getLayerIndexInParent={getLayerIndexInParent}
+                  layersList={layersList}
+                />
+              );
+            }
+            // Sinon, c'est un élément normal
+            return (
+              <LayerItem
+                key={member.id}
+                layer={member}
+                depth={depth + 1}
+                selectedLayerId={selectedLayerId}
+                onSelectLayer={onSelectLayer}
+                onToggleVisibility={onToggleVisibility}
+                onToggleLock={onToggleLock}
+                onDeleteLayer={onDeleteLayer}
+                onDuplicateLayer={onDuplicateLayer}
+                onGroupLayers={onGroupLayers}
+                onUngroupLayer={onUngroupLayer}
+                onReparentLayer={onReparentLayer}
+                onReorderLayers={onReorderLayers}
+                onDeleteInternalElement={onDeleteInternalElement}
+                selectedLayers={selectedLayers}
+                setSelectedLayers={setSelectedLayers}
+                getLayerIndexInParent={getLayerIndexInParent}
+                layersList={layersList}
+                isInGroup={true}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -307,12 +340,10 @@ const LayerItem = ({
 
   const isSelected = selectedLayerId === layer.id;
   const isChecked = selectedLayers.has(layer.id);
-  const isGroup = layer.type === 'group';
   const isInternal = layer.isInternal === true;
   const canHaveChildren = ['banner', 'screen-banner', 'carousel-banner', 'section'].includes(layer.type);
-  const children = layer.children;
+  const children = layer.children || [];
 
-  // Si l'élément est dans un groupe, il ne peut pas être déplacé individuellement
   const isInGroupAndLocked = isInGroup;
 
   const handleDragStart = (e: React.DragEvent, layerId: string) => {
@@ -328,7 +359,7 @@ const LayerItem = ({
     const icons: Record<string, string> = {
       banner: '🖼️', logo: '⭐', title: '📝', products: '📦',
       text: '🔤', image: '🖼️', button: '🔘', spacer: '⬜', 
-      shape: '🔷', section: '📐', group: '📁',
+      shape: '🔷', section: '📐',
       'carousel-slide': '📷'
     };
     return icons[type] || '📄';
@@ -589,29 +620,58 @@ const LayerItem = ({
       {/* Enfants */}
       {isExpanded && children.length > 0 && (
         <div>
-          {children.map((child: Layer) => (
-            <LayerItem
-              key={child.id}
-              layer={child}
-              depth={depth + 1}
-              selectedLayerId={selectedLayerId}
-              onSelectLayer={onSelectLayer}
-              onToggleVisibility={onToggleVisibility}
-              onToggleLock={onToggleLock}
-              onDeleteLayer={onDeleteLayer}
-              onDuplicateLayer={onDuplicateLayer}
-              onGroupLayers={onGroupLayers}
-              onUngroupLayer={onUngroupLayer}
-              onReparentLayer={onReparentLayer}
-              onReorderLayers={onReorderLayers}
-              onDeleteInternalElement={onDeleteInternalElement}
-              selectedLayers={selectedLayers}
-              setSelectedLayers={setSelectedLayers}
-              getLayerIndexInParent={getLayerIndexInParent}
-              layersList={layersList}
-              isInGroup={isInGroup}
-            />
-          ))}
+          {children.map((child: Layer) => {
+            // Si l'enfant est un groupe
+            if (child.isGroupContainer) {
+              return (
+                <GroupItem
+                  key={child.id}
+                  groupId={child.id}
+                  groupName={child.name}
+                  groupNode={child}
+                  depth={depth + 1}
+                  selectedLayerId={selectedLayerId}
+                  onSelectLayer={onSelectLayer}
+                  onToggleVisibility={onToggleVisibility}
+                  onToggleLock={onToggleLock}
+                  onDeleteLayer={onDeleteLayer}
+                  onDuplicateLayer={onDuplicateLayer}
+                  onGroupLayers={onGroupLayers}
+                  onUngroupLayer={onUngroupLayer}
+                  onReparentLayer={onReparentLayer}
+                  onReorderLayers={onReorderLayers}
+                  onDeleteInternalElement={onDeleteInternalElement}
+                  selectedLayers={selectedLayers}
+                  setSelectedLayers={setSelectedLayers}
+                  getLayerIndexInParent={getLayerIndexInParent}
+                  layersList={layersList}
+                />
+              );
+            }
+            return (
+              <LayerItem
+                key={child.id}
+                layer={child}
+                depth={depth + 1}
+                selectedLayerId={selectedLayerId}
+                onSelectLayer={onSelectLayer}
+                onToggleVisibility={onToggleVisibility}
+                onToggleLock={onToggleLock}
+                onDeleteLayer={onDeleteLayer}
+                onDuplicateLayer={onDuplicateLayer}
+                onGroupLayers={onGroupLayers}
+                onUngroupLayer={onUngroupLayer}
+                onReparentLayer={onReparentLayer}
+                onReorderLayers={onReorderLayers}
+                onDeleteInternalElement={onDeleteInternalElement}
+                selectedLayers={selectedLayers}
+                setSelectedLayers={setSelectedLayers}
+                getLayerIndexInParent={getLayerIndexInParent}
+                layersList={layersList}
+                isInGroup={isInGroup}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -647,9 +707,8 @@ export default function FloatingLayersPanel({
 
   const primaryColor = '#8B5CF6';
 
-  // ⭐ Séparer les calques normaux et les groupes
-  const normalLayers = layers.filter(layer => !layer.parentId && !layer.groupId);
-  const groups = layers.filter(layer => layer.isGroupContainer === true);
+  // Séparer les racines
+  const rootItems = layers;
 
   const showGroupButton = selectedLayers.size > 1;
 
@@ -809,55 +868,56 @@ export default function FloatingLayersPanel({
                 }
               }}
             >
-              {/* Afficher les groupes en premier */}
-              {groups.map((group) => (
-                <GroupItem
-                  key={group.id}
-                  groupId={group.id}
-                  groupName={group.name}
-                  members={group.groupMembers || []}
-                  depth={0}
-                  selectedLayerId={selectedLayerId}
-                  onSelectLayer={onSelectLayer}
-                  onToggleVisibility={onToggleVisibility}
-                  onToggleLock={onToggleLock}
-                  onDeleteLayer={onDeleteLayer}
-                  onDuplicateLayer={onDuplicateLayer}
-                  onGroupLayers={onGroupLayers}
-                  onUngroupLayer={onUngroupLayer}
-                  onReparentLayer={onReparentLayer}
-                  onReorderLayers={onReorderLayers}
-                  onDeleteInternalElement={onDeleteInternalElement}
-                  selectedLayers={selectedLayers}
-                  setSelectedLayers={setSelectedLayers}
-                  getLayerIndexInParent={getLayerIndexInParent}
-                  layersList={layers}
-                />
-              ))}
-              
-              {/* Afficher les calques normaux */}
-              {normalLayers.map((layer) => (
-                <LayerItem
-                  key={layer.id}
-                  layer={layer}
-                  depth={0}
-                  selectedLayerId={selectedLayerId}
-                  onSelectLayer={onSelectLayer}
-                  onToggleVisibility={onToggleVisibility}
-                  onToggleLock={onToggleLock}
-                  onDeleteLayer={onDeleteLayer}
-                  onDuplicateLayer={onDuplicateLayer}
-                  onGroupLayers={onGroupLayers}
-                  onUngroupLayer={onUngroupLayer}
-                  onReparentLayer={onReparentLayer}
-                  onReorderLayers={onReorderLayers}
-                  onDeleteInternalElement={onDeleteInternalElement}
-                  selectedLayers={selectedLayers}
-                  setSelectedLayers={setSelectedLayers}
-                  getLayerIndexInParent={getLayerIndexInParent}
-                  layersList={layers}
-                />
-              ))}
+              {rootItems.map((layer) => {
+                if (layer.isGroupContainer) {
+                  return (
+                    <GroupItem
+                      key={layer.id}
+                      groupId={layer.id}
+                      groupName={layer.name}
+                      groupNode={layer}
+                      depth={0}
+                      selectedLayerId={selectedLayerId}
+                      onSelectLayer={onSelectLayer}
+                      onToggleVisibility={onToggleVisibility}
+                      onToggleLock={onToggleLock}
+                      onDeleteLayer={onDeleteLayer}
+                      onDuplicateLayer={onDuplicateLayer}
+                      onGroupLayers={onGroupLayers}
+                      onUngroupLayer={onUngroupLayer}
+                      onReparentLayer={onReparentLayer}
+                      onReorderLayers={onReorderLayers}
+                      onDeleteInternalElement={onDeleteInternalElement}
+                      selectedLayers={selectedLayers}
+                      setSelectedLayers={setSelectedLayers}
+                      getLayerIndexInParent={getLayerIndexInParent}
+                      layersList={layers}
+                    />
+                  );
+                }
+                return (
+                  <LayerItem
+                    key={layer.id}
+                    layer={layer}
+                    depth={0}
+                    selectedLayerId={selectedLayerId}
+                    onSelectLayer={onSelectLayer}
+                    onToggleVisibility={onToggleVisibility}
+                    onToggleLock={onToggleLock}
+                    onDeleteLayer={onDeleteLayer}
+                    onDuplicateLayer={onDuplicateLayer}
+                    onGroupLayers={onGroupLayers}
+                    onUngroupLayer={onUngroupLayer}
+                    onReparentLayer={onReparentLayer}
+                    onReorderLayers={onReorderLayers}
+                    onDeleteInternalElement={onDeleteInternalElement}
+                    selectedLayers={selectedLayers}
+                    setSelectedLayers={setSelectedLayers}
+                    getLayerIndexInParent={getLayerIndexInParent}
+                    layersList={layers}
+                  />
+                );
+              })}
             </div>
 
             {blocksCount === 0 && (

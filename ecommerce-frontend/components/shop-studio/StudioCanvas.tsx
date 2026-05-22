@@ -34,6 +34,8 @@ interface Props {
   getGroupMembers?: (groupId: string) => any[];
   onResizeGroup?: (groupId: string, bounds: { x: number; y: number; width: number; height: number }) => void;
   getGroupBounds?: (groupId: string) => { x: number; y: number; width: number; height: number } | null;
+  onResizeGroupStart?: (groupId: string) => void;
+  onResizeGroupEnd?: () => void;
 }
 
 export default function StudioCanvas({
@@ -54,6 +56,8 @@ export default function StudioCanvas({
   getGroupMembers,
   onResizeGroup,
   getGroupBounds,
+  onResizeGroupStart,
+  onResizeGroupEnd,
 }: Props) {
   const [draggingBlock, setDraggingBlock] = useState<string | null>(null);
   const [resizingBlock, setResizingBlock] = useState<string | null>(null);
@@ -143,6 +147,18 @@ export default function StudioCanvas({
       updateGroupBounds();
     }
   }, [onResizeGroup, updateGroupBounds]);
+
+  const handleGroupResizeStart = useCallback(() => {
+    if (selectedGroupId && onResizeGroupStart) {
+      onResizeGroupStart(selectedGroupId);
+    }
+  }, [selectedGroupId, onResizeGroupStart]);
+
+  const handleGroupResizeEnd = useCallback(() => {
+    if (onResizeGroupEnd) {
+      onResizeGroupEnd();
+    }
+  }, [onResizeGroupEnd]);
 
   // Sélectionne un groupe quand on clique sur un élément groupé
   const handleSelectBlockWithGroup = useCallback((blockId: string | null, target?: 'text' | 'background') => {
@@ -853,6 +869,8 @@ export default function StudioCanvas({
           containerRef={canvasContainerRef}
           isSelected={true}
           onResize={handleGroupResize}
+          onResizeStart={handleGroupResizeStart}
+          onResizeEnd={handleGroupResizeEnd}
         />
       )}
     </div>
