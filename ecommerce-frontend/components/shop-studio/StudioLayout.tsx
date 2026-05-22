@@ -1170,6 +1170,7 @@ export default function StudioLayout() {
             onDeleteLayer={deleteLayer}
             onDuplicateLayer={duplicateBlock}
             onReparentLayer={reparentLayer}
+            onAddToGroup={groupManager.addToGroup} // ⭐ NOUVEAU
             onReorderLayers={reorderLayers}
             onGroupLayers={groupManager.createGroup}
             onUngroupLayer={groupManager.ungroup}

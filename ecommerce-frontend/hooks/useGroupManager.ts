@@ -206,6 +206,85 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   }, [setBlocks, refreshCanvas]);
 
   // ───────────────────────────────────────────────────────────────
+  // ⭐ ADD TO GROUP (VERSION AVEC GESTION DU PARENT RÉEL VIA LES MEMBRES)
+  // ───────────────────────────────────────────────────────────────
+  const addToGroup = useCallback((blockId: string, groupId: string): boolean => {
+    const block = blocksRef.current.find(b => b.id === blockId);
+    if (!block) return false;
+
+    // ⭐ Trouver le parent réel du groupe (le même pour tous les membres)
+    const groupMembers = blocksRef.current.filter(b => b.groupId === groupId);
+    const parentId = groupMembers.length > 0 ? groupMembers[0].parentId : null;
+
+    let parentAbs = null;
+    if (parentId) {
+      const parent = blocksRef.current.find(b => b.id === parentId);
+      if (parent) parentAbs = resolveAbsoluteBounds(parent, blocksRef.current);
+    }
+
+    // ⭐ Calculer les bounds du groupe
+    const groupBounds =
+      groupMembers.length > 0
+        ? computeGroupBounds(groupId, blocksRef.current)
+        : resolveAbsoluteBounds(block, blocksRef.current);
+
+    if (!groupBounds) return false;
+
+    // ⭐ Position absolue du bloc
+    const abs = resolveAbsoluteBounds(block, blocksRef.current);
+
+    let relX, relY, relW, relH;
+
+    if (parentAbs) {
+      // ⭐ Le groupe a un parent réel → contraintes correctes
+      relX = ((abs.x - parentAbs.x) / parentAbs.width) * 100;
+      relY = ((abs.y - parentAbs.y) / parentAbs.height) * 100;
+      relW = (abs.width / parentAbs.width) * 100;
+      relH = (abs.height / parentAbs.height) * 100;
+    } else {
+      // ⭐ Groupe root → fallback sur groupBounds
+      relX = ((abs.x - groupBounds.x) / groupBounds.width) * 100;
+      relY = ((abs.y - groupBounds.y) / groupBounds.height) * 100;
+      relW = (abs.width / groupBounds.width) * 100;
+      relH = (abs.height / groupBounds.height) * 100;
+    }
+
+    console.log('📦 addToGroup:', {
+      blockId,
+      groupId,
+      parentId,
+      groupMembersCount: groupMembers.length,
+      groupBounds,
+      abs,
+      relative: { x: relX, y: relY, w: relW, h: relH }
+    });
+
+    // ⭐ Mise à jour du bloc
+    setBlocks(prev =>
+      prev.map(b =>
+        b.id === blockId
+          ? {
+              ...b,
+              groupId,
+              parentId: parentId, // ⭐ Le nouvel élément hérite du parent réel
+              position: {
+                ...b.position,
+                x: Math.max(0, Math.min(100 - relW, relX)),
+                y: Math.max(0, Math.min(100 - relH, relY)),
+                width: Math.max(5, Math.min(100, relW)),
+                height: b.position.height === 0 ? 0 : Math.max(5, Math.min(100, relH)),
+                positionType: "relative",
+              },
+            }
+          : b
+      )
+    );
+
+    refreshCanvas?.();
+    return true;
+  }, [setBlocks, refreshCanvas]);
+
+  // ───────────────────────────────────────────────────────────────
   // GET GROUP BOUNDS
   // ───────────────────────────────────────────────────────────────
   const getGroupBounds = useCallback((groupId: string): Bounds | null => {
@@ -371,6 +450,7 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   return {
     createGroup,
     ungroup,
+    addToGroup, // ⭐ Fonction patchée avec gestion du parent réel via les membres
     moveGroup,
     startGroupResize,
     resizeGroup,
