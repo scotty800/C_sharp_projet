@@ -28,6 +28,9 @@ export function GroupOverlay({
   const rafIdRef = useRef<number | null>(null);
   const pendingBoundsRef = useRef(bounds);
 
+  // ⭐ Ajuste entre 8 et 16 selon ton goût
+  const VISUAL_PADDING = 12;
+
   useEffect(() => {
     if (!isResizing) pendingBoundsRef.current = bounds;
   }, [bounds, isResizing]);
@@ -113,27 +116,21 @@ export function GroupOverlay({
 
   const b = isResizing ? pendingBoundsRef.current : bounds;
 
-  // ─── Tout en position: absolute dans le même repère que le cadre ──────────
-  // Le cadre est déjà parfaitement positionné (position: absolute dans le canvas).
-  // Les poignées utilisent le même repère : position absolue par rapport au
-  // coin haut-gauche du cadre. Pas de calcul fixed, pas de conversion écran.
-  //
-  // Chaque poignée est positionnée relativement au coin haut-gauche du cadre
-  // (b.x, b.y), donc ses coords sont relatives à ce coin : ex. coin SE = (b.width, b.height).
-
+  // ⭐ Wrapper avec padding visuel
   const wrapperStyle: React.CSSProperties = {
     position: 'absolute',
-    left: b.x,
-    top: b.y,
-    width: b.width,
-    height: b.height,
+    left: b.x - VISUAL_PADDING,
+    top: b.y - VISUAL_PADDING,
+    width: b.width + VISUAL_PADDING * 2,
+    height: b.height + VISUAL_PADDING * 2,
     pointerEvents: 'none',
     zIndex: 9999,
   };
 
+  // ⭐ Frame avec inset = padding
   const frameStyle: React.CSSProperties = {
     position: 'absolute',
-    inset: 0,
+    inset: VISUAL_PADDING,
     border: '2px dashed #8B5CF6',
     borderRadius: '4px',
     pointerEvents: 'none',
@@ -160,17 +157,17 @@ export function GroupOverlay({
     <div style={wrapperStyle}>
       <div style={frameStyle} />
 
-      {/* Coins */}
-      <div style={handle(0,       0,        'nw-resize')} onMouseDown={e => handleResizeStart(e, 'nw')} />
-      <div style={handle(b.width, 0,        'ne-resize')} onMouseDown={e => handleResizeStart(e, 'ne')} />
-      <div style={handle(0,       b.height, 'sw-resize')} onMouseDown={e => handleResizeStart(e, 'sw')} />
-      <div style={handle(b.width, b.height, 'se-resize')} onMouseDown={e => handleResizeStart(e, 'se')} />
+      {/* ⭐ Coins avec padding */}
+      <div style={handle(VISUAL_PADDING, VISUAL_PADDING, 'nw-resize')} onMouseDown={e => handleResizeStart(e, 'nw')} />
+      <div style={handle(b.width + VISUAL_PADDING, VISUAL_PADDING, 'ne-resize')} onMouseDown={e => handleResizeStart(e, 'ne')} />
+      <div style={handle(VISUAL_PADDING, b.height + VISUAL_PADDING, 'sw-resize')} onMouseDown={e => handleResizeStart(e, 'sw')} />
+      <div style={handle(b.width + VISUAL_PADDING, b.height + VISUAL_PADDING, 'se-resize')} onMouseDown={e => handleResizeStart(e, 'se')} />
 
-      {/* Milieux */}
-      <div style={handle(b.width / 2, 0,           'n-resize')} onMouseDown={e => handleResizeStart(e, 'n')} />
-      <div style={handle(b.width / 2, b.height,    's-resize')} onMouseDown={e => handleResizeStart(e, 's')} />
-      <div style={handle(0,           b.height / 2, 'w-resize')} onMouseDown={e => handleResizeStart(e, 'w')} />
-      <div style={handle(b.width,     b.height / 2, 'e-resize')} onMouseDown={e => handleResizeStart(e, 'e')} />
+      {/* ⭐ Milieux avec padding */}
+      <div style={handle(b.width / 2 + VISUAL_PADDING, VISUAL_PADDING, 'n-resize')} onMouseDown={e => handleResizeStart(e, 'n')} />
+      <div style={handle(b.width / 2 + VISUAL_PADDING, b.height + VISUAL_PADDING, 's-resize')} onMouseDown={e => handleResizeStart(e, 's')} />
+      <div style={handle(VISUAL_PADDING, b.height / 2 + VISUAL_PADDING, 'w-resize')} onMouseDown={e => handleResizeStart(e, 'w')} />
+      <div style={handle(b.width + VISUAL_PADDING, b.height / 2 + VISUAL_PADDING, 'e-resize')} onMouseDown={e => handleResizeStart(e, 'e')} />
     </div>
   );
 }

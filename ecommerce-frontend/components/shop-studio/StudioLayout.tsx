@@ -63,38 +63,27 @@ const DEFAULT_POSITION: BlockPosition = {
   positionType: 'absolute',
 };
 
-// ⭐ VERSION SIMPLIFIÉE ET CORRECTE — Groupes imbriqués + bannière dans groupe OK
 const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>): any[] => {
   const blockMap = new Map<string, BlockUI>();
-  const childrenMap = new Map<string, string[]>(); // uniquement blockId → blockId
-  const groupsByParent = new Map<string | null, string[]>(); // parentId → groupId[]
+  const childrenMap = new Map<string, string[]>();
+  const groupsByParent = new Map<string | null, string[]>();
 
-  // INDEXATION
   blocks.forEach(block => {
     blockMap.set(block.id, block);
 
-    // enfants structurels (UNIQUEMENT blockId)
     if (block.parentId) {
-      if (!childrenMap.has(block.parentId)) {
-        childrenMap.set(block.parentId, []);
-      }
+      if (!childrenMap.has(block.parentId)) childrenMap.set(block.parentId, []);
       childrenMap.get(block.parentId)!.push(block.id);
     }
 
-    // rattacher le groupe à son parent réel
     if (block.groupId) {
       const parentId = block.parentId || null;
-      if (!groupsByParent.has(parentId)) {
-        groupsByParent.set(parentId, []);
-      }
+      if (!groupsByParent.has(parentId)) groupsByParent.set(parentId, []);
       const arr = groupsByParent.get(parentId)!;
-      if (!arr.includes(block.groupId)) {
-        arr.push(block.groupId);
-      }
+      if (!arr.includes(block.groupId)) arr.push(block.groupId);
     }
   });
 
-  // GROUPE VIRTUEL
   const buildGroupContainer = (groupId: string, parentId: string | null): any => {
     const members = blocks.filter(b => b.groupId === groupId);
 
@@ -110,7 +99,9 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
       id: groupId,
       name: `Groupe ${groupId.slice(-6)}`,
       type: "group-container",
-      zIndex: sortedMembers.length ? Math.max(...sortedMembers.map(m => m.position?.zIndex || 0)) : 0,
+      zIndex: sortedMembers.length
+        ? Math.max(...sortedMembers.map(m => m.position?.zIndex || 0))
+        : 0,
       visible: sortedMembers.every(m => m.isVisible !== false),
       locked: sortedMembers.every(m => m.isLocked === true),
       children: memberNodes,
@@ -121,20 +112,18 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
     };
   };
 
-  // NOEUD NORMAL
   const buildNode = (blockId: string): any => {
     const block = blockMap.get(blockId);
     if (!block) return null;
+    if (block.type === 'group') return null;
 
     const rawChildren = childrenMap.get(block.id) || [];
 
-    // enfants non groupés
     const nonGroupedChildren = rawChildren.filter(childId => {
       const child = blockMap.get(childId);
-      return child && !child.groupId;
+      return child && !child.groupId && child.type !== 'group';
     });
 
-    // groupes dont le parent réel est ce bloc
     const groupChildrenIds = groupsByParent.get(block.id) || [];
 
     const childNodes = [
@@ -161,16 +150,13 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
     };
   };
 
-  // ARBRE FINAL
   const buildTree = (): any[] => {
     const root: any[] = [];
 
-    // groupes root
     const rootGroups = groupsByParent.get(null) || [];
     rootGroups.forEach(gid => root.push(buildGroupContainer(gid, null)));
 
-    // blocs root non groupés
-    const rootBlocks = blocks.filter(b => !b.parentId && !b.groupId);
+    const rootBlocks = blocks.filter(b => !b.parentId && !b.groupId && b.type !== 'group');
     rootBlocks.forEach(b => {
       const node = buildNode(b.id);
       if (node) root.push(node);
@@ -209,7 +195,7 @@ export default function StudioLayout() {
   const [zIndexVersion, setZIndexVersion] = useState(0);
   const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
   const [showFloatingLayers, setShowFloatingLayers] = useState(false);
-  
+
   const [addToParentData, setAddToParentData] = useState<{ parentId: string; parentType: string; parentName: string } | null>(null);
 
   const refreshCanvas = useCallback(() => {
@@ -232,9 +218,9 @@ export default function StudioLayout() {
     setState(prev => {
       const parentBlock = prev.blocks.find(b => b.id === parentBlockId);
       if (!parentBlock) return prev;
-      
+
       let updatedProps = { ...parentBlock.props };
-      
+
       switch (parentBlock.type) {
         case 'banner':
         case 'screen-banner':
@@ -254,31 +240,25 @@ export default function StudioLayout() {
           if (elementId.includes('title')) updatedProps.title = undefined;
           break;
       }
-      
+
       const updatedBlocks = prev.blocks.map(b =>
         b.id === parentBlockId ? { ...b, props: updatedProps } : b
       );
-      
+
       return { ...prev, blocks: updatedBlocks, isDirty: true };
     });
     refreshCanvas();
   }, [refreshCanvas]);
 
+  // ⭐ REPARENT LAYER - MODIFIÉ POUR PERMETTRE DE SORTIR D'UN GROUPE
   const reparentLayer = useCallback((layerId: string, newParentId: string | null) => {
-    console.log('🔄 Reparent layer:', { layerId, newParentId });
-    
     setState(prev => {
       const blockToMove = prev.blocks.find(b => b.id === layerId);
-      if (!blockToMove) {
-        console.warn('❌ Bloc à déplacer non trouvé:', layerId);
-        return prev;
-      }
-      
-      if (blockToMove.groupId) {
-        console.warn('❌ Un bloc groupé ne peut pas être déplacé individuellement');
-        return prev;
-      }
-      
+      if (!blockToMove) return prev;
+
+      // ⭐ Si le bloc est dans un groupe, on le laisse passer — il sera sorti du groupe
+      const wasInGroup = !!blockToMove.groupId;
+
       let current = newParentId;
       while (current) {
         const parent = prev.blocks.find(b => b.id === current);
@@ -288,63 +268,56 @@ export default function StudioLayout() {
         }
         current = parent?.parentId || null;
       }
-      
+
       const oldParentId = blockToMove.parentId;
       const oldParent = oldParentId ? prev.blocks.find(b => b.id === oldParentId) : null;
       const newParent = newParentId ? prev.blocks.find(b => b.id === newParentId) : null;
       const isBannerType = blockToMove.type === 'banner' || blockToMove.type === 'screen-banner' || blockToMove.type === 'carousel-banner';
-      
+
       let newPosition: BlockPosition;
-      
+
       if (newParent) {
         if (isBannerType) {
           const currentWidth = blockToMove.position?.width ?? 200;
           const currentHeight = blockToMove.position?.height ?? 100;
-          
-          let relX = ((blockToMove.position?.x ?? 0) - newParent.position.x) / newParent.position.width * 100;
-          let relY = ((blockToMove.position?.y ?? 0) - newParent.position.y) / newParent.position.height * 100;
-          
+          const relX = ((blockToMove.position?.x ?? 0) - newParent.position.x) / newParent.position.width * 100;
+          const relY = ((blockToMove.position?.y ?? 0) - newParent.position.y) / newParent.position.height * 100;
+
           newPosition = {
             x: Math.max(0, Math.min(100 - (currentWidth / newParent.position.width * 100), relX)),
             y: Math.max(0, Math.min(100 - (currentHeight / newParent.position.height * 100), relY)),
             width: currentWidth,
             height: currentHeight,
-            zIndex: (blockToMove.position?.zIndex ?? 10),
+            zIndex: blockToMove.position?.zIndex ?? 10,
             rotation: blockToMove.position?.rotation ?? 0,
-            positionType: 'absolute' as const,
+            positionType: 'absolute',
           };
         } else {
           const defaultWidth = Math.min(blockToMove.position?.width ?? 80, 80);
           const defaultHeight = Math.min(blockToMove.position?.height ?? 60, 60);
-          
+
           newPosition = {
-            x: 50 - (defaultWidth / 2),
+            x: Math.max(0, Math.min(100 - defaultWidth, 50 - defaultWidth / 2)),
             y: 20,
-            width: defaultWidth,
-            height: defaultHeight,
-            zIndex: (blockToMove.position?.zIndex ?? 10),
+            width: Math.max(10, Math.min(90, defaultWidth)),
+            height: Math.max(10, Math.min(90, defaultHeight)),
+            zIndex: blockToMove.position?.zIndex ?? 10,
             rotation: blockToMove.position?.rotation ?? 0,
-            positionType: 'relative' as const,
+            positionType: 'relative',
           };
-          
-          newPosition.x = Math.max(0, Math.min(100 - newPosition.width, newPosition.x));
-          newPosition.y = Math.max(0, Math.min(100 - newPosition.height, newPosition.y));
-          newPosition.width = Math.max(10, Math.min(90, newPosition.width));
-          newPosition.height = Math.max(10, Math.min(90, newPosition.height));
         }
-      } 
-      else if (oldParent) {
+      } else if (oldParent) {
         const getAbsolutePosition = (block: BlockUI): { x: number; y: number; width: number; height: number } => {
           let absX = block.position?.x ?? 0;
           let absY = block.position?.y ?? 0;
           let absW = block.position?.width ?? 100;
           let absH = block.position?.height ?? 100;
           let currentParentId = block.parentId;
-          
+
           while (currentParentId) {
             const parent = prev.blocks.find(b => b.id === currentParentId);
             if (!parent) break;
-            
+
             if (isBannerType || block.type === 'group') {
               absX = parent.position.x + absX;
               absY = parent.position.y + absY;
@@ -354,72 +327,53 @@ export default function StudioLayout() {
               absW = absW * parent.position.width / 100;
               absH = absH * parent.position.height / 100;
             }
-            
+
             currentParentId = parent.parentId;
           }
-          
+
           return { x: absX, y: absY, width: Math.max(10, absW), height: Math.max(10, absH) };
         };
-        
+
         const absolutePos = getAbsolutePosition(blockToMove);
-        
-        let absX = absolutePos.x;
-        let absY = absolutePos.y;
-        let absW = absolutePos.width;
-        let absH = absolutePos.height;
-        
+        let { x: absX, y: absY, width: absW, height: absH } = absolutePos;
+
         if (isBannerType) {
           absW = blockToMove.position?.width ?? absW;
           absH = blockToMove.position?.height ?? absH;
         }
-        
-        absX = Math.max(20, Math.min(1200, absX));
-        absY = Math.max(20, Math.min(800, absY));
-        absW = Math.max(50, Math.min(800, absW));
-        absH = Math.max(30, Math.min(600, absH));
-        
+
         newPosition = {
-          x: absX,
-          y: absY,
-          width: absW,
-          height: absH,
-          zIndex: (blockToMove.position?.zIndex ?? 1),
+          x: Math.max(20, Math.min(1200, absX)),
+          y: Math.max(20, Math.min(800, absY)),
+          width: Math.max(50, Math.min(800, absW)),
+          height: Math.max(30, Math.min(600, absH)),
+          zIndex: blockToMove.position?.zIndex ?? 1,
           rotation: blockToMove.position?.rotation ?? 0,
-          positionType: 'absolute' as const,
+          positionType: 'absolute',
         };
-      } 
-      else {
-        let x = blockToMove.position?.x ?? 100;
-        let y = blockToMove.position?.y ?? 100;
-        let w = blockToMove.position?.width ?? 200;
-        let h = blockToMove.position?.height ?? 100;
-        
-        x = Math.max(20, Math.min(1200, x));
-        y = Math.max(20, Math.min(800, y));
-        w = Math.max(50, Math.min(800, w));
-        h = Math.max(30, Math.min(600, h));
-        
+      } else {
         newPosition = {
           ...blockToMove.position,
-          x: x,
-          y: y,
-          width: w,
-          height: h,
-          positionType: 'absolute' as const,
+          x: Math.max(20, Math.min(1200, blockToMove.position?.x ?? 100)),
+          y: Math.max(20, Math.min(800, blockToMove.position?.y ?? 100)),
+          width: Math.max(50, Math.min(800, blockToMove.position?.width ?? 200)),
+          height: Math.max(30, Math.min(600, blockToMove.position?.height ?? 100)),
+          positionType: 'absolute',
         };
       }
-      
-      const updatedBlocks = prev.blocks.map(b => {
-        if (b.id === layerId) {
-          return { 
-            ...b, 
-            parentId: newParentId,
-            position: newPosition,
-          };
-        }
-        return b;
-      });
-      
+
+      // ⭐ Mise à jour du bloc : on retire le groupId si le bloc était dans un groupe
+      const updatedBlocks = prev.blocks.map(b =>
+        b.id === layerId
+          ? {
+              ...b,
+              parentId: newParentId,
+              position: newPosition,
+              groupId: null, // ⭐ Retire le bloc de son groupe
+            }
+          : b
+      );
+
       return { ...prev, blocks: updatedBlocks, isDirty: true };
     });
     refreshCanvas();
@@ -434,10 +388,10 @@ export default function StudioLayout() {
       });
       return allChildren;
     };
-    
+
     const childrenIds = getChildrenIds(layerId, state.blocks);
     const idsToDelete = [layerId, ...childrenIds];
-    
+
     setState(prev => ({
       ...prev,
       blocks: prev.blocks.filter(b => !idsToDelete.includes(b.id)),
@@ -451,10 +405,10 @@ export default function StudioLayout() {
     setState(prev => {
       const block = prev.blocks.find(b => b.id === layerId);
       if (!block) return prev;
-      
+
       const newVisibility = !block.isVisible;
       let updatedBlocks = [...prev.blocks];
-      
+
       const updateChildren = (parentId: string, visible: boolean) => {
         updatedBlocks = updatedBlocks.map(b => {
           if (b.id === parentId) return { ...b, isVisible: visible };
@@ -465,7 +419,7 @@ export default function StudioLayout() {
           return b;
         });
       };
-      
+
       updateChildren(layerId, newVisibility);
       return { ...prev, blocks: updatedBlocks, isDirty: true };
     });
@@ -484,44 +438,34 @@ export default function StudioLayout() {
   }, [refreshCanvas]);
 
   const reorderLayers = useCallback((startIndex: number, endIndex: number, parentId: string | null = null) => {
-    console.log('🔄 Reorder layers:', { startIndex, endIndex, parentId });
-    
     setState(prev => {
-      let siblings = prev.blocks.filter(b => b.parentId === parentId);
-      
+      const siblings = prev.blocks.filter(b => b.parentId === parentId);
       if (siblings.length === 0) return prev;
-      
-      const validSiblings = siblings.map(b => !b.position
-        ? { ...b, position: { ...DEFAULT_POSITION, zIndex: b.order + 1 } }
-        : b
-      );
-      
-      validSiblings.sort((a, b) => (a.order || 0) - (b.order || 0));
-      
+
+      const validSiblings = siblings
+        .map(b => !b.position ? { ...b, position: { ...DEFAULT_POSITION, zIndex: b.order + 1 } } : b)
+        .sort((a, b) => (a.order || 0) - (b.order || 0));
+
       const clampedStart = Math.max(0, Math.min(startIndex, validSiblings.length - 1));
       const clampedEnd = Math.max(0, Math.min(endIndex, validSiblings.length - 1));
-      
+
       if (clampedStart === clampedEnd) return prev;
-      
+
       const reordered = [...validSiblings];
       const [removed] = reordered.splice(clampedStart, 1);
       reordered.splice(clampedEnd, 0, removed);
-      
+
       const updatedSiblings = reordered.map((block, idx) => ({
         ...block,
         order: idx,
-        position: {
-          ...block.position,
-          zIndex: idx + 1,
-        },
+        position: { ...block.position, zIndex: idx + 1 },
       }));
-      
+
       const updatedBlocks = prev.blocks.map(b => {
         const updated = updatedSiblings.find(s => s.id === b.id);
-        if (updated) return updated;
-        return b;
+        return updated ?? b;
       });
-      
+
       return { ...prev, blocks: updatedBlocks, isDirty: true };
     });
     refreshCanvas();
@@ -531,66 +475,55 @@ export default function StudioLayout() {
     const findIndex = (items: any[]): number => {
       for (let i = 0; i < items.length; i++) {
         if (items[i].id === targetLayerId) return i;
-        if (items[i].children && items[i].children.length > 0) {
+        if (items[i].children?.length > 0) {
           const childIndex = findIndex(items[i].children);
           if (childIndex !== -1) return childIndex;
         }
       }
       return -1;
     };
-    
-    if (parentId === null) {
-      return findIndex(layersList);
-    } else {
-      const findParent = (items: any[]): any => {
-        for (const item of items) {
-          if (item.id === parentId) return item;
-          if (item.children && item.children.length > 0) {
-            const found = findParent(item.children);
-            if (found) return found;
-          }
+
+    if (parentId === null) return findIndex(layersList);
+
+    const findParent = (items: any[]): any => {
+      for (const item of items) {
+        if (item.id === parentId) return item;
+        if (item.children?.length > 0) {
+          const found = findParent(item.children);
+          if (found) return found;
         }
-        return null;
-      };
-      const parentLayer = findParent(layersList);
-      if (parentLayer && parentLayer.children) {
-        return parentLayer.children.findIndex((c: any) => c.id === targetLayerId);
       }
-      return -1;
+      return null;
+    };
+
+    const parentLayer = findParent(layersList);
+    if (parentLayer?.children) {
+      return parentLayer.children.findIndex((c: any) => c.id === targetLayerId);
     }
+    return -1;
   }, []);
 
   useEffect(() => {
     const handleOpenAddToParent = (event: CustomEvent) => {
       setAddToParentData(event.detail);
     };
-    
     window.addEventListener('openAddToParent', handleOpenAddToParent as EventListener);
     return () => window.removeEventListener('openAddToParent', handleOpenAddToParent as EventListener);
   }, []);
 
   const addBlock = useCallback((type: string, props: any, parentId: string | null = null) => {
-    console.log('➕ addBlock appelé:', { type, props, parentId });
-    
     let position: BlockPosition;
-    
+
     if (parentId) {
       let defaultWidth = 40;
-      
-      if (type === 'title') {
-        defaultWidth = 60;
-      } else if (type === 'text') {
-        defaultWidth = 50;
-      } else if (type === 'button') {
-        defaultWidth = 30;
-      } else if (type === 'image') {
-        defaultWidth = 40;
-      } else if (type === 'shape') {
-        defaultWidth = 20;
-      }
-      
+      if (type === 'title') defaultWidth = 60;
+      else if (type === 'text') defaultWidth = 50;
+      else if (type === 'button') defaultWidth = 30;
+      else if (type === 'image') defaultWidth = 40;
+      else if (type === 'shape') defaultWidth = 20;
+
       position = {
-        x: 50 - (defaultWidth / 2),
+        x: 50 - defaultWidth / 2,
         y: 10,
         width: defaultWidth,
         height: 0,
@@ -609,19 +542,19 @@ export default function StudioLayout() {
         positionType: 'absolute',
       };
     }
-    
+
     const newBlock: BlockUI = {
       id: `${type}-${Date.now()}-${Math.random()}`,
       type,
       props,
       position,
-      order: parentId ? (state.blocks.filter(b => b.parentId === parentId).length) : state.blocks.length,
+      order: parentId ? state.blocks.filter(b => b.parentId === parentId).length : state.blocks.length,
       isVisible: true,
-      parentId: parentId,
+      parentId,
       isLocked: false,
       groupId: null,
     };
-    
+
     setState(prev => ({
       ...prev,
       blocks: [...prev.blocks, newBlock],
@@ -659,7 +592,7 @@ export default function StudioLayout() {
 
       try {
         setLoading(true);
-        
+
         const [shop, customization, filters, blocksFromApi, canvasFilters, background] = await Promise.all([
           shopService.getShopById(Number(id)),
           shopCustomizationService.getByShopId(Number(id)).catch(() => null),
@@ -712,7 +645,7 @@ export default function StudioLayout() {
             backgroundOpacity: background?.backgroundOpacity ?? 100,
           },
           filters: filters || { shopId: shop.id, globalFilter: 'none' },
-          canvasFilters: canvasFilters,
+          canvasFilters,
         }));
       } catch (error) {
         console.error('❌ Erreur:', error);
@@ -726,53 +659,38 @@ export default function StudioLayout() {
 
   useEffect(() => {
     const handleOpenAssetPickerForCarousel = (event: CustomEvent) => {
-      console.log('🎠 Ouverture du sélecteur d\'images pour le carrousel');
       setState(prev => ({ ...prev, activePanel: 'assets' }));
       (window as any).pendingCarouselCallback = event.detail.callback;
     };
-    
     window.addEventListener('openAssetPickerForCarousel', handleOpenAssetPickerForCarousel as EventListener);
     return () => window.removeEventListener('openAssetPickerForCarousel', handleOpenAssetPickerForCarousel as EventListener);
   }, []);
 
   const saveChanges = useCallback(async () => {
-    console.log('💾 saveChanges appelée - isDirty:', state.isDirty);
-    
     if (!state.isDirty) return;
 
     setSaving(true);
     try {
-      const blocksToSave = state.blocks.map(block => {
-        let positionToSave = {
+      const blocksToSave = state.blocks.map(block => ({
+        id: block.id,
+        type: block.type,
+        name: block.type,
+        order: block.order,
+        isVisible: block.isVisible,
+        parentId: block.parentId || null,
+        isLocked: block.isLocked || false,
+        groupId: block.groupId || null,
+        position: {
           x: Math.round(block.position?.x ?? 100),
           y: Math.round(block.position?.y ?? 100),
           width: Math.round(block.position?.width ?? 200),
           height: Math.round(block.position?.height ?? 100),
           zIndex: block.position?.zIndex || 1,
           rotation: block.position?.rotation || 0,
-        };
+        },
+        settings: { ...block.props },
+      }));
 
-        return {
-          id: block.id,
-          type: block.type,
-          name: block.type,
-          order: block.order,
-          isVisible: block.isVisible,
-          parentId: block.parentId || null,
-          isLocked: block.isLocked || false,
-          groupId: block.groupId || null,
-          position: positionToSave,
-          settings: { ...block.props },
-        };
-      });
-
-      console.log('💾 Sauvegarde des blocs:', blocksToSave.map(b => ({ 
-        id: b.id, 
-        parentId: b.parentId, 
-        groupId: b.groupId,
-        position: b.position
-      })));
-      
       await Promise.all([
         shopCustomizationService.updateBlocks(Number(id), blocksToSave as any),
         shopCustomizationService.updateCanvasFilters(Number(id), {
@@ -789,9 +707,8 @@ export default function StudioLayout() {
           backgroundOpacity: state.customization?.backgroundOpacity || 100,
         }),
       ]);
-      
+
       setState(prev => ({ ...prev, isDirty: false }));
-      console.log('✅ Sauvegarde effectuée (blocs, filtres, background)');
     } catch (error) {
       console.error('❌ Erreur sauvegarde:', error);
     } finally {
@@ -801,27 +718,16 @@ export default function StudioLayout() {
 
   useEffect(() => {
     if (state.isDirty && !saving) {
-      const timer = setTimeout(() => {
-        saveChanges();
-      }, 3000);
-      
+      const timer = setTimeout(saveChanges, 3000);
       return () => clearTimeout(timer);
     }
   }, [state.isDirty, saving, saveChanges]);
 
   const updateCustomization = (updates: any) => {
-    setState(prev => {
-      const newCustomization = { ...prev.customization, ...updates };
-      return {
-        ...prev,
-        customization: newCustomization,
-        isDirty: true,
-      };
-    });
+    setState(prev => ({ ...prev, customization: { ...prev.customization, ...updates }, isDirty: true }));
   };
 
   const deleteBlock = (blockId: string) => {
-    console.log('🗑️ deleteBlock appelé:', blockId);
     setState(prev => ({
       ...prev,
       blocks: prev.blocks.filter(b => b.id !== blockId),
@@ -861,7 +767,12 @@ export default function StudioLayout() {
       const newBlock: BlockUI = {
         ...block,
         id: `${block.type}-${Date.now()}-${Math.random()}`,
-        position: { ...(block.position ?? DEFAULT_POSITION), x: (block.position?.x ?? 100) + 20, y: (block.position?.y ?? 100) + 20, zIndex: state.blocks.length + 1 },
+        position: {
+          ...(block.position ?? DEFAULT_POSITION),
+          x: (block.position?.x ?? 100) + 20,
+          y: (block.position?.y ?? 100) + 20,
+          zIndex: state.blocks.length + 1,
+        },
         order: state.blocks.length,
         parentId: block.parentId || null,
         isLocked: false,
@@ -883,25 +794,16 @@ export default function StudioLayout() {
     const reordered = [...state.blocks];
     const [removed] = reordered.splice(startIndex, 1);
     reordered.splice(endIndex, 0, removed);
-    const withNewOrder = reordered.map((block, idx) => ({ ...block, order: idx }));
-    setState(prev => ({ ...prev, blocks: withNewOrder, isDirty: true }));
+    setState(prev => ({ ...prev, blocks: reordered.map((b, idx) => ({ ...b, order: idx })), isDirty: true }));
     refreshCanvas();
   };
 
   const updateFilters = (updates: any) => {
-    setState(prev => ({
-      ...prev,
-      filters: { ...prev.filters, ...updates },
-      isDirty: true,
-    }));
+    setState(prev => ({ ...prev, filters: { ...prev.filters, ...updates }, isDirty: true }));
   };
 
   const updateCanvasFilters = (updates: any) => {
-    setState(prev => ({
-      ...prev,
-      canvasFilters: { ...prev.canvasFilters, ...updates },
-      isDirty: true,
-    }));
+    setState(prev => ({ ...prev, canvasFilters: { ...prev.canvasFilters, ...updates }, isDirty: true }));
   };
 
   const applyFiltersToAllBlocks = useCallback((updates: any) => {
@@ -916,7 +818,7 @@ export default function StudioLayout() {
           saturation: updates.saturation,
           blur: updates.blur,
           cssFilter: updates.cssFilter,
-        }
+        },
       })),
       isDirty: true,
     }));
@@ -925,45 +827,24 @@ export default function StudioLayout() {
 
   useEffect(() => {
     (window as any).applyFiltersToAllBlocks = applyFiltersToAllBlocks;
-    return () => {
-      delete (window as any).applyFiltersToAllBlocks;
-    };
+    return () => { delete (window as any).applyFiltersToAllBlocks; };
   }, [applyFiltersToAllBlocks]);
 
   const handlePreviewModeChange = (mode: 'desktop' | 'tablet' | 'mobile') => {
     setState(prev => ({ ...prev, previewMode: mode }));
   };
-
-  const handleZoomIn = () => {
-    setState(prev => ({ ...prev, zoom: Math.min(prev.zoom + 10, 200) }));
-  };
-
-  const handleZoomOut = () => {
-    setState(prev => ({ ...prev, zoom: Math.max(prev.zoom - 10, 30) }));
-  };
-
-  const handleZoomReset = () => {
-    setState(prev => ({ ...prev, zoom: 70 }));
-  };
+  const handleZoomIn = () => setState(prev => ({ ...prev, zoom: Math.min(prev.zoom + 10, 200) }));
+  const handleZoomOut = () => setState(prev => ({ ...prev, zoom: Math.max(prev.zoom - 10, 30) }));
+  const handleZoomReset = () => setState(prev => ({ ...prev, zoom: 70 }));
 
   const selectBackground = () => {
     if (isCropperOpen) return;
-    setState(prev => ({ 
-      ...prev, 
-      selectedBlockId: null,
-      selectedTarget: 'background',
-      isBackgroundSelected: true 
-    }));
+    setState(prev => ({ ...prev, selectedBlockId: null, selectedTarget: 'background', isBackgroundSelected: true }));
   };
 
   const selectBlock = (blockId: string | null, target?: 'text' | 'background') => {
     if (isCropperOpen && blockId !== null) return;
-    setState(prev => ({ 
-      ...prev, 
-      selectedBlockId: blockId,
-      selectedTarget: target || 'text',
-      isBackgroundSelected: false 
-    }));
+    setState(prev => ({ ...prev, selectedBlockId: blockId, selectedTarget: target || 'text', isBackgroundSelected: false }));
   };
 
   const floatingLayers = generateLayersFromBlocks(state.blocks, expandedLayers);
@@ -981,16 +862,9 @@ export default function StudioLayout() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === '+') {
-        e.preventDefault();
-        handleZoomIn();
-      } else if (e.ctrlKey && e.key === '-') {
-        e.preventDefault();
-        handleZoomOut();
-      } else if (e.ctrlKey && e.key === '0') {
-        e.preventDefault();
-        handleZoomReset();
-      }
+      if (e.ctrlKey && e.key === '+') { e.preventDefault(); handleZoomIn(); }
+      else if (e.ctrlKey && e.key === '-') { e.preventDefault(); handleZoomOut(); }
+      else if (e.ctrlKey && e.key === '0') { e.preventDefault(); handleZoomReset(); }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -1001,15 +875,12 @@ export default function StudioLayout() {
       if (isCropperOpen) return;
       setState(prev => ({ ...prev, activePanel: event.detail }));
     };
-    
     const handleOpenAddPanel = () => {
       if (isCropperOpen) return;
       setState(prev => ({ ...prev, showAddPanel: true }));
     };
-    
     window.addEventListener('changePanel', handleChangePanel as EventListener);
     window.addEventListener('openAddPanel', handleOpenAddPanel);
-    
     return () => {
       window.removeEventListener('changePanel', handleChangePanel as EventListener);
       window.removeEventListener('openAddPanel', handleOpenAddPanel);
@@ -1029,7 +900,7 @@ export default function StudioLayout() {
   return (
     <>
       <GoogleFontsLoader fonts={usedFonts} />
-      
+
       <div className="fixed inset-0 flex flex-col bg-gray-900 overflow-hidden">
         <StudioToolbar
           shop={state.shop}
@@ -1075,11 +946,11 @@ export default function StudioLayout() {
           />
 
           <div className="flex-1 overflow-auto p-4 bg-gray-800 relative flex items-center justify-center">
-            <div 
+            <div
               className="transition-all relative origin-center"
-              style={{ 
-                width: state.previewMode === 'desktop' ? '1200px' : 
-                       state.previewMode === 'tablet' ? '768px' : '375px',
+              style={{
+                width: state.previewMode === 'desktop' ? '1200px' :
+                  state.previewMode === 'tablet' ? '768px' : '375px',
                 transform: `scale(${state.zoom / 100})`,
                 transformOrigin: 'center center',
                 transition: 'transform 0.2s ease',
@@ -1110,7 +981,7 @@ export default function StudioLayout() {
                 onResizeGroupEnd={groupManager.endGroupResize}
               />
             </div>
-            
+
             <div className="fixed bottom-4 right-4 flex gap-2 bg-gray-900 rounded-lg p-1 shadow-lg z-50">
               <button onClick={handleZoomOut} className="p-2 bg-gray-800 hover:bg-gray-700 rounded text-white text-lg font-bold w-8">−</button>
               <span className="px-3 py-2 text-white text-sm min-w-[50px] text-center">{state.zoom}%</span>
@@ -1143,18 +1014,14 @@ export default function StudioLayout() {
             selectedLayerId={state.selectedBlockId}
             isBackgroundSelected={state.isBackgroundSelected}
             blocksCount={state.blocks.length}
-            onSelectLayer={(layerId: string) => {
-              selectBlock(layerId, 'background');
-            }}
-            onSelectBackground={() => {
-              selectBackground();
-            }}
+            onSelectLayer={(layerId: string) => selectBlock(layerId, 'background')}
+            onSelectBackground={selectBackground}
             onToggleVisibility={toggleLayerVisibility}
             onToggleLock={toggleLayerLock}
             onDeleteLayer={deleteLayer}
             onDuplicateLayer={duplicateBlock}
             onReparentLayer={reparentLayer}
-            onAddToGroup={groupManager.addToGroup} // ⭐ NOUVEAU
+            onAddToGroup={groupManager.addToGroup}
             onReorderLayers={reorderLayers}
             onGroupLayers={groupManager.createGroup}
             onUngroupLayer={groupManager.ungroup}

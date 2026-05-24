@@ -36,19 +36,32 @@ interface Bounds {
   height: number;
 }
 
+// ⭐ Ajuste entre 8 et 16 selon ton goût
+const INTERNAL_PADDING = 30;
+
 // ───────────────────────────────────────────────────────────────
-// POSITION ABSOLUE (px) D’UN BLOC
+// ANTI-CYCLE : résolution des bounds absolues avec visited set
 // ───────────────────────────────────────────────────────────────
-function resolveAbsoluteBounds(block: BlockUI, list: BlockUI[]): Bounds {
+function resolveAbsoluteBounds(
+  block: BlockUI,
+  list: BlockUI[],
+  visited: Set<string> = new Set()
+): Bounds {
   let x = block.position?.x ?? 0;
   let y = block.position?.y ?? 0;
   let w = block.position?.width ?? 100;
   let h = block.position?.height ?? 100;
 
   if (block.parentId) {
+    if (visited.has(block.id)) {
+      console.warn('⚠️ Cycle détecté dans resolveAbsoluteBounds pour', block.id);
+      return { x, y, width: w, height: h };
+    }
+    visited.add(block.id);
+
     const parent = list.find(b => b.id === block.parentId);
     if (parent) {
-      const p = resolveAbsoluteBounds(parent, list);
+      const p = resolveAbsoluteBounds(parent, list, visited);
       x = p.x + (x / 100) * p.width;
       y = p.y + (y / 100) * p.height;
       w = (w / 100) * p.width;
@@ -60,7 +73,7 @@ function resolveAbsoluteBounds(block: BlockUI, list: BlockUI[]): Bounds {
 }
 
 // ───────────────────────────────────────────────────────────────
-// BOUNDING BOX D’UN GROUPE
+// BOUNDING BOX D'UN GROUPE AVEC PADDING INTERNE
 // ───────────────────────────────────────────────────────────────
 function computeGroupBounds(groupId: string, list: BlockUI[]): Bounds | null {
   const members = list.filter(b => b.groupId === groupId);
@@ -78,7 +91,14 @@ function computeGroupBounds(groupId: string, list: BlockUI[]): Bounds | null {
   });
 
   if (!isFinite(minX)) return null;
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+
+  // ⭐ AJOUT DU PADDING INTERNE
+  return {
+    x: minX - INTERNAL_PADDING,
+    y: minY - INTERNAL_PADDING,
+    width: (maxX - minX) + INTERNAL_PADDING * 2,
+    height: (maxY - minY) + INTERNAL_PADDING * 2,
+  };
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -89,6 +109,30 @@ function getRootMembers(groupId: string, list: BlockUI[]): BlockUI[] {
   return list.filter(
     b => b.groupId === groupId && (!b.parentId || !memberIds.has(b.parentId))
   );
+}
+
+// ───────────────────────────────────────────────────────────────
+// SAFE COMMON PARENT : premier parentId hors de la sélection
+// ───────────────────────────────────────────────────────────────
+function getSafeCommonParent(members: BlockUI[], ids: Set<string>): string | null {
+  for (const m of members) {
+    if (m.parentId && !ids.has(m.parentId)) return m.parentId;
+  }
+  return null;
+}
+
+// ───────────────────────────────────────────────────────────────
+// CONVERTIR position absolue → relative par rapport à un parent
+// ───────────────────────────────────────────────────────────────
+function absToRelPosition(abs: Bounds, parentAbs: Bounds, original: BlockPosition): BlockPosition {
+  return {
+    ...original,
+    x: ((abs.x - parentAbs.x) / parentAbs.width) * 100,
+    y: ((abs.y - parentAbs.y) / parentAbs.height) * 100,
+    width: (abs.width / parentAbs.width) * 100,
+    height: abs.height === 0 ? 0 : (abs.height / parentAbs.height) * 100,
+    positionType: 'relative',
+  };
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -112,64 +156,128 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   } | null>(null);
 
   // ───────────────────────────────────────────────────────────────
-  // CREATE GROUP — AVEC PROTECTIONS ANTI‑CYCLE
+  // CREATE GROUP
   // ───────────────────────────────────────────────────────────────
   const createGroup = useCallback((layerIds: string[]): string | null => {
     if (layerIds.length < 2) return null;
 
     const list = blocksRef.current;
     const members = list.filter(b => layerIds.includes(b.id));
+    const ids = new Set(layerIds);
 
-    // 🚫 ANTI‑CYCLE 1 : empêcher de grouper un parent avec son enfant
+    // 1) Détecter si parent/enfant dans la sélection
+    let mustFlatten = false;
     for (const m of members) {
       let current = m.parentId;
       while (current) {
-        if (layerIds.includes(current)) {
-          console.warn("❌ Impossible de grouper un parent avec son enfant :", m.id, current);
-          return null;
-        }
+        if (ids.has(current)) { mustFlatten = true; break; }
         const parent = list.find(b => b.id === current);
         current = parent?.parentId || null;
       }
+      if (mustFlatten) break;
     }
+
+    // 2) commonParent : JAMAIS un bloc dans la sélection
+    const commonParent = mustFlatten
+      ? getSafeCommonParent(members, ids)
+      : (members[0]?.parentId || null);
+
+    // 3) Pré-calculer les bounds absolues AVANT tout flatten
+    //    pendant que les parentId sont encore valides
+    const absoluteBoundsMap = new Map<string, Bounds>();
+    if (mustFlatten) {
+      for (const m of members) {
+        absoluteBoundsMap.set(m.id, resolveAbsoluteBounds(m, list));
+      }
+    }
+
+    // 4) Construire la liste aplatie localement avec positions corrigées
+    const flattenedList = mustFlatten
+      ? list.map(b => {
+          if (!ids.has(b.id)) return b;
+          const abs = absoluteBoundsMap.get(b.id)!;
+
+          if (commonParent) {
+            const parentBlock = list.find(p => p.id === commonParent);
+            if (parentBlock) {
+              const parentAbs = resolveAbsoluteBounds(parentBlock, list);
+              return {
+                ...b,
+                parentId: commonParent,
+                position: absToRelPosition(abs, parentAbs, b.position),
+              };
+            }
+          }
+
+          // Root → position absolue en px
+          return {
+            ...b,
+            parentId: null,
+            position: {
+              ...b.position,
+              x: abs.x,
+              y: abs.y,
+              width: abs.width,
+              height: abs.height === 0 ? 0 : abs.height,
+              positionType: 'absolute' as const,
+            },
+          };
+        })
+      : list;
 
     const groupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // 1) Assigner groupId aux membres
-    setBlocks(prev =>
-      prev.map(b => (layerIds.includes(b.id) ? { ...b, groupId } : b))
+    // 5) Liste avec groupId assigné (pour computeGroupBounds)
+    const listWithGroupId = flattenedList.map(b =>
+      ids.has(b.id) ? { ...b, groupId } : b
     );
 
-    // 2) Détecter parent commun
-    const parentIds = [...new Set(members.map(m => m.parentId || null))];
-    const parentId = parentIds.length === 1 ? parentIds[0] : null;
+    const parentId = commonParent;
 
-    // 3) Groupe root → rien à faire
+    // 6) Groupe root → pas de bloc group intermédiaire
     if (!parentId) {
+      setBlocks(prev =>
+        prev.map(b => {
+          if (!ids.has(b.id)) return b;
+          const flattened = flattenedList.find(f => f.id === b.id)!;
+          return { ...flattened, groupId };
+        })
+      );
       refreshCanvas?.();
       return groupId;
     }
 
-    const parent = list.find(b => b.id === parentId);
-    if (!parent) return groupId;
+    // 7) Calculer la bounding box sur la liste locale (pas le ref stale)
+    const bounds = computeGroupBounds(groupId, listWithGroupId);
+    const parent = listWithGroupId.find(b => b.id === parentId);
 
-    const parentAbs = resolveAbsoluteBounds(parent, list);
-    const bounds = computeGroupBounds(groupId, list);
-    if (!bounds) return groupId;
+    if (!bounds || !parent) {
+      setBlocks(prev =>
+        prev.map(b => {
+          if (!ids.has(b.id)) return b;
+          const flattened = flattenedList.find(f => f.id === b.id)!;
+          return { ...flattened, groupId };
+        })
+      );
+      refreshCanvas?.();
+      return groupId;
+    }
 
-    // 4) Conversion en %
+    const parentAbs = resolveAbsoluteBounds(parent, listWithGroupId);
     const relX = ((bounds.x - parentAbs.x) / parentAbs.width) * 100;
     const relY = ((bounds.y - parentAbs.y) / parentAbs.height) * 100;
     const relW = (bounds.width / parentAbs.width) * 100;
     const relH = (bounds.height / parentAbs.height) * 100;
 
-    // 5) Clamp
-    const clampedX = Math.max(0, Math.min(100 - relW, relX));
-    const clampedY = Math.max(0, Math.min(100 - relH, relY));
+    const updatedMembers = listWithGroupId.filter(b => ids.has(b.id));
 
-    // 6) Ajouter le bloc groupe
+    // 8) Un seul setBlocks : flatten + positions corrigées + groupId + bloc group
     setBlocks(prev => [
-      ...prev,
+      ...prev.map(b => {
+        if (!ids.has(b.id)) return b;
+        const flattened = flattenedList.find(f => f.id === b.id)!;
+        return { ...flattened, groupId };
+      }),
       {
         id: groupId,
         type: "group",
@@ -178,10 +286,10 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
         groupId: null,
         isVisible: true,
         isLocked: false,
-        order: members[0]?.order ?? 0,
+        order: updatedMembers[0]?.order ?? 0,
         position: {
-          x: clampedX,
-          y: clampedY,
+          x: Math.max(0, Math.min(100 - relW, relX)),
+          y: Math.max(0, Math.min(100 - relH, relY)),
           width: relW,
           height: relH,
           zIndex: 10,
@@ -219,98 +327,118 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   }, [setBlocks, refreshCanvas]);
 
   // ───────────────────────────────────────────────────────────────
-  // ADD TO GROUP — AVEC PROTECTIONS ANTI‑CYCLE
+  // ADD TO GROUP
   // ───────────────────────────────────────────────────────────────
   const addToGroup = useCallback((blockId: string, groupId: string): boolean => {
-    const block = blocksRef.current.find(b => b.id === blockId);
+    const list = blocksRef.current;
+    const block = list.find(b => b.id === blockId);
     if (!block) return false;
 
-    const groupMembers = blocksRef.current.filter(b => b.groupId === groupId);
+    const groupMembers = list.filter(b => b.groupId === groupId);
+    const ids = new Set([blockId, ...groupMembers.map(m => m.id)]);
 
-    // 🚫 ANTI‑CYCLE 2 : empêcher d’ajouter un parent dans son enfant
-    for (const m of groupMembers) {
+    // 1) Détecter parent/enfant
+    let mustFlatten = false;
+    for (const m of [...groupMembers, block]) {
       let current = m.parentId;
       while (current) {
-        if (current === blockId) {
-          console.warn("❌ Cycle détecté : impossible d'ajouter un parent dans son enfant");
-          return false;
-        }
-        const parent = blocksRef.current.find(b => b.id === current);
+        if (ids.has(current)) { mustFlatten = true; break; }
+        const parent = list.find(b => b.id === current);
         current = parent?.parentId || null;
+      }
+      if (mustFlatten) break;
+    }
+
+    // 2) commonParent : JAMAIS dans la sélection
+    const allMembers = [...groupMembers, block];
+    const commonParent = mustFlatten
+      ? getSafeCommonParent(allMembers, ids)
+      : (groupMembers[0]?.parentId ?? block.parentId ?? null);
+
+    // 3) Pré-calculer la position absolue du bloc AVANT flatten
+    const blockAbs = resolveAbsoluteBounds(block, list);
+
+    // 4) Liste locale aplatie avec positions corrigées
+    const flattenedList = mustFlatten
+      ? list.map(b => {
+          if (!ids.has(b.id)) return b;
+          const abs = resolveAbsoluteBounds(b, list);
+
+          if (commonParent) {
+            const parentBlock = list.find(p => p.id === commonParent);
+            if (parentBlock) {
+              const parentAbs = resolveAbsoluteBounds(parentBlock, list);
+              return {
+                ...b,
+                parentId: commonParent,
+                position: absToRelPosition(abs, parentAbs, b.position),
+              };
+            }
+          }
+
+          return {
+            ...b,
+            parentId: null,
+            position: {
+              ...b.position,
+              x: abs.x,
+              y: abs.y,
+              width: abs.width,
+              height: abs.height === 0 ? 0 : abs.height,
+              positionType: 'absolute' as const,
+            },
+          };
+        })
+      : list;
+
+    const parentId = commonParent;
+    const parent = flattenedList.find(b => b.id === parentId);
+    const parentAbs = parent ? resolveAbsoluteBounds(parent, flattenedList) : null;
+
+    let relX = 0, relY = 0, relW = 0, relH = 0;
+
+    if (parentAbs) {
+      relX = ((blockAbs.x - parentAbs.x) / parentAbs.width) * 100;
+      relY = ((blockAbs.y - parentAbs.y) / parentAbs.height) * 100;
+      relW = (blockAbs.width / parentAbs.width) * 100;
+      relH = (blockAbs.height / parentAbs.height) * 100;
+    } else {
+      // Groupe root → utiliser les bounds du groupe sur la liste locale
+      const groupBounds = computeGroupBounds(groupId, flattenedList);
+      if (groupBounds) {
+        relX = ((blockAbs.x - groupBounds.x) / groupBounds.width) * 100;
+        relY = ((blockAbs.y - groupBounds.y) / groupBounds.height) * 100;
+        relW = (blockAbs.width / groupBounds.width) * 100;
+        relH = (blockAbs.height / groupBounds.height) * 100;
       }
     }
 
-    // 🚫 ANTI‑CYCLE 3 : empêcher d’ajouter un groupe dans un groupe qui le contient déjà
-    if (block.groupId === groupId) {
-      console.warn("❌ Cycle : un groupe ne peut pas contenir un groupe qui le contient déjà");
-      return false;
-    }
-
-    // ⭐ Trouver le parent réel du groupe (le même pour tous les membres)
-    const parentId = groupMembers.length > 0 ? groupMembers[0].parentId : null;
-
-    let parentAbs = null;
-    if (parentId) {
-      const parent = blocksRef.current.find(b => b.id === parentId);
-      if (parent) parentAbs = resolveAbsoluteBounds(parent, blocksRef.current);
-    }
-
-    // ⭐ Calculer les bounds du groupe
-    const groupBounds =
-      groupMembers.length > 0
-        ? computeGroupBounds(groupId, blocksRef.current)
-        : resolveAbsoluteBounds(block, blocksRef.current);
-
-    if (!groupBounds) return false;
-
-    // ⭐ Position absolue du bloc
-    const abs = resolveAbsoluteBounds(block, blocksRef.current);
-
-    let relX, relY, relW, relH;
-
-    if (parentAbs) {
-      // ⭐ Le groupe a un parent réel → contraintes correctes
-      relX = ((abs.x - parentAbs.x) / parentAbs.width) * 100;
-      relY = ((abs.y - parentAbs.y) / parentAbs.height) * 100;
-      relW = (abs.width / parentAbs.width) * 100;
-      relH = (abs.height / parentAbs.height) * 100;
-    } else {
-      // ⭐ Groupe root → fallback sur groupBounds
-      relX = ((abs.x - groupBounds.x) / groupBounds.width) * 100;
-      relY = ((abs.y - groupBounds.y) / groupBounds.height) * 100;
-      relW = (abs.width / groupBounds.width) * 100;
-      relH = (abs.height / groupBounds.height) * 100;
-    }
-
-    console.log('📦 addToGroup:', {
-      blockId,
-      groupId,
-      parentId,
-      groupMembersCount: groupMembers.length,
-      groupBounds,
-      abs,
-      relative: { x: relX, y: relY, w: relW, h: relH }
-    });
-
-    // ⭐ Mise à jour du bloc
+    // 5) Un seul setBlocks
     setBlocks(prev =>
-      prev.map(b =>
-        b.id === blockId
-          ? {
-              ...b,
-              groupId,
-              parentId: parentId, // ⭐ Le nouvel élément hérite du parent réel
-              position: {
-                ...b.position,
-                x: Math.max(0, Math.min(100 - relW, relX)),
-                y: Math.max(0, Math.min(100 - relH, relY)),
-                width: Math.max(5, Math.min(100, relW)),
-                height: b.position.height === 0 ? 0 : Math.max(5, Math.min(100, relH)),
-                positionType: "relative",
-              },
-            }
-          : b
-      )
+      prev.map(b => {
+        // Membres existants du groupe à aplatir si besoin
+        if (mustFlatten && ids.has(b.id) && b.id !== blockId) {
+          const flattened = flattenedList.find(f => f.id === b.id);
+          return flattened ?? b;
+        }
+        // Le bloc qu'on ajoute au groupe
+        if (b.id === blockId) {
+          return {
+            ...b,
+            groupId,
+            parentId,
+            position: {
+              ...b.position,
+              x: Math.max(0, Math.min(100 - relW, relX)),
+              y: Math.max(0, Math.min(100 - relH, relY)),
+              width: Math.max(5, Math.min(100, relW)),
+              height: b.position.height === 0 ? 0 : Math.max(5, Math.min(100, relH)),
+              positionType: "relative",
+            },
+          };
+        }
+        return b;
+      })
     );
 
     refreshCanvas?.();
@@ -350,12 +478,9 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   }, []);
 
   // ───────────────────────────────────────────────────────────────
-  // RESIZE GROUP (PATCH CLAMP)
+  // RESIZE GROUP
   // ───────────────────────────────────────────────────────────────
-  const resizeGroup = useCallback((
-    groupId: string,
-    newBounds: Bounds
-  ): boolean => {
+  const resizeGroup = useCallback((groupId: string, newBounds: Bounds): boolean => {
     const snap = snapshotRef.current;
     if (!snap || snap.groupId !== groupId) return false;
 
@@ -375,7 +500,6 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
           const parent = list.find(p => p.id === b.parentId);
           if (parent) {
             const parentAbs = resolveAbsoluteBounds(parent, list);
-
             const relX = ((newAbsX - parentAbs.x) / parentAbs.width) * 100;
             const relY = ((newAbsY - parentAbs.y) / parentAbs.height) * 100;
             const relW = (newAbsW / parentAbs.width) * 100;
@@ -415,7 +539,7 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   }, []);
 
   // ───────────────────────────────────────────────────────────────
-  // MOVE GROUP (PATCH CLAMP)
+  // MOVE GROUP
   // ───────────────────────────────────────────────────────────────
   const moveGroup = useCallback((
     movedBlockId: string,
@@ -439,15 +563,12 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
             const dxPercent = (deltaX / parentAbs.width) * 100;
             const dyPercent = (deltaY / parentAbs.height) * 100;
 
-            const newX = b.position.x + dxPercent;
-            const newY = b.position.y + dyPercent;
-
             return {
               ...b,
               position: {
                 ...b.position,
-                x: Math.max(0, Math.min(100 - b.position.width, newX)),
-                y: Math.max(0, Math.min(100 - b.position.height, newY)),
+                x: Math.max(0, Math.min(100 - b.position.width, b.position.x + dxPercent)),
+                y: Math.max(0, Math.min(100 - b.position.height, b.position.y + dyPercent)),
               },
             };
           }
@@ -483,7 +604,7 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   return {
     createGroup,
     ungroup,
-    addToGroup, // ⭐ Fonction patchée avec gestion du parent réel via les membres et protections anti-cycle
+    addToGroup,
     moveGroup,
     startGroupResize,
     resizeGroup,

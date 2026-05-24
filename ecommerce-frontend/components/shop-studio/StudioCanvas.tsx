@@ -532,62 +532,10 @@ export default function StudioCanvas({
       onTextBlur: (content: string) => handleTextBlur(block.id, content),
     };
 
-    // Note: Le rendu des groupes n'est plus utilisé car on utilise le système groupId
+    // ⭐ IMPORTANT: Les blocs de type "group" ne doivent jamais être rendus visuellement
+    // Ils existent uniquement pour stocker les métadonnées du groupe
     if (block.type === 'group') {
-      const groupChildren = getChildren(block.id);
-      const isSelectedGroup = selectedBlockId === block.id && !isCropperOpen;
-      
-      return (
-        <div
-          key={`wrapper-${block.id}`}
-          className={`group-container ${isSelectedGroup ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''}`}
-          style={{
-            position: 'absolute',
-            left: block.position.x,
-            top: block.position.y,
-            width: block.position.width,
-            height: block.position.height,
-            zIndex: block.position.zIndex,
-            cursor: isSelectedGroup ? 'move' : 'default',
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleSelectBlockWithGroup(block.id, 'background');
-          }}
-          onMouseDown={(e) => {
-            if (isSelectedGroup && !isCropperOpen) {
-              handleMouseDown(e, block.id, block);
-            }
-          }}
-        >
-          <div className="group-label">📁 Groupe ({groupChildren.length})</div>
-          
-          {groupChildren.map(child => {
-            const childStyle = {
-              position: 'absolute' as const,
-              left: `${child.position.x}%`,
-              top: `${child.position.y}%`,
-              width: `${child.position.width}%`,
-              height: child.position.height === 0 ? 'auto' : `${child.position.height}%`,
-              minHeight: '30px',
-            };
-            
-            return (
-              <div
-                key={`group-child-${child.id}`}
-                data-block-id={child.id}
-                style={childStyle}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSelectBlockWithGroup(child.id, 'background');
-                }}
-              >
-                {renderBlock(child, true)}
-              </div>
-            );
-          })}
-        </div>
-      );
+      return null;
     }
 
     const isParentBlock = ['banner', 'screen-banner', 'carousel-banner'].includes(block.type);
@@ -848,7 +796,8 @@ export default function StudioCanvas({
   };
 
   const sortedBlocks = [...blocks].sort((a, b) => (a.position?.zIndex || 0) - (b.position?.zIndex || 0));
-  const rootBlocks = sortedBlocks.filter(block => !block.parentId);
+  // ⭐ Exclure les blocs de type "group" des blocs racines (ils ne doivent pas être rendus)
+  const rootBlocks = sortedBlocks.filter(block => !block.parentId && block.type !== 'group');
 
   return (
     <div 
