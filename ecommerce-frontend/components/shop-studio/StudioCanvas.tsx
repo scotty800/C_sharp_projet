@@ -36,6 +36,8 @@ interface Props {
   getGroupBounds?: (groupId: string) => { x: number; y: number; width: number; height: number } | null;
   onResizeGroupStart?: (groupId: string) => void;
   onResizeGroupEnd?: () => void;
+  // ── Carousel ──
+  onAddSlide?: (carouselBlockId: string) => void;
 }
 
 export default function StudioCanvas({
@@ -58,6 +60,7 @@ export default function StudioCanvas({
   getGroupBounds,
   onResizeGroupStart,
   onResizeGroupEnd,
+  onAddSlide,
 }: Props) {
   const [draggingBlock, setDraggingBlock] = useState<string | null>(null);
   const [resizingBlock, setResizingBlock] = useState<string | null>(null);
@@ -70,9 +73,7 @@ export default function StudioCanvas({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupBounds, setGroupBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   
-  // ⭐ Ref pour le container principal (utilisée par GroupOverlay)
   const canvasContainerRef = useRef<HTMLDivElement>(null);
-  
   const dragRafId = useRef<number | null>(null);
   const resizeRafId = useRef<number | null>(null);
   const lastUpdateRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -120,27 +121,42 @@ export default function StudioCanvas({
     return blocks.filter(b => b.parentId === parentId);
   }, [blocks]);
 
-  // Récupère la bounding box du groupe sélectionné
+  // ── Helpers pour calculer les positions absolues à n'importe quelle profondeur ──
+  const getAbsolutePosition = useCallback((block: any): { x: number; y: number; width: number; height: number } => {
+    if (!block.parentId) {
+      return { x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height };
+    }
+    const parent = blocks.find(b => b.id === block.parentId);
+    if (!parent) return { x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height };
+    
+    const parentAbs = getAbsolutePosition(parent);
+    return {
+      x: parentAbs.x + (block.position.x / 100) * parentAbs.width,
+      y: parentAbs.y + (block.position.y / 100) * parentAbs.height,
+      width: (block.position.width / 100) * parentAbs.width,
+      height: block.position.height === 0 ? 0 : (block.position.height / 100) * parentAbs.height,
+    };
+  }, [blocks]);
+
+  const getParentAbsolutePosition = useCallback((parentId: string): { x: number; y: number; width: number; height: number } | null => {
+    const parent = blocks.find(b => b.id === parentId);
+    if (!parent) return null;
+    return getAbsolutePosition(parent);
+  }, [blocks, getAbsolutePosition]);
+
   const updateGroupBounds = useCallback(() => {
     if (!selectedGroupId || !getGroupBounds) {
       setGroupBounds(null);
       return;
     }
-    
     const bounds = getGroupBounds(selectedGroupId);
-    if (bounds) {
-      setGroupBounds(bounds);
-    } else {
-      setGroupBounds(null);
-    }
+    setGroupBounds(bounds ?? null);
   }, [selectedGroupId, getGroupBounds]);
 
-  // Met à jour les bounds à chaque rendu ou quand les blocks changent
   useEffect(() => {
     updateGroupBounds();
   }, [blocks, selectedGroupId, updateGroupBounds]);
 
-  // Gère le redimensionnement du groupe
   const handleGroupResize = useCallback((groupId: string, newBounds: { x: number; y: number; width: number; height: number }) => {
     if (onResizeGroup) {
       onResizeGroup(groupId, newBounds);
@@ -160,29 +176,23 @@ export default function StudioCanvas({
     }
   }, [onResizeGroupEnd]);
 
-  // Sélectionne un groupe quand on clique sur un élément groupé
   const handleSelectBlockWithGroup = useCallback((blockId: string | null, target?: 'text' | 'background') => {
     if (blockId) {
       const block = blocks.find(b => b.id === blockId);
-      if (block?.groupId) {
-        setSelectedGroupId(block.groupId);
-      } else {
-        setSelectedGroupId(null);
-      }
+      setSelectedGroupId(block?.groupId ?? null);
     } else {
       setSelectedGroupId(null);
     }
     onSelectBlock(blockId, target);
   }, [blocks, onSelectBlock]);
 
-  // handleMouseMove avec gestion des groupes
+  // ⭐ VERSION CORRIGÉE DE handleMouseMove avec calcul des positions absolues
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (draggingBlock && !isCropperOpen) {
       if (dragRafId.current) return;
       dragRafId.current = requestAnimationFrame(() => {
         const block = blocks.find(b => b.id === draggingBlock);
-        
-        // Si le bloc fait partie d'un groupe, on utilise onMoveGroup
+
         if (block?.groupId && onMoveGroup) {
           const dx = e.clientX - dragStart.x;
           const dy = e.clientY - dragStart.y;
@@ -191,173 +201,99 @@ export default function StudioCanvas({
           dragRafId.current = null;
           return;
         }
-        
-        // Sinon, comportement normal
-        const isChild = block?.parentId !== null && block?.parentId !== undefined;
-        const parent = isChild ? blocks.find(b => b.id === block?.parentId) : null;
-        
-        let dx = e.clientX - dragStart.x;
-        let dy = e.clientY - dragStart.y;
-        let newX = originalPosition.x + dx;
-        let newY = originalPosition.y + dy;
-        
-        if (isChild && parent) {
-          const childWidth = block?.position.width || 0;
-          const childHeight = block?.position.height || 0;
-          
-          const minX = 0;
-          const maxX = 100 - childWidth;
-          const minY = 0;
-          const maxY = 100 - childHeight;
-          
-          newX = Math.max(minX, Math.min(maxX, newX));
-          newY = Math.max(minY, Math.min(maxY, newY));
+
+        const isChild = block?.parentId != null;
+
+        if (isChild && block?.parentId) {
+          // ✅ Résoudre la taille absolue du parent (quelle que soit la profondeur)
+          const parentAbs = getParentAbsolutePosition(block.parentId);
+          if (parentAbs) {
+            const cw = block.position.width || 0;
+            const ch = block.position.height || 0;
+            const newX = Math.max(0, Math.min(100 - cw, originalPosition.x + (e.clientX - dragStart.x) / parentAbs.width * 100));
+            const newY = Math.max(0, Math.min(100 - ch, originalPosition.y + (e.clientY - dragStart.y) / parentAbs.height * 100));
+
+            onUpdateBlockPosition(draggingBlock, {
+              x: newX, y: newY,
+              width: originalPosition.width,
+              height: originalPosition.height,
+            });
+          }
+        } else {
+          const newX = originalPosition.x + (e.clientX - dragStart.x);
+          const newY = originalPosition.y + (e.clientY - dragStart.y);
+          onUpdateBlockPosition(draggingBlock, {
+            x: newX, y: newY,
+            width: originalPosition.width,
+            height: originalPosition.height,
+          });
         }
-        
-        onUpdateBlockPosition(draggingBlock, {
-          x: newX,
-          y: newY,
-          width: originalPosition.width,
-          height: originalPosition.height,
-        });
+
         dragRafId.current = null;
       });
     }
-  }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition, onMoveGroup, isCropperOpen, blocks]);
+  }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition, onMoveGroup, isCropperOpen, blocks, getParentAbsolutePosition]);
 
+  // ⭐ VERSION CORRIGÉE DE handleResizeMove avec calcul des positions absolues
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
-    if (isCropperOpen) return;
-    if (resizeRafId.current) return;
-    
+    if (isCropperOpen || resizeRafId.current) return;
     resizeRafId.current = requestAnimationFrame(() => {
       const dx = e.clientX - startData.startX;
       const dy = e.clientY - startData.startY;
-      let newWidth = startData.startWidth;
-      let newHeight = startData.startHeight;
-      let newX = startData.startXpos;
-      let newY = startData.startYpos;
-      
-      const MIN_PERCENT = 5;
-      const MIN_PX = 20;
-      
+      let newWidth = startData.startWidth, newHeight = startData.startHeight;
+      let newX = startData.startXpos, newY = startData.startYpos;
+      const MIN_PERCENT = 5, MIN_PX = 20;
+
       const block = blocks.find(b => b.id === blockId);
-      const isChild = block?.parentId !== null && block?.parentId !== undefined;
-      const parent = isChild ? blocks.find(b => b.id === block?.parentId) : null;
-      
-      if (isChild && parent) {
-        const parentWidth = parent.position.width;
-        const parentHeight = parent.position.height;
-        
-        const deltaPercentX = (dx / parentWidth) * 100;
-        const deltaPercentY = (dy / parentHeight) * 100;
-        
-        switch (startData.direction) {
-          case 'se':
-            newWidth = Math.max(MIN_PERCENT, startData.startWidth + deltaPercentX);
-            newHeight = Math.max(MIN_PERCENT, startData.startHeight + deltaPercentY);
-            break;
-          case 'e':
-            newWidth = Math.max(MIN_PERCENT, startData.startWidth + deltaPercentX);
-            break;
-          case 's':
-            newHeight = Math.max(MIN_PERCENT, startData.startHeight + deltaPercentY);
-            break;
-          case 'ne':
-            newWidth = Math.max(MIN_PERCENT, startData.startWidth + deltaPercentX);
-            newHeight = Math.max(MIN_PERCENT, startData.startHeight - deltaPercentY);
-            newY = startData.startYpos + deltaPercentY;
-            break;
-          case 'nw':
-            newWidth = Math.max(MIN_PERCENT, startData.startWidth - deltaPercentX);
-            newHeight = Math.max(MIN_PERCENT, startData.startHeight - deltaPercentY);
-            newX = startData.startXpos + deltaPercentX;
-            newY = startData.startYpos + deltaPercentY;
-            break;
-          case 'sw':
-            newWidth = Math.max(MIN_PERCENT, startData.startWidth - deltaPercentX);
-            newHeight = Math.max(MIN_PERCENT, startData.startHeight + deltaPercentY);
-            newX = startData.startXpos + deltaPercentX;
-            break;
-          case 'n':
-            newHeight = Math.max(MIN_PERCENT, startData.startHeight - deltaPercentY);
-            newY = startData.startYpos + deltaPercentY;
-            break;
-          case 'w':
-            newWidth = Math.max(MIN_PERCENT, startData.startWidth - deltaPercentX);
-            newX = startData.startXpos + deltaPercentX;
-            break;
+      const isChild = block?.parentId != null;
+
+      if (isChild && block?.parentId) {
+        // ✅ Résoudre la taille absolue du parent à n'importe quelle profondeur
+        const parentAbs = getParentAbsolutePosition(block.parentId);
+        if (parentAbs) {
+          const pW = parentAbs.width, pH = parentAbs.height;
+          const dpx = (dx / pW) * 100, dpy = (dy / pH) * 100;
+          switch (startData.direction) {
+            case 'se': newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); break;
+            case 'e':  newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); break;
+            case 's':  newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); break;
+            case 'ne': newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; break;
+            case 'nw': newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newX = startData.startXpos + dpx; newY = startData.startYpos + dpy; break;
+            case 'sw': newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); newX = startData.startXpos + dpx; break;
+            case 'n':  newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; break;
+            case 'w':  newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); newX = startData.startXpos + dpx; break;
+          }
+          newWidth = Math.max(MIN_PERCENT, Math.min(100 - newX, newWidth));
+          newHeight = Math.max(MIN_PERCENT, Math.min(100 - newY, newHeight));
+          newX = Math.max(0, Math.min(100 - newWidth, newX));
+          newY = Math.max(0, Math.min(100 - newHeight, newY));
         }
-        
-        newWidth = Math.max(MIN_PERCENT, Math.min(100 - newX, newWidth));
-        newHeight = Math.max(MIN_PERCENT, Math.min(100 - newY, newHeight));
-        newX = Math.max(0, Math.min(100 - newWidth, newX));
-        newY = Math.max(0, Math.min(100 - newHeight, newY));
-        
       } else {
         switch (startData.direction) {
-          case 'se':
-            newWidth = Math.max(MIN_PX, startData.startWidth + dx);
-            newHeight = Math.max(MIN_PX, startData.startHeight + dy);
-            break;
-          case 'e':
-            newWidth = Math.max(MIN_PX, startData.startWidth + dx);
-            break;
-          case 's':
-            newHeight = Math.max(MIN_PX, startData.startHeight + dy);
-            break;
-          case 'ne':
-            newWidth = Math.max(MIN_PX, startData.startWidth + dx);
-            newHeight = Math.max(MIN_PX, startData.startHeight - dy);
-            newY = startData.startYpos + dy;
-            break;
-          case 'nw':
-            newWidth = Math.max(MIN_PX, startData.startWidth - dx);
-            newHeight = Math.max(MIN_PX, startData.startHeight - dy);
-            newX = startData.startXpos + dx;
-            newY = startData.startYpos + dy;
-            break;
-          case 'sw':
-            newWidth = Math.max(MIN_PX, startData.startWidth - dx);
-            newHeight = Math.max(MIN_PX, startData.startHeight + dy);
-            newX = startData.startXpos + dx;
-            break;
-          case 'n':
-            newHeight = Math.max(MIN_PX, startData.startHeight - dy);
-            newY = startData.startYpos + dy;
-            break;
-          case 'w':
-            newWidth = Math.max(MIN_PX, startData.startWidth - dx);
-            newX = startData.startXpos + dx;
-            break;
+          case 'se': newWidth = Math.max(MIN_PX, startData.startWidth + dx); newHeight = Math.max(MIN_PX, startData.startHeight + dy); break;
+          case 'e':  newWidth = Math.max(MIN_PX, startData.startWidth + dx); break;
+          case 's':  newHeight = Math.max(MIN_PX, startData.startHeight + dy); break;
+          case 'ne': newWidth = Math.max(MIN_PX, startData.startWidth + dx); newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; break;
+          case 'nw': newWidth = Math.max(MIN_PX, startData.startWidth - dx); newHeight = Math.max(MIN_PX, startData.startHeight - dy); newX = startData.startXpos + dx; newY = startData.startYpos + dy; break;
+          case 'sw': newWidth = Math.max(MIN_PX, startData.startWidth - dx); newHeight = Math.max(MIN_PX, startData.startHeight + dy); newX = startData.startXpos + dx; break;
+          case 'n':  newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; break;
+          case 'w':  newWidth = Math.max(MIN_PX, startData.startWidth - dx); newX = startData.startXpos + dx; break;
         }
       }
-      
-      const lastUpdate = lastUpdateRef.current;
-      const hasChanged = !lastUpdate || 
-        Math.abs(newX - lastUpdate.x) > 0.5 ||
-        Math.abs(newY - lastUpdate.y) > 0.5 ||
-        Math.abs(newWidth - lastUpdate.width) > 0.5 ||
-        Math.abs(newHeight - lastUpdate.height) > 0.5;
-      
-      if (hasChanged) {
+
+      const last = lastUpdateRef.current;
+      if (!last || Math.abs(newX-last.x)>0.5 || Math.abs(newY-last.y)>0.5 || Math.abs(newWidth-last.width)>0.5 || Math.abs(newHeight-last.height)>0.5) {
         lastUpdateRef.current = { x: newX, y: newY, width: newWidth, height: newHeight };
         onUpdateBlockPosition(blockId, { x: newX, y: newY, width: newWidth, height: newHeight });
-        setResizeForceUpdate(prev => prev + 1);
+        setResizeForceUpdate(p => p + 1);
       }
-      
       resizeRafId.current = null;
     });
-  }, [onUpdateBlockPosition, isCropperOpen, blocks]);
+  }, [onUpdateBlockPosition, isCropperOpen, blocks, getParentAbsolutePosition]);
 
   const handleMouseUp = useCallback(() => {
-    if (dragRafId.current) {
-      cancelAnimationFrame(dragRafId.current);
-      dragRafId.current = null;
-    }
-    if (resizeRafId.current) {
-      cancelAnimationFrame(resizeRafId.current);
-      resizeRafId.current = null;
-    }
+    if (dragRafId.current) { cancelAnimationFrame(dragRafId.current); dragRafId.current = null; }
+    if (resizeRafId.current) { cancelAnimationFrame(resizeRafId.current); resizeRafId.current = null; }
     lastUpdateRef.current = null;
     setDraggingBlock(null);
     setResizingBlock(null);
@@ -378,43 +314,20 @@ export default function StudioCanvas({
   }, [draggingBlock, handleMouseMove, handleMouseUp, isCropperOpen]);
 
   const handleBlockClick = (e: React.MouseEvent, blockId: string, block: any) => {
-    if (isCropperOpen) {
-      e.stopPropagation();
-      return;
-    }
-    
+    if (isCropperOpen) { e.stopPropagation(); return; }
     e.stopPropagation();
-    
     const target = e.target as HTMLElement;
-    
-    const isTextElement = target.tagName === 'H1' || target.tagName === 'H2' || target.tagName === 'H3' || 
-                          target.tagName === 'H4' || target.tagName === 'P' || target.tagName === 'BUTTON' ||
-                          target.classList?.contains('text-content') || target.classList?.contains('prose') ||
-                          target.getAttribute?.('contenteditable') === 'true';
-    
-    const isParentBlock = ['banner', 'screen-banner', 'carousel-banner'].includes(block.type);
-    
+    const isTextElement = ['H1','H2','H3','H4','P','BUTTON'].includes(target.tagName) ||
+      target.classList?.contains('text-content') ||
+      target.classList?.contains('prose') ||
+      target.getAttribute?.('contenteditable') === 'true';
+    const isParentBlock = ['banner','screen-banner','carousel-banner'].includes(block.type);
+
     if (isParentBlock) {
-      if (isTextElement) {
-        const childBlock = blocks.find(b => b.parentId === blockId && (
-          b.type === 'title' || b.type === 'text' || b.type === 'button'
-        ));
-        if (childBlock) {
-          handleSelectBlockWithGroup(childBlock.id, 'text');
-        } else {
-          handleSelectBlockWithGroup(blockId, 'text');
-        }
-      } else {
-        handleSelectBlockWithGroup(blockId, 'background');
-      }
+      handleSelectBlockWithGroup(blockId, 'background');
       return;
     }
-    
-    if (isTextElement) {
-      handleSelectBlockWithGroup(blockId, 'text');
-    } else {
-      handleSelectBlockWithGroup(blockId, 'background');
-    }
+    handleSelectBlockWithGroup(blockId, isTextElement ? 'text' : 'background');
   };
 
   const handleCanvasClick = () => {
@@ -423,12 +336,13 @@ export default function StudioCanvas({
     onSelectBackground();
   };
 
-  const handleMouseDown = (e: React.MouseEvent, blockId: string, block: any, isChild: boolean = false) => {
-    if (isCropperOpen) {
-      e.stopPropagation();
-      return;
-    }
-    
+  // ⭐ Les carousel-slide ne sont PAS draggables dans le canvas (elles sont fixes)
+  const handleMouseDown = (e: React.MouseEvent, blockId: string, block: any) => {
+    if (isCropperOpen) { e.stopPropagation(); return; }
+
+    // Les carousel-slide ne sont pas draggables (elles restent attachées au carousel)
+    if (block.type === 'carousel-slide') return;
+
     e.stopPropagation();
     setDraggingBlock(blockId);
     setDragStart({ x: e.clientX, y: e.clientY });
@@ -436,10 +350,7 @@ export default function StudioCanvas({
   };
 
   const handleResizeStart = (e: React.MouseEvent, blockId: string, block: any, direction: string) => {
-    if (isCropperOpen) {
-      e.stopPropagation();
-      return;
-    }
+    if (isCropperOpen) { e.stopPropagation(); return; }
     e.stopPropagation();
     e.preventDefault();
     setIsResizing(true);
@@ -447,34 +358,23 @@ export default function StudioCanvas({
     setResizeDirection(direction);
     setDragStart({ x: e.clientX, y: e.clientY });
     setOriginalPosition({ ...block.position });
-    
+
     const startData = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startWidth: block.position.width,
-      startHeight: block.position.height,
-      startXpos: block.position.x,
-      startYpos: block.position.y,
+      startX: e.clientX, startY: e.clientY,
+      startWidth: block.position.width, startHeight: block.position.height,
+      startXpos: block.position.x, startYpos: block.position.y,
       direction,
     };
-    
-    const handleMouseMoveResize = (moveEvent: MouseEvent) => {
-      handleResizeMove(moveEvent, blockId, startData);
-    };
-    
-    const handleMouseUpResize = () => {
-      window.removeEventListener('mousemove', handleMouseMoveResize);
-      window.removeEventListener('mouseup', handleMouseUpResize);
-      if (resizeRafId.current) {
-        cancelAnimationFrame(resizeRafId.current);
-        resizeRafId.current = null;
-      }
+    const onMove = (me: MouseEvent) => handleResizeMove(me, blockId, startData);
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (resizeRafId.current) { cancelAnimationFrame(resizeRafId.current); resizeRafId.current = null; }
       setIsResizing(false);
       setResizingBlock(null);
     };
-    
-    window.addEventListener('mousemove', handleMouseMoveResize);
-    window.addEventListener('mouseup', handleMouseUpResize);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
 
   const handleTextDoubleClick = (e: React.MouseEvent, blockId: string) => {
@@ -498,6 +398,7 @@ export default function StudioCanvas({
     }
   };
 
+  // ⭐ RENDER BLOCK
   const renderBlock = useCallback((block: any, isChild: boolean = false) => {
     const isSelected = selectedBlockId === block.id;
     const isEditing = editingTextId === block.id;
@@ -532,8 +433,6 @@ export default function StudioCanvas({
       onTextBlur: (content: string) => handleTextBlur(block.id, content),
     };
 
-    // ⭐ IMPORTANT: Les blocs de type "group" ne doivent jamais être rendus visuellement
-    // Ils existent uniquement pour stocker les métadonnées du groupe
     if (block.type === 'group') {
       return null;
     }
@@ -541,6 +440,13 @@ export default function StudioCanvas({
     const isParentBlock = ['banner', 'screen-banner', 'carousel-banner'].includes(block.type);
     
     if (isParentBlock) {
+      const slideBlocks = block.type === 'carousel-banner'
+        ? getChildren(block.id).filter(c => c.type === 'carousel-slide').sort((a, b) => (a.order || 0) - (b.order || 0))
+        : [];
+      
+      const activeSlideIndex = block.props?.currentIndex ?? 0;
+      const activeSlideId = slideBlocks[activeSlideIndex]?.id;
+      
       return (
         <div key={`wrapper-${block.id}`}>
           <div
@@ -577,14 +483,53 @@ export default function StudioCanvas({
                 WebkitUserSelect: 'none',
               }}
             >
-              {renderParentContent(block, commonProps)}
+              {block.type === 'carousel-banner' ? (
+                <CarouselBannerBlock
+                  key={`${block.id}-${resizeForceUpdate}`}
+                  {...commonProps}
+                  childBlocks={slideBlocks}
+                  onAddSlide={onAddSlide ? () => onAddSlide(block.id) : undefined}
+                  shopId={shop?.id}
+                />
+              ) : (
+                renderParentContent(block, commonProps)
+              )}
               
-              {children.length > 0 && (
+              {block.type === 'carousel-banner' && slideBlocks.map(slide => {
+                const slideChildren = getChildren(slide.id).filter(c => c.type !== 'carousel-slide');
+                const isActiveSlide = slide.id === activeSlideId;
+                if (!isActiveSlide) return null;
+                
+                return slideChildren.map(child => (
+                  <div
+                    key={`slide-child-${child.id}`}
+                    data-block-id={child.id}
+                    style={{
+                      position: 'absolute',
+                      left: `${child.position.x}%`,
+                      top: `${child.position.y}%`,
+                      width: `${child.position.width}%`,
+                      height: child.position.height === 0 ? 'auto' : `${child.position.height}%`,
+                      minHeight: '30px',
+                      pointerEvents: 'auto',
+                      zIndex: child.position.zIndex,
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelectBlockWithGroup(child.id, 'text');
+                    }}
+                  >
+                    {renderBlock(child, true)}
+                  </div>
+                ));
+              })}
+              
+              {children.filter(c => c.type !== 'carousel-slide').length > 0 && (
                 <div 
                   className="absolute inset-0"
                   style={{ pointerEvents: 'none' }}
                 >
-                  {children.map(child => {
+                  {children.filter(c => c.type !== 'carousel-slide').map(child => {
                     return (
                       <div
                         key={`child-wrapper-${child.id}`}
@@ -758,9 +703,8 @@ export default function StudioCanvas({
         )}
       </div>
     );
-  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, shop, customization, onUpdateBlock, onDeleteBlock, onDuplicateBlock, onUpdateBlockPosition]);
+  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, shop, customization, onUpdateBlock, onDeleteBlock, onDuplicateBlock, onUpdateBlockPosition, onAddSlide]);
 
-  // STYLE BACKGROUND CORRIGÉ - Pas de mélange entre background et backgroundColor
   let backgroundStyle: React.CSSProperties = {
     minHeight: '100vh',
     width: '100%',
@@ -788,15 +732,7 @@ export default function StudioCanvas({
     backgroundStyle.opacity = customization.backgroundOpacity / 100;
   }
 
-  const blocksContainerStyle = {
-    position: 'relative' as const,
-    zIndex: 1,
-    minHeight: '100vh',
-    width: '100%',
-  };
-
   const sortedBlocks = [...blocks].sort((a, b) => (a.position?.zIndex || 0) - (b.position?.zIndex || 0));
-  // ⭐ Exclure les blocs de type "group" des blocs racines (ils ne doivent pas être rendus)
   const rootBlocks = sortedBlocks.filter(block => !block.parentId && block.type !== 'group');
 
   return (
@@ -806,11 +742,10 @@ export default function StudioCanvas({
       onClick={handleCanvasClick}
     >
       <div style={backgroundStyle} />
-      <div style={blocksContainerStyle}>
+      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', width: '100%' }}>
         {rootBlocks.map(block => renderBlock(block))}
       </div>
       
-      {/* Overlay pour le groupe sélectionné */}
       {selectedGroupId && groupBounds && onResizeGroup && (
         <GroupOverlay
           groupId={selectedGroupId}

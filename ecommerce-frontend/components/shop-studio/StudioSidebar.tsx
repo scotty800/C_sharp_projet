@@ -63,6 +63,8 @@ interface Props {
   onUpdateInternalElement?: (elementId: string, parentId: string, updates: any) => void;
   onDeleteInternalElement?: (elementId: string, parentId: string) => void;
   shopId: number;
+  // ⭐ 1. Ajouter dans l'interface Props
+  onAddSlide?: (carouselBlockId: string) => void;
 }
 
 const PANELS = [
@@ -153,7 +155,9 @@ export default function StudioSidebar({
   onUngroupLayer,
   onUpdateInternalElement,
   onDeleteInternalElement,
-  shopId 
+  shopId,
+  // ⭐ 2. Ajouter dans les paramètres de la fonction
+  onAddSlide,
 }: Props) {
   const [selectedBlock, setSelectedBlock] = useState<any>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -639,6 +643,8 @@ export default function StudioSidebar({
             )}
             
             {activePanel === 'assets' && <AssetsPanel onSelectAsset={(asset) => onAddBlock(asset.type, asset.defaultProps)} shopId={shopId} />}
+            
+            {/* ⭐ 3. Passer onAddSlide à ColorsPanel */}
             {activePanel === 'colors' && (
               <ColorsPanel 
                 selectedBlock={selectedBlock} 
@@ -648,8 +654,10 @@ export default function StudioSidebar({
                 onUpdateBlock={handleUpdateBlock} 
                 onUpdateCustomization={onUpdateCustomization}
                 shopId={shopId}
+                onAddSlide={onAddSlide}
               />
             )}
+            
             {activePanel === 'fonts' && <FontsPanel selectedBlock={selectedBlock} selectedTarget={selectedTarget} isBackgroundSelected={isBackgroundSelected} customization={customization} onUpdateBlock={handleUpdateBlock} onUpdateCustomization={onUpdateCustomization} />}
             {activePanel === 'filters' && (
               <FiltersPanel 

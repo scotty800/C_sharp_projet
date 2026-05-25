@@ -14,6 +14,7 @@ import AddToParentPanel from './add/AddToParentPanel';
 import FloatingLayersPanel from './FloatingLayersPanel';
 import { GoogleFontsLoader } from './GoogleFontsLoader';
 import { useGroupManager } from '@/hooks/useGroupManager';
+import { createDefaultSlideProps } from './blocks/CarouselSlideBlock';
 
 export interface BlockPosition {
   x: number;
@@ -112,17 +113,24 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
     };
   };
 
+  // ⭐ VERSION CORRIGÉE DE buildNode AVEC TRI DES ENFANTS PAR order
   const buildNode = (blockId: string): any => {
     const block = blockMap.get(blockId);
     if (!block) return null;
     if (block.type === 'group') return null;
 
-    const rawChildren = childrenMap.get(block.id) || [];
+    const rawChildrenIds = childrenMap.get(block.id) || [];
 
-    const nonGroupedChildren = rawChildren.filter(childId => {
-      const child = blockMap.get(childId);
-      return child && !child.groupId && child.type !== 'group';
-    });
+    // ✅ FIX : trier les enfants par order avant de construire les nœuds
+    const rawChildren = rawChildrenIds
+      .map(id => blockMap.get(id))
+      .filter((b): b is BlockUI => b !== undefined && b !== null);
+    
+    rawChildren.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const nonGroupedChildren = rawChildren
+      .filter(child => !child.groupId && child.type !== 'group')
+      .map(child => child.id);
 
     const groupChildrenIds = groupsByParent.get(block.id) || [];
 
@@ -150,13 +158,17 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
     };
   };
 
+  // ⭐ VERSION CORRIGÉE DE buildTree AVEC TRI DES BLOCS RACINES
   const buildTree = (): any[] => {
     const root: any[] = [];
 
     const rootGroups = groupsByParent.get(null) || [];
     rootGroups.forEach(gid => root.push(buildGroupContainer(gid, null)));
 
-    const rootBlocks = blocks.filter(b => !b.parentId && !b.groupId && b.type !== 'group');
+    const rootBlocks = blocks
+      .filter(b => !b.parentId && !b.groupId && b.type !== 'group')
+      .sort((a, b) => (a.order || 0) - (b.order || 0)); // ✅ FIX
+
     rootBlocks.forEach(b => {
       const node = buildNode(b.id);
       if (node) root.push(node);
@@ -250,15 +262,26 @@ export default function StudioLayout() {
     refreshCanvas();
   }, [refreshCanvas]);
 
-  // ⭐ REPARENT LAYER - MODIFIÉ POUR PERMETTRE DE SORTIR D'UN GROUPE
+  // ── reparentLayer ── VERSION CORRIGÉE pour permettre les enfants des slides ──
   const reparentLayer = useCallback((layerId: string, newParentId: string | null) => {
     setState(prev => {
       const blockToMove = prev.blocks.find(b => b.id === layerId);
       if (!blockToMove) return prev;
 
-      // ⭐ Si le bloc est dans un groupe, on le laisse passer — il sera sorti du groupe
-      const wasInGroup = !!blockToMove.groupId;
+      // ✅ Une carousel-slide ne peut jamais être déplacée hors de son carousel parent
+      if (blockToMove.type === 'carousel-slide') return prev;
 
+      // ✅ Une carousel-slide PEUT avoir des enfants (titre, texte, image, etc.)
+      // On bloque seulement si on essaie de mettre une slide dans une autre slide
+      if (newParentId) {
+        const newParent = prev.blocks.find(b => b.id === newParentId);
+        if (newParent?.type === 'carousel-slide' && blockToMove.type === 'carousel-slide') {
+          console.warn('❌ Impossible de mettre une slide dans une autre slide');
+          return prev;
+        }
+      }
+
+      // Détection de cycle
       let current = newParentId;
       while (current) {
         const parent = prev.blocks.find(b => b.id === current);
@@ -362,14 +385,13 @@ export default function StudioLayout() {
         };
       }
 
-      // ⭐ Mise à jour du bloc : on retire le groupId si le bloc était dans un groupe
       const updatedBlocks = prev.blocks.map(b =>
         b.id === layerId
           ? {
               ...b,
               parentId: newParentId,
               position: newPosition,
-              groupId: null, // ⭐ Retire le bloc de son groupe
+              groupId: null,
             }
           : b
       );
@@ -439,19 +461,17 @@ export default function StudioLayout() {
 
   const reorderLayers = useCallback((startIndex: number, endIndex: number, parentId: string | null = null) => {
     setState(prev => {
-      const siblings = prev.blocks.filter(b => b.parentId === parentId);
-      if (siblings.length === 0) return prev;
-
-      const validSiblings = siblings
-        .map(b => !b.position ? { ...b, position: { ...DEFAULT_POSITION, zIndex: b.order + 1 } } : b)
+      const siblings = prev.blocks
+        .filter(b => (b.parentId ?? null) === parentId)
         .sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      if (siblings.length < 2) return prev;
 
-      const clampedStart = Math.max(0, Math.min(startIndex, validSiblings.length - 1));
-      const clampedEnd = Math.max(0, Math.min(endIndex, validSiblings.length - 1));
-
+      const clampedStart = Math.max(0, Math.min(startIndex, siblings.length - 1));
+      const clampedEnd = Math.max(0, Math.min(endIndex, siblings.length - 1));
       if (clampedStart === clampedEnd) return prev;
 
-      const reordered = [...validSiblings];
+      const reordered = [...siblings];
       const [removed] = reordered.splice(clampedStart, 1);
       reordered.splice(clampedEnd, 0, removed);
 
@@ -461,12 +481,11 @@ export default function StudioLayout() {
         position: { ...block.position, zIndex: idx + 1 },
       }));
 
-      const updatedBlocks = prev.blocks.map(b => {
-        const updated = updatedSiblings.find(s => s.id === b.id);
-        return updated ?? b;
-      });
-
-      return { ...prev, blocks: updatedBlocks, isDirty: true };
+      return {
+        ...prev,
+        blocks: prev.blocks.map(b => updatedSiblings.find(s => s.id === b.id) ?? b),
+        isDirty: true,
+      };
     });
     refreshCanvas();
   }, [refreshCanvas]);
@@ -510,6 +529,48 @@ export default function StudioLayout() {
     window.addEventListener('openAddToParent', handleOpenAddToParent as EventListener);
     return () => window.removeEventListener('openAddToParent', handleOpenAddToParent as EventListener);
   }, []);
+
+  const addSlide = useCallback((carouselBlockId: string) => {
+    setState(prev => {
+      const carouselBlock = prev.blocks.find(b => b.id === carouselBlockId);
+      if (!carouselBlock || carouselBlock.type !== 'carousel-banner') return prev;
+
+      const existingSlides = prev.blocks.filter(
+        b => b.type === 'carousel-slide' && b.parentId === carouselBlockId
+      );
+      const slideIndex = existingSlides.length;
+
+      const newSlide: BlockUI = {
+        id: `carousel-slide-${Date.now()}-${Math.random()}`,
+        type: 'carousel-slide',
+        props: createDefaultSlideProps(slideIndex),
+        position: {
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          zIndex: slideIndex + 1,
+          rotation: 0,
+          positionType: 'relative',
+        },
+        order: slideIndex,
+        isVisible: true,
+        parentId: carouselBlockId,
+        isLocked: false,
+        groupId: null,
+      };
+
+      return {
+        ...prev,
+        blocks: [...prev.blocks, newSlide],
+        isDirty: true,
+        selectedBlockId: newSlide.id,
+        selectedTarget: 'background',
+        isBackgroundSelected: false,
+      };
+    });
+    refreshCanvas();
+  }, [refreshCanvas]);
 
   const addBlock = useCallback((type: string, props: any, parentId: string | null = null) => {
     let position: BlockPosition;
@@ -943,6 +1004,7 @@ export default function StudioLayout() {
             onReorderLayers={reorderLayers}
             onDeleteInternalElement={deleteInternalElement}
             shopId={Number(id)}
+            onAddSlide={addSlide}
           />
 
           <div className="flex-1 overflow-auto p-4 bg-gray-800 relative flex items-center justify-center">
@@ -979,6 +1041,7 @@ export default function StudioLayout() {
                 getGroupBounds={groupManager.getGroupBounds}
                 onResizeGroupStart={groupManager.startGroupResize}
                 onResizeGroupEnd={groupManager.endGroupResize}
+                onAddSlide={addSlide}
               />
             </div>
 

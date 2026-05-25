@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import { FiUpload } from 'react-icons/fi';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { FiUpload, FiPlus } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { assetsService } from '@/services/api/assets';
 import { getImageUrl } from '@/utils/imageUtils';
@@ -15,9 +14,10 @@ interface Props {
   onUpdateCustomization: (updates: any) => void;
   selectedTarget?: 'text' | 'background';
   shopId?: number;
+  onAddSlide?: (carouselBlockId: string) => void;
 }
 
-// ⭐ 60 couleurs organisées par famille
+// ── 60 couleurs organisées par famille ──────────────────────────────────────
 const QUICK_COLORS = [
   '#FFFFFF', '#F3F4F6', '#E5E7EB', '#D1D5DB', '#9CA3AF', '#6B7280', '#4B5563', '#374151', '#1F2937', '#000000',
   '#FEE2E2', '#FECACA', '#FCA5A5', '#F87171', '#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#450A0A',
@@ -28,507 +28,74 @@ const QUICK_COLORS = [
 ];
 
 const GRADIENTS = [
-  { name: 'Violet', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
-  { name: 'Rose', value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
-  { name: 'Bleu', value: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
-  { name: 'Vert', value: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
-  { name: 'Orange', value: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
-  { name: 'Nuit', value: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)' },
+  { name: 'Violet',  value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+  { name: 'Rose',    value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+  { name: 'Bleu',    value: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+  { name: 'Vert',    value: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+  { name: 'Orange',  value: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+  { name: 'Nuit',    value: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)' },
 ];
 
-export default function ColorsPanel({ 
-  selectedBlock, 
-  isBackgroundSelected, 
-  customization, 
-  onUpdateBlock, 
-  onUpdateCustomization,
-  selectedTarget = 'text',
-  shopId
-}: Props) {
-  const [activeTab, setActiveTab] = useState<'solid' | 'gradient' | 'carousel'>('solid');
-  const [showExtendedColors, setShowExtendedColors] = useState(false);
-  
-  // ⭐ États pour l'ajout d'images
-  const [newImageUrl, setNewImageUrl] = useState('');
-  const [newImageAlt, setNewImageAlt] = useState('');
+// ── Helper: ouvre un input color natif ──────────────────────────────────────
+function openNativeColorPicker(
+  anchorEl: HTMLElement,
+  initialColor: string,
+  onChange: (color: string) => void,
+) {
+  const input = document.createElement('input');
+  input.type = 'color';
+  input.value = initialColor.startsWith('#') ? initialColor : '#ffffff';
+  Object.assign(input.style, {
+    position: 'fixed',
+    left: `${anchorEl.getBoundingClientRect().left}px`,
+    top:  `${anchorEl.getBoundingClientRect().bottom + 8}px`,
+    width: '0', height: '0', opacity: '0', pointerEvents: 'none',
+  });
+  document.body.appendChild(input);
+  input.addEventListener('input', (e) => onChange((e.target as HTMLInputElement).value));
+  input.addEventListener('blur', () => document.body.removeChild(input));
+  input.click();
+}
 
-  // ⭐ États pour le carrousel
-  const currentSlideIndexRef = useRef(0);
-  const [currentSlide, setCurrentSlide] = useState<any>(null);
-  const [, forceUpdate] = useState(0);
+// ── Sous-composant : sélecteur de couleur unie ──────────────────────────────
+function SolidColorPicker({
+  currentColor,
+  onApply,
+  showGradientHint = false,
+}: {
+  currentColor: string;
+  onApply: (color: string) => void;
+  showGradientHint?: boolean;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const swatchRef = useRef<HTMLDivElement>(null);
+  const displayed = showAll ? QUICK_COLORS : QUICK_COLORS.slice(0, 12);
 
-  const isCanvasSelected = isBackgroundSelected;
-  const isBlockSelected = !isCanvasSelected && selectedBlock !== null;
-  const target = selectedTarget;
-  const isBanner = selectedBlock?.type === 'banner';
-  const isScreenBanner = selectedBlock?.type === 'screen-banner';
-  const isCarouselBanner = selectedBlock?.type === 'carousel-banner';
-  const images = selectedBlock?.props?.images || [];
-
-  // ⭐ Fonction pour mettre à jour l'état local à partir du bloc
-  const updateFromBlock = useCallback(() => {
-    if (!selectedBlock?.props?.images) return;
-    
-    const savedIndex = selectedBlock.props.currentIndex;
-    if (savedIndex !== undefined && savedIndex !== currentSlideIndexRef.current) {
-      currentSlideIndexRef.current = savedIndex;
-    }
-    
-    const slide = selectedBlock.props.images[currentSlideIndexRef.current];
-    if (slide) {
-      setCurrentSlide(slide);
-    }
-    forceUpdate(prev => prev + 1);
-  }, [selectedBlock]);
-
-  // ⭐ Mettre à jour quand le bloc change
-  useEffect(() => {
-    updateFromBlock();
-  }, [updateFromBlock, selectedBlock?.props?.images, selectedBlock?.props?.currentIndex]);
-
-  // ⭐ Écouter l'événement pour les changements en direct
-  useEffect(() => {
-    const handleCarouselIndexChange = (event: CustomEvent) => {
-      const newIndex = event.detail;
-      currentSlideIndexRef.current = newIndex;
-      
-      const slides = selectedBlock?.props?.images || [];
-      const slide = slides[newIndex];
-      if (slide) {
-        setCurrentSlide(slide);
-      }
-      forceUpdate(prev => prev + 1);
-    };
-    
-    window.addEventListener('carouselIndexChange', handleCarouselIndexChange as EventListener);
-    return () => window.removeEventListener('carouselIndexChange', handleCarouselIndexChange as EventListener);
-  }, [selectedBlock]);
-
-  // ⭐ Mettre à jour la slide courante
-  const updateCurrentSlide = useCallback((updates: any) => {
-    const slides = selectedBlock?.props?.images || [];
-    const currentIdx = currentSlideIndexRef.current;
-    const currentSlideData = slides[currentIdx];
-    
-    if (!currentSlideData) return;
-    
-    const newSlides = [...slides];
-    newSlides[currentIdx] = { ...currentSlideData, ...updates };
-    onUpdateBlock(selectedBlock.id, { images: newSlides });
-    
-    setCurrentSlide((prev: any) => prev ? { ...prev, ...updates } : null);
-  }, [selectedBlock, onUpdateBlock]);
-
-  // ⭐ Appliquer la couleur au fond de la slide courante
-  const applySolidColorToSlide = useCallback((color: string) => {
-    updateCurrentSlide({ backgroundColor: color, backgroundType: 'solid', backgroundValue: null });
-  }, [updateCurrentSlide]);
-
-  // ⭐ Appliquer le dégradé au fond de la slide courante
-  const applyGradientToSlide = useCallback((gradient: string) => {
-    updateCurrentSlide({ backgroundType: 'gradient', backgroundValue: gradient, backgroundColor: null });
-  }, [updateCurrentSlide]);
-
-  // ⭐ Créer une slide par défaut pour le carrousel
-  const createDefaultSlide = useCallback(() => {
-    if (!selectedBlock) return;
-    
-    const defaultSlide = {
-      id: `slide-${Date.now()}-${Math.random()}`,
-      url: '',
-      alt: 'Slide par défaut',
-      crop: { x: 0, y: 0, scale: 1 },
-      backgroundColor: null,
-      backgroundType: null,
-    };
-    
-    onUpdateBlock(selectedBlock.id, { images: [defaultSlide] });
-    toast.success('Slide créée ! Vous pouvez maintenant ajouter une image');
-  }, [selectedBlock, onUpdateBlock]);
-
-  // ⭐ Fonction commune pour le rendu du carrousel
-  const renderCarouselContent = () => (
+  return (
     <div className="space-y-3">
-      {!selectedBlock.props?.isCarousel && !isCarouselBanner ? (
-        <button onClick={() => { 
-          onUpdateBlock(selectedBlock.id, { 
-            isCarousel: true, 
-            images: [
-              { url: 'https://picsum.photos/1200/500?random=1', alt: 'Image 1' }, 
-              { url: 'https://picsum.photos/1200/500?random=2', alt: 'Image 2' }, 
-              { url: 'https://picsum.photos/1200/500?random=3', alt: 'Image 3' }
-            ] 
-          }); 
-          setActiveTab('carousel'); 
-        }} className="w-full py-2 bg-primary hover:bg-primary/80 text-white rounded-lg text-sm font-medium transition-colors">
-          🎠 Activer le carrousel
-        </button>
-      ) : (
-        <>
-          <div className="flex justify-between items-center">
-            <h4 className="text-white text-xs font-semibold">Images du carrousel ({images.length})</h4>
-            <button onClick={() => onUpdateBlock(selectedBlock.id, { isCarousel: false, images: [] })} className="text-xs text-red-400 hover:text-red-300">✕ Désactiver</button>
-          </div>
-
-          <DragDropContext onDragEnd={(result) => {
-            if (!result.destination) return;
-            const newImages = [...images];
-            const [removed] = newImages.splice(result.source.index, 1);
-            newImages.splice(result.destination.index, 0, removed);
-            onUpdateBlock(selectedBlock.id, { images: newImages });
-          }}>
-            <Droppable droppableId="carousel-images">
-              {(provided) => (
-                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2 max-h-60 overflow-y-auto">
-                  {images.map((img: any, idx: number) => (
-                    <Draggable key={`img-${idx}`} draggableId={`img-${idx}`} index={idx}>
-                      {(provided, snapshot) => (
-                        <div ref={provided.innerRef} {...provided.draggableProps} className={`flex items-center gap-2 p-2 bg-gray-800 rounded-lg transition-all ${snapshot.isDragging ? 'opacity-50 bg-gray-700 ring-2 ring-primary' : 'hover:bg-gray-700'}`}>
-                          <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 p-1">⋮⋮</div>
-                          <div className="w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                            <img src={img.url || 'https://picsum.photos/50/50'} alt={img.alt} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/50/50'; }} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <input type="text" value={img.url || ''} onChange={(e) => { const newImages = [...images]; newImages[idx] = { ...img, url: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="URL de l'image" />
-                            <input type="text" value={img.alt || ''} onChange={(e) => { const newImages = [...images]; newImages[idx] = { ...img, alt: e.target.value }; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full mt-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white text-xs" placeholder="Texte alternatif" />
-                          </div>
-                          <div className="text-xs text-gray-500 w-8 text-center">#{idx + 1}</div>
-                          <button onClick={() => { const newImages = images.filter((_: any, i: number) => i !== idx); onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="text-red-400 hover:text-red-300 p-1 flex-shrink-0" title="Supprimer">🗑️</button>
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
-
-          <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 mt-2">
-            <div className="text-center">
-              <FiUpload className="mx-auto text-gray-400 mb-2" size={24} />
-              <p className="text-xs text-gray-400 mb-2">Glissez-déposez vos images ici</p>
-              <p className="text-xs text-gray-500">ou</p>
-              <div className="flex gap-2 mt-2 justify-center">
-                <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">
-                  📁 Parcourir mon ordinateur
-                  <input type="file" className="hidden" multiple accept="image/*" onChange={(e) => { if (e.target.files && e.target.files.length > 0) { handleImageUpload(e.target.files); } e.target.value = ''; }} />
-                </label>
-                <button onClick={openAssetPicker} className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded transition-colors">📚 Bibliothèque d'images</button>
-              </div>
-            </div>
-          </div>
-          
-          <button onClick={() => { const newImages = [...images, { url: `https://picsum.photos/1200/500?random=${images.length + 1}`, alt: 'Nouvelle image' }]; onUpdateBlock(selectedBlock.id, { images: newImages }); }} className="w-full py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white flex items-center justify-center gap-1">+ Ajouter une image par URL</button>
-
-          <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-gray-400">▶️ Défilement automatique</label>
-              <input type="checkbox" checked={selectedBlock.props?.autoPlay !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { autoPlay: e.target.checked })} />
-            </div>
-            {selectedBlock.props?.autoPlay !== false && (
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">⏱️ Intervalle: {selectedBlock.props?.intervalTime || 5000}ms</label>
-                <input type="range" min="1000" max="10000" step="500" value={selectedBlock.props?.intervalTime || 5000} onChange={(e) => onUpdateBlock(selectedBlock.id, { intervalTime: parseInt(e.target.value) })} className="w-full" />
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-gray-400">⬅️➡️ Afficher les flèches</label>
-              <input type="checkbox" checked={selectedBlock.props?.showArrows !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showArrows: e.target.checked })} />
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-gray-400">● Afficher les points</label>
-              <input type="checkbox" checked={selectedBlock.props?.showDots !== false} onChange={(e) => onUpdateBlock(selectedBlock.id, { showDots: e.target.checked })} />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">✨ Effet de transition</label>
-              <select value={selectedBlock.props?.transitionEffect || 'fade'} onChange={(e) => onUpdateBlock(selectedBlock.id, { transitionEffect: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
-                <option value="fade">Fondu (fade)</option>
-                <option value="slide">Glissement (slide)</option>
-              </select>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-
-  // ⭐ applySolidColor - CORRIGÉE
-  const applySolidColor = useCallback((color: string) => {
-    if (isCanvasSelected) {
-      onUpdateCustomization({ 
-        backgroundColor: color,
-        backgroundType: 'solid',
-        backgroundValue: null
-      });
-    } else if (isBlockSelected) {
-      // ⭐ Vérifier si le bloc est un carrousel activé
-      const isCarouselActive = (isBanner && selectedBlock.props?.isCarousel) || 
-                                (isScreenBanner && selectedBlock.props?.isCarousel) || 
-                                isCarouselBanner;
-      
-      if (isCarouselActive && target === 'text') {
-        updateCurrentSlide({ titleColor: color, titleGradient: null });
-        return;
-      }
-      
-      if (target === 'text') {
-        const updates: any = {};
-        switch (selectedBlock.type) {
-          case 'text': updates.textColor = color; updates.textGradient = null; break;
-          case 'title': updates.textColor = color; updates.textGradient = null; break;
-          case 'banner': updates.titleColor = color; updates.titleGradient = null; break;
-          case 'screen-banner': updates.titleColor = color; updates.titleGradient = null; break;
-          case 'carousel-banner': updates.titleColor = color; updates.titleGradient = null; break;
-          case 'button': updates.textColor = color; updates.textGradient = null; break;
-          case 'products': updates.titleColor = color; updates.titleGradient = null; break;
-          default: updates.textColor = color;
-        }
-        onUpdateBlock(selectedBlock.id, updates);
-      } else if (target === 'background') {
-        onUpdateBlock(selectedBlock.id, { 
-          backgroundColor: color,
-          backgroundType: 'solid',
-          backgroundValue: null
-        });
-      }
-    }
-  }, [isCanvasSelected, isBlockSelected, isCarouselBanner, isBanner, isScreenBanner, target, selectedBlock, onUpdateBlock, onUpdateCustomization, updateCurrentSlide]);
-
-  // ⭐ applyGradient - CORRIGÉE
-  const applyGradient = useCallback((gradient: string) => {
-    if (isCanvasSelected) {
-      onUpdateCustomization({ 
-        backgroundType: 'gradient',
-        backgroundValue: gradient,
-        backgroundColor: null
-      });
-    } else if (isBlockSelected) {
-      // ⭐ Vérifier si le bloc est un carrousel activé
-      const isCarouselActive = (isBanner && selectedBlock.props?.isCarousel) || 
-                                (isScreenBanner && selectedBlock.props?.isCarousel) || 
-                                isCarouselBanner;
-      
-      if (isCarouselActive && target === 'text') {
-        updateCurrentSlide({ titleGradient: gradient, titleColor: null });
-        return;
-      }
-      
-      if (target === 'text') {
-        const updates: any = {};
-        switch (selectedBlock.type) {
-          case 'text': updates.textGradient = gradient; updates.textColor = null; break;
-          case 'title': updates.textGradient = gradient; updates.textColor = null; break;
-          case 'banner': updates.titleGradient = gradient; updates.titleColor = null; break;
-          case 'screen-banner': updates.titleGradient = gradient; updates.titleColor = null; break;
-          case 'carousel-banner': updates.titleGradient = gradient; updates.titleColor = null; break;
-          case 'button': updates.textGradient = gradient; updates.textColor = null; break;
-          case 'products': updates.titleGradient = gradient; updates.titleColor = null; break;
-          default: updates.textGradient = gradient;
-        }
-        onUpdateBlock(selectedBlock.id, updates);
-      } else if (target === 'background') {
-        onUpdateBlock(selectedBlock.id, { 
-          backgroundType: 'gradient',
-          backgroundValue: gradient,
-          backgroundColor: null
-        });
-      }
-    }
-  }, [isCanvasSelected, isBlockSelected, isCarouselBanner, isBanner, isScreenBanner, target, selectedBlock, onUpdateBlock, onUpdateCustomization, updateCurrentSlide]);
-
-  // ⭐ Détection de transparence pour l'upload - CORRIGÉE (plus de backgroundColor: 'transparent')
-  const handleImageUpload = async (files: FileList) => {
-    if (!shopId) {
-      toast.error('ID de boutique non disponible');
-      return;
-    }
-
-    const fileArray = Array.from(files);
-    for (const file of fileArray) {
-      try {
-        const asset = await assetsService.uploadAsset(shopId, file, 'image', 'carousel');
-        const fullUrl = getImageUrl(asset.url);
-        
-        // ⭐ CRUCIAL: On NE définit PLUS backgroundColor à 'transparent'
-        // Le fond transparent doit provenir UNIQUEMENT de l'image elle-même
-        const newImage = {
-          id: `slide-${Date.now()}-${Math.random()}`,
-          url: fullUrl,
-          alt: asset.name,
-          crop: { x: 0, y: 0, scale: 1 },
-          backgroundColor: null,  // ← CORRECTION: plus de 'transparent'
-          backgroundType: null,   // ← CORRECTION: plus de 'solid'
-        };
-        
-        const newImages = [...images, newImage];
-        onUpdateBlock(selectedBlock.id, { images: newImages });
-        toast.success(`Image uploadée: ${asset.name}`);
-      } catch (error) {
-        console.error('Erreur upload:', error);
-        toast.error(`Erreur lors de l'upload de ${file.name}`);
-      }
-    }
-  };
-
-  // ⭐ Détection de transparence pour la bibliothèque - CORRIGÉE
-  const openAssetPicker = () => {
-    const event = new CustomEvent('openAssetPickerForCarousel', { 
-      detail: { 
-        callback: (asset: any) => {
-          const fullUrl = getImageUrl(asset.url);
-          
-          // ⭐ CRUCIAL: On NE définit PLUS backgroundColor à 'transparent'
-          const newImage = {
-            id: `slide-${Date.now()}-${Math.random()}`,
-            url: fullUrl,
-            alt: asset.name,
-            crop: { x: 0, y: 0, scale: 1 },
-            backgroundColor: null,  // ← CORRECTION: plus de 'transparent'
-            backgroundType: null,   // ← CORRECTION: plus de 'solid'
-          };
-          
-          const newImages = [...images, newImage];
-          onUpdateBlock(selectedBlock.id, { images: newImages });
-        }
-      } 
-    });
-    window.dispatchEvent(event);
-  };
-
-  const currentSolidColor = useMemo(() => {
-    if (isCanvasSelected) {
-      return customization?.backgroundColor || '#ffffff';
-    }
-    if (isBlockSelected && target === 'text') {
-      switch (selectedBlock.type) {
-        case 'text': return selectedBlock.props?.textColor || '#000000';
-        case 'title': return selectedBlock.props?.textColor || '#000000';
-        case 'banner': return selectedBlock.props?.titleColor || '#ffffff';
-        case 'screen-banner': return selectedBlock.props?.titleColor || '#ffffff';
-        case 'carousel-banner': return currentSlide?.titleColor || '#ffffff';
-        case 'button': return selectedBlock.props?.textColor || '#ffffff';
-        case 'products': return selectedBlock.props?.titleColor || '#1F2937';
-        case 'image': return selectedBlock.props?.backgroundColor || 'transparent';
-        default: return '#000000';
-      }
-    }
-    if (isBlockSelected && target === 'background') {
-      return selectedBlock.props?.backgroundColor || 
-        (selectedBlock.type === 'banner' ? '#2563EB' : 
-         selectedBlock.type === 'screen-banner' ? '#1e1e2f' :
-         selectedBlock.type === 'carousel-banner' ? currentSlide?.backgroundColor || '#1e1e2f' :
-         selectedBlock.type === 'button' ? '#2563EB' : 
-         selectedBlock.type === 'image' ? 'transparent' : '#ffffff');
-    }
-    return '#000000';
-  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization, currentSlide]);
-
-  const currentGradient = useMemo(() => {
-    if (isCanvasSelected) {
-      return customization?.backgroundValue;
-    }
-    if (isBlockSelected && target === 'text') {
-      switch (selectedBlock.type) {
-        case 'text': return selectedBlock.props?.textGradient;
-        case 'title': return selectedBlock.props?.textGradient;
-        case 'banner': return selectedBlock.props?.titleGradient;
-        case 'screen-banner': return selectedBlock.props?.titleGradient;
-        case 'carousel-banner': return currentSlide?.titleGradient || null;
-        case 'button': return selectedBlock.props?.textGradient;
-        case 'products': return selectedBlock.props?.titleGradient;
-        default: return null;
-      }
-    }
-    if (isBlockSelected && target === 'background') {
-      return selectedBlock.props?.backgroundValue || currentSlide?.backgroundValue;
-    }
-    return null;
-  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization, currentSlide]);
-
-  const isGradientActive = currentGradient !== null && currentGradient !== undefined;
-
-  const currentBackgroundOpacity = useMemo(() => {
-    if (isCanvasSelected) {
-      return customization?.backgroundOpacity !== undefined ? customization.backgroundOpacity : 100;
-    }
-    if (isBlockSelected && target === 'background') {
-      return selectedBlock.props?.opacity !== undefined ? selectedBlock.props.opacity : 100;
-    }
-    return 100;
-  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization]);
-
-  const handleBackgroundOpacityChange = useCallback((opacity: number) => {
-    if (isCanvasSelected) {
-      onUpdateCustomization({ backgroundOpacity: opacity });
-    } else if (isBlockSelected && target === 'background') {
-      onUpdateBlock(selectedBlock.id, { opacity });
-    }
-  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
-
-  const getTitle = () => {
-    if (isCanvasSelected) return 'Fond du canvas';
-    if (target === 'text') return `Couleur du texte (${selectedBlock?.type})`;
-    if (target === 'background') return `Couleur de fond (${selectedBlock?.type})`;
-    return 'Couleurs';
-  };
-
-  const displayedColors = showExtendedColors ? QUICK_COLORS : QUICK_COLORS.slice(0, 12);
-
-  if (!isCanvasSelected && !isBlockSelected) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-400 text-xs">Sélectionnez un élément pour modifier ses couleurs</p>
-      </div>
-    );
-  }
-
-  // ⭐ RENDU COMMUN POUR TOUS LES CAS (couleurs unies)
-  const renderSolidColors = () => (
-    <div className="space-y-3">
-      <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700">
+      {/* Aperçu + hex input */}
+      <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700">
         <div className="flex items-center gap-2">
           <div
+            ref={swatchRef}
             className="w-8 h-8 rounded-lg border-2 border-gray-600 shadow-md cursor-pointer flex-shrink-0"
-            style={{ backgroundColor: currentSolidColor === 'transparent' ? '#e5e7eb' : currentSolidColor }}
-            onClick={(e) => {
-              const rect = (e.target as HTMLElement).getBoundingClientRect();
-              const input = document.createElement('input');
-              input.type = 'color';
-              input.value = currentSolidColor === 'transparent' ? '#ffffff' : currentSolidColor;
-              input.style.position = 'fixed';
-              input.style.left = `${rect.left}px`;
-              input.style.top = `${rect.bottom + 10}px`;
-              input.style.width = '0';
-              input.style.height = '0';
-              input.style.opacity = '0';
-              input.style.pointerEvents = 'none';
-              document.body.appendChild(input);
-              input.addEventListener('input', (event) => {
-                applySolidColor((event.target as HTMLInputElement).value);
-              });
-              input.addEventListener('blur', () => {
-                document.body.removeChild(input);
-              });
-              input.click();
-            }}
+            style={{ backgroundColor: currentColor === 'transparent' ? '#e5e7eb' : currentColor }}
+            onClick={(e) =>
+              openNativeColorPicker(e.currentTarget, currentColor, onApply)
+            }
           />
           <input
             type="text"
-            value={currentSolidColor === 'transparent' ? 'transparent' : currentSolidColor}
+            value={currentColor === 'transparent' ? 'transparent' : currentColor}
             onChange={(e) => {
-              const val = e.target.value;
-              if (val === 'transparent') {
-                applySolidColor('transparent');
-              } else if (val.match(/^#[0-9A-Fa-f]{6}$/)) {
-                applySolidColor(val);
-              }
+              const v = e.target.value;
+              if (v === 'transparent' || v.match(/^#[0-9A-Fa-f]{6}$/)) onApply(v);
             }}
             className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs font-mono"
             placeholder="#000000"
           />
           <button
-            onClick={() => applySolidColor('transparent')}
+            onClick={() => onApply('transparent')}
             className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-xs text-gray-300"
             title="Transparent"
           >
@@ -537,319 +104,570 @@ export default function ColorsPanel({
         </div>
       </div>
 
-      <div className="flex justify-end mb-1">
+      {/* Toggle +48 couleurs */}
+      <div className="flex justify-end">
         <button
-          onClick={() => setShowExtendedColors(!showExtendedColors)}
+          onClick={() => setShowAll(!showAll)}
           className="text-xs text-primary hover:text-primary/80 transition-colors"
         >
-          {showExtendedColors ? 'Voir moins' : 'Voir plus (+' + (QUICK_COLORS.length - 12) + ')'}
+          {showAll ? 'Voir moins' : `Voir plus (+${QUICK_COLORS.length - 12})`}
         </button>
       </div>
+
+      {/* Grille de couleurs */}
       <div className="grid grid-cols-6 gap-1.5">
-        {displayedColors.map((color: string) => (
+        {displayed.map((color) => (
           <button
             key={color}
             className="w-7 h-7 rounded-lg border border-gray-600 hover:scale-110 transition-transform shadow-sm"
             style={{ backgroundColor: color }}
-            onClick={() => applySolidColor(color)}
+            onClick={() => onApply(color)}
             title={color}
           />
         ))}
       </div>
-      
-      {isGradientActive && <p className="text-xs text-green-400 mt-2">✓ Dégradé actif - cliquez sur une couleur unie pour le remplacer</p>}
+
+      {showGradientHint && (
+        <p className="text-xs text-green-400">
+          ✓ Dégradé actif — cliquez une couleur pour le remplacer
+        </p>
+      )}
     </div>
   );
+}
 
-  // ⭐ POUR LE BLOC BANNER - FOND (avec carrousel)
-  if (isBanner && target === 'background') {
-    return (
-      <div className="space-y-3">
-        <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
+// ── Sous-composant : sélecteur de dégradé ───────────────────────────────────
+function GradientPicker({
+  currentGradient,
+  onApply,
+  opacity,
+  onOpacityChange,
+  overlayOpacity,
+  onOverlayOpacityChange,
+  showOverlay = false,
+}: {
+  currentGradient: string | null;
+  onApply: (gradient: string) => void;
+  opacity?: number;
+  onOpacityChange?: (v: number) => void;
+  overlayOpacity?: number;
+  onOverlayOpacityChange?: (v: number) => void;
+  showOverlay?: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        {GRADIENTS.map((grad) => (
+          <button
+            key={grad.value}
+            onClick={() => onApply(grad.value)}
+            className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
+              currentGradient === grad.value
+                ? 'border-primary ring-2 ring-primary/50'
+                : 'border-gray-600'
+            }`}
+            style={{ background: grad.value }}
+            title={grad.name}
+          >
+            <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
+          </button>
+        ))}
+      </div>
 
-        <div className="flex gap-2 border-b border-gray-700 pb-2">
-          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
-          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
-          <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎠 Carrousel</button>
+      {!currentGradient && (
+        <p className="text-xs text-blue-400">
+          ✓ Couleur unie active — cliquez un dégradé pour l'appliquer
+        </p>
+      )}
+
+      {opacity !== undefined && onOpacityChange && (
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Opacité du fond : {opacity}%</label>
+          <input
+            type="range" min="0" max="100" value={opacity}
+            onChange={(e) => onOpacityChange(parseInt(e.target.value))}
+            className="w-full"
+          />
         </div>
+      )}
 
-        {activeTab === 'solid' && renderSolidColors()}
+      {showOverlay && overlayOpacity !== undefined && onOverlayOpacityChange && (
+        <div>
+          <label className="text-xs text-gray-400 block mb-1">Opacité overlay : {overlayOpacity}%</label>
+          <input
+            type="range" min="0" max="100" value={overlayOpacity}
+            onChange={(e) => onOverlayOpacityChange(parseInt(e.target.value))}
+            className="w-full"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
-        {activeTab === 'gradient' && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
-              <div className="grid grid-cols-2 gap-2">
-                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => applyGradient(grad.value)}
-                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
-                      isGradientActive && currentGradient === grad.value
-                        ? 'border-primary ring-2 ring-primary/50'
-                        : 'border-gray-600'
-                    }`}
-                    style={{ background: grad.value }}
-                    title={grad.name}
-                  >
-                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
-                  </button>
-                ))}
-              </div>
-              {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 30}%</label>
-              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 30} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
-            </div>
+// ── Sous-composant : image de fond ──────────────────────────────────────────
+function BackgroundImagePicker({
+  currentImage,
+  currentOpacity,
+  onImageChange,
+  onOpacityChange,
+  shopId,
+}: {
+  currentImage: string | null;
+  currentOpacity: number;
+  onImageChange: (url: string | null) => void;
+  onOpacityChange: (v: number) => void;
+  shopId?: number;
+}) {
+  const handleUpload = async (files: FileList) => {
+    if (!shopId) { toast.error('shopId manquant'); return; }
+    for (const file of Array.from(files)) {
+      try {
+        const asset = await assetsService.uploadAsset(shopId, file, 'image', 'slide-bg');
+        onImageChange(getImageUrl(asset.url));
+        toast.success(`Image uploadée : ${asset.name}`);
+      } catch {
+        toast.error(`Erreur upload`);
+      }
+    }
+  };
+
+  const openAssetPicker = () => {
+    const ev = new CustomEvent('openAssetPickerForCarousel', {
+      detail: {
+        callback: (asset: any) => onImageChange(getImageUrl(asset.url)),
+      },
+    });
+    window.dispatchEvent(ev);
+  };
+
+  return (
+    <div className="space-y-3">
+      {currentImage ? (
+        <div className="relative rounded-lg overflow-hidden border border-gray-600">
+          <img src={currentImage} alt="" className="w-full h-24 object-cover" />
+          <button
+            onClick={() => onImageChange(null)}
+            className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-500"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <div className="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center">
+          <FiUpload className="mx-auto text-gray-400 mb-2" size={22} />
+          <p className="text-xs text-gray-400 mb-3">Image de fond de la slide</p>
+          <div className="flex gap-2 justify-center">
+            <label className="cursor-pointer bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded transition-colors">
+              📁 Mon ordinateur
+              <input
+                type="file" className="hidden" accept="image/*"
+                onChange={(e) => e.target.files && handleUpload(e.target.files)}
+              />
+            </label>
+            <button
+              onClick={openAssetPicker}
+              className="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded transition-colors"
+            >
+              📚 Bibliothèque
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {activeTab === 'carousel' && renderCarouselContent()}
+      <div>
+        <label className="text-xs text-gray-400 block mb-1">
+          Opacité de l'image : {currentOpacity}%
+        </label>
+        <input
+          type="range" min="10" max="100" value={currentOpacity}
+          onChange={(e) => onOpacityChange(parseInt(e.target.value))}
+          className="w-full"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Composant principal ──────────────────────────────────────────────────────
+export default function ColorsPanel({
+  selectedBlock,
+  isBackgroundSelected,
+  customization,
+  onUpdateBlock,
+  onUpdateCustomization,
+  selectedTarget = 'text',
+  shopId,
+  onAddSlide,
+}: Props) {
+  const [activeTab, setActiveTab] = useState<'solid' | 'gradient' | 'image'>('solid');
+
+  const isCanvasSelected = isBackgroundSelected;
+  const isBlockSelected  = !isCanvasSelected && selectedBlock !== null;
+  const target           = selectedTarget;
+
+  const isCarouselSlide  = selectedBlock?.type === 'carousel-slide';
+  const isBanner         = selectedBlock?.type === 'banner';
+  const isScreenBanner   = selectedBlock?.type === 'screen-banner';
+
+  // ── Helpers génériques ────────────────────────────────────────────────────
+  const applySolidColor = useCallback((color: string) => {
+    if (isCanvasSelected) {
+      onUpdateCustomization({ backgroundColor: color, backgroundType: 'solid', backgroundValue: null });
+    } else if (isBlockSelected) {
+      if (target === 'text') {
+        const updates: Record<string, any> = {};
+        switch (selectedBlock.type) {
+          case 'text':    case 'title':  updates.textColor  = color; updates.textGradient  = null; break;
+          case 'banner':  case 'screen-banner': updates.titleColor = color; updates.titleGradient = null; break;
+          case 'button':  updates.textColor = color; updates.textGradient = null; break;
+          case 'products': updates.titleColor = color; updates.titleGradient = null; break;
+          default:        updates.textColor = color;
+        }
+        onUpdateBlock(selectedBlock.id, updates);
+      } else {
+        onUpdateBlock(selectedBlock.id, { backgroundColor: color, backgroundType: 'solid', backgroundValue: null });
+      }
+    }
+  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
+
+  const applyGradient = useCallback((gradient: string) => {
+    if (isCanvasSelected) {
+      onUpdateCustomization({ backgroundType: 'gradient', backgroundValue: gradient, backgroundColor: null });
+    } else if (isBlockSelected) {
+      if (target === 'text') {
+        const updates: Record<string, any> = {};
+        switch (selectedBlock.type) {
+          case 'text':   case 'title':  updates.textGradient = gradient; updates.textColor = null; break;
+          case 'banner': case 'screen-banner': updates.titleGradient = gradient; updates.titleColor = null; break;
+          case 'button': updates.textGradient = gradient; updates.textColor = null; break;
+          case 'products': updates.titleGradient = gradient; updates.titleColor = null; break;
+          default: updates.textGradient = gradient;
+        }
+        onUpdateBlock(selectedBlock.id, updates);
+      } else {
+        onUpdateBlock(selectedBlock.id, { backgroundType: 'gradient', backgroundValue: gradient, backgroundColor: null });
+      }
+    }
+  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, onUpdateBlock, onUpdateCustomization]);
+
+  // ── Couleur / dégradé courant ─────────────────────────────────────────────
+  const currentSolidColor = useMemo(() => {
+    if (isCanvasSelected) return customization?.backgroundColor || '#ffffff';
+    if (!isBlockSelected) return '#000000';
+    if (target === 'text') {
+      switch (selectedBlock.type) {
+        case 'text': case 'title': return selectedBlock.props?.textColor || '#000000';
+        case 'banner': case 'screen-banner': return selectedBlock.props?.titleColor || '#ffffff';
+        case 'button': return selectedBlock.props?.textColor || '#ffffff';
+        case 'products': return selectedBlock.props?.titleColor || '#1F2937';
+        default: return '#000000';
+      }
+    }
+    // background
+    return selectedBlock.props?.backgroundColor || '#ffffff';
+  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization]);
+
+  const currentGradient = useMemo(() => {
+    if (isCanvasSelected) return customization?.backgroundValue || null;
+    if (!isBlockSelected) return null;
+    if (target === 'text') {
+      switch (selectedBlock.type) {
+        case 'text': case 'title': return selectedBlock.props?.textGradient || null;
+        case 'banner': case 'screen-banner': return selectedBlock.props?.titleGradient || null;
+        case 'button': return selectedBlock.props?.textGradient || null;
+        case 'products': return selectedBlock.props?.titleGradient || null;
+        default: return null;
+      }
+    }
+    return selectedBlock.props?.backgroundValue || null;
+  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization]);
+
+  const currentOpacity = useMemo(() => {
+    if (isCanvasSelected) return customization?.backgroundOpacity ?? 100;
+    if (isBlockSelected && target === 'background') return selectedBlock.props?.opacity ?? 100;
+    return 100;
+  }, [isCanvasSelected, isBlockSelected, target, selectedBlock, customization]);
+
+  const isGradientActive = !!currentGradient;
+
+  const getTitle = () => {
+    if (isCanvasSelected) return 'Fond du canvas';
+    if (isCarouselSlide) return '🎠 Fond de la slide';
+    if (target === 'text') return `Couleur du texte (${selectedBlock?.type})`;
+    return `Couleur de fond (${selectedBlock?.type})`;
+  };
+
+  // ── Cas : rien de sélectionné ────────────────────────────────────────────
+  if (!isCanvasSelected && !isBlockSelected) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-400 text-xs">Sélectionnez un élément pour modifier ses couleurs</p>
       </div>
     );
   }
 
-  // ⭐ POUR LE BLOC SCREEN-BANNER - FOND (avec carrousel)
-  if (isScreenBanner && target === 'background') {
+  // ════════════════════════════════════════════════════════════════════════════
+  // CAS SPÉCIAL : carousel-slide — fond uniquement
+  // ════════════════════════════════════════════════════════════════════════════
+  if (isCarouselSlide) {
+    const slideProps = selectedBlock.props || {};
+    // ✅ Récupère l'ID du carousel parent pour le bouton "Ajouter une slide"
+    const parentCarouselId = selectedBlock.parentId;
+
+    const applySlideColor = (color: string) => {
+      onUpdateBlock(selectedBlock.id, {
+        backgroundColor: color,
+        backgroundType: 'solid',
+        backgroundValue: null,
+      });
+    };
+
+    const applySlideGradient = (gradient: string) => {
+      onUpdateBlock(selectedBlock.id, {
+        backgroundType: 'gradient',
+        backgroundValue: gradient,
+        backgroundColor: null,
+      });
+    };
+
+    const applySlideImage = (url: string | null) => {
+      onUpdateBlock(selectedBlock.id, { backgroundImage: url });
+    };
+
+    const slideColor    = slideProps.backgroundColor || '#1a1a2e';
+    const slideGradient = slideProps.backgroundValue || null;
+
     return (
       <div className="space-y-3">
-        <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
-
-        <div className="flex gap-2 border-b border-gray-700 pb-2">
-          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
-          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
-          <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎠 Carrousel</button>
+        <div className="flex items-center justify-between">
+          <h3 className="text-white font-semibold text-sm">🎠 Fond de la slide</h3>
+          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
+            carousel-slide
+          </span>
         </div>
 
-        {activeTab === 'solid' && renderSolidColors()}
-
-        {activeTab === 'gradient' && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
-              <div className="grid grid-cols-2 gap-2">
-                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => applyGradient(grad.value)}
-                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
-                      isGradientActive && currentGradient === grad.value
-                        ? 'border-primary ring-2 ring-primary/50'
-                        : 'border-gray-600'
-                    }`}
-                    style={{ background: grad.value }}
-                    title={grad.name}
-                  >
-                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
-                  </button>
-                ))}
-              </div>
-              {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité du fond: {currentBackgroundOpacity}%</label>
-              <input type="range" min="0" max="100" value={currentBackgroundOpacity} onChange={(e) => handleBackgroundOpacityChange(parseInt(e.target.value))} className="w-full" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {selectedBlock.props?.overlayOpacity || 20}%</label>
-              <input type="range" min="0" max="100" value={selectedBlock.props?.overlayOpacity || 20} onChange={(e) => onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })} className="w-full" />
-            </div>
-          </div>
+        {/* ✅ BOUTON AJOUTER UNE SLIDE */}
+        {onAddSlide && parentCarouselId && (
+          <button
+            onClick={() => onAddSlide(parentCarouselId)}
+            className="w-full py-1.5 bg-primary/20 hover:bg-primary/40 border border-primary/50 text-primary text-xs rounded-lg transition-colors flex items-center justify-center gap-1"
+          >
+            <FiPlus size={12} /> Ajouter une slide
+          </button>
         )}
 
-        {activeTab === 'carousel' && renderCarouselContent()}
+        <p className="text-xs text-gray-400">
+          Définissez le fond de cette slide. Ajoutez vos contenus (titre, texte, image…)
+          directement en glissant des blocs dans la slide via le panneau de calques.
+        </p>
 
-        <div className="border-t border-gray-700 pt-3 mt-2 space-y-3">
-          <h4 className="text-white text-xs font-semibold">🖼️ Bordure</h4>
-          
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Épaisseur: {selectedBlock.props?.borderWidth || 4}px</label>
-            <input type="range" min="0" max="20" value={selectedBlock.props?.borderWidth || 4} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderWidth: parseInt(e.target.value) })} className="w-full" />
-          </div>
-          
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Couleur de la bordure</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={selectedBlock.props?.borderColor || '#ffffff'} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })} className="w-8 h-8 rounded border-0 cursor-pointer" />
-              <input type="text" value={selectedBlock.props?.borderColor || '#ffffff'} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
-            </div>
-          </div>
-          
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Style de bordure</label>
-            <select value={selectedBlock.props?.borderStyle || 'solid'} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderStyle: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">
-              <option value="solid">Plein (solid)</option>
-              <option value="dashed">Tirets (dashed)</option>
-              <option value="dotted">Points (dotted)</option>
-              <option value="double">Double (double)</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="text-xs text-gray-400 block mb-1">Arrondi: {selectedBlock.props?.borderRadius || 16}px</label>
-            <input type="range" min="0" max="50" value={selectedBlock.props?.borderRadius || 16} onChange={(e) => onUpdateBlock(selectedBlock.id, { borderRadius: parseInt(e.target.value) })} className="w-full" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ⭐ POUR LE BLOC CARROUSEL-BANNER - FOND
-  if (isCarouselBanner && target === 'background') {
-    return (
-      <div className="space-y-3">
-        <div className="flex justify-between items-center">
-          <h3 className="text-white font-semibold text-sm">🎨 Fond du carrousel</h3>
-          <span className="text-xs text-gray-500">Slide {currentSlideIndexRef.current + 1}/{selectedBlock?.props?.images?.length || 0}</span>
-        </div>
-        
-        <p className="text-xs text-gray-400 mb-2">Chaque slide a son propre fond indépendant</p>
-
-        <div className="flex gap-2 border-b border-gray-700 pb-2">
-          <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Fond unie</button>
-          <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
-          <button onClick={() => setActiveTab('carousel')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'carousel' ? 'bg-primary text-white' : 'text-gray-400'}`}>🖼️ Images</button>
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-gray-700 pb-2">
+          {(['solid', 'gradient', 'image'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-1 text-xs rounded transition-colors ${
+                activeTab === tab ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {tab === 'solid' ? '🎨 Couleur' : tab === 'gradient' ? '🌈 Dégradé' : '🖼️ Image'}
+            </button>
+          ))}
         </div>
 
         {activeTab === 'solid' && (
-          <div className="space-y-3">
-            <div className="mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700">
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-8 h-8 rounded-lg border-2 border-gray-600 shadow-md cursor-pointer flex-shrink-0"
-                  style={{ backgroundColor: currentSlide?.backgroundColor || '#1a1a2e' }}
-                  onClick={(e) => {
-                    const rect = (e.target as HTMLElement).getBoundingClientRect();
-                    const input = document.createElement('input');
-                    input.type = 'color';
-                    input.value = currentSlide?.backgroundColor || '#1a1a2e';
-                    input.style.position = 'fixed';
-                    input.style.left = `${rect.left}px`;
-                    input.style.top = `${rect.bottom + 10}px`;
-                    input.style.width = '0';
-                    input.style.height = '0';
-                    input.style.opacity = '0';
-                    input.style.pointerEvents = 'none';
-                    document.body.appendChild(input);
-                    input.addEventListener('input', (event) => {
-                      applySolidColorToSlide((event.target as HTMLInputElement).value);
-                    });
-                    input.addEventListener('blur', () => {
-                      document.body.removeChild(input);
-                    });
-                    input.click();
-                  }}
-                />
-                <input
-                  type="text"
-                  value={currentSlide?.backgroundColor || '#1a1a2e'}
-                  onChange={(e) => applySolidColorToSlide(e.target.value)}
-                  className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-2 py-1.5 text-white text-xs font-mono"
-                  placeholder="#1a1a2e"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end mb-1">
-              <button
-                onClick={() => setShowExtendedColors(!showExtendedColors)}
-                className="text-xs text-primary hover:text-primary/80 transition-colors"
-              >
-                {showExtendedColors ? 'Voir moins' : 'Voir plus (+' + (QUICK_COLORS.length - 12) + ')'}
-              </button>
-            </div>
-            <div className="grid grid-cols-6 gap-1.5">
-              {displayedColors.map((color: string) => (
-                <button
-                  key={color}
-                  className="w-7 h-7 rounded-lg border border-gray-600 hover:scale-110 transition-transform shadow-sm"
-                  style={{ backgroundColor: color }}
-                  onClick={() => applySolidColorToSlide(color)}
-                  title={color}
-                />
-              ))}
-            </div>
-          </div>
+          <SolidColorPicker
+            currentColor={slideColor}
+            onApply={applySlideColor}
+            showGradientHint={!!slideGradient}
+          />
         )}
 
         {activeTab === 'gradient' && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-gray-400 block mb-2">Dégradés pour cette slide</label>
-              <div className="grid grid-cols-2 gap-2">
-                {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
-                  <button
-                    key={idx}
-                    onClick={() => applyGradientToSlide(grad.value)}
-                    className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${
-                      currentSlide?.backgroundValue === grad.value
-                        ? 'border-primary ring-2 ring-primary/50'
-                        : 'border-gray-600'
-                    }`}
-                    style={{ background: grad.value }}
-                    title={grad.name}
-                  >
-                    <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Opacité overlay: {currentSlide?.overlayOpacity || 30}%</label>
-              <input type="range" min="0" max="100" value={currentSlide?.overlayOpacity || 30} onChange={(e) => updateCurrentSlide({ overlayOpacity: parseInt(e.target.value) })} className="w-full" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Couleur overlay</label>
-              <div className="flex items-center gap-2">
-                <input type="color" value={currentSlide?.overlayColor || '#000000'} onChange={(e) => updateCurrentSlide({ overlayColor: e.target.value })} className="w-8 h-8 rounded border-0 cursor-pointer" />
-                <input type="text" value={currentSlide?.overlayColor || '#000000'} onChange={(e) => updateCurrentSlide({ overlayColor: e.target.value })} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" />
-              </div>
-            </div>
-          </div>
+          <GradientPicker
+            currentGradient={slideGradient}
+            onApply={applySlideGradient}
+            showOverlay
+            overlayOpacity={slideProps.overlayOpacity ?? 0}
+            onOverlayOpacityChange={(v) => onUpdateBlock(selectedBlock.id, { overlayOpacity: v })}
+          />
         )}
 
-        {activeTab === 'carousel' && renderCarouselContent()}
+        {activeTab === 'image' && (
+          <>
+            <BackgroundImagePicker
+              currentImage={slideProps.backgroundImage || null}
+              currentOpacity={slideProps.backgroundImageOpacity ?? 100}
+              onImageChange={applySlideImage}
+              onOpacityChange={(v) => onUpdateBlock(selectedBlock.id, { backgroundImageOpacity: v })}
+              shopId={shopId}
+            />
+            {slideProps.backgroundImage && (
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">
+                  Overlay : {slideProps.overlayOpacity ?? 0}%
+                </label>
+                <input
+                  type="range" min="0" max="100"
+                  value={slideProps.overlayOpacity ?? 0}
+                  onChange={(e) =>
+                    onUpdateBlock(selectedBlock.id, { overlayOpacity: parseInt(e.target.value) })
+                  }
+                  className="w-full"
+                />
+              </div>
+            )}
+          </>
+        )}
       </div>
     );
   }
 
-  // ⭐ RENDU NORMAL (pour le texte des carrousels et autres)
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-between items-center">
+  // ════════════════════════════════════════════════════════════════════════════
+  // CAS BANNER / SCREEN-BANNER (fond uniquement, sans carrousel interne)
+  // ════════════════════════════════════════════════════════════════════════════
+  if ((isBanner || isScreenBanner) && target === 'background') {
+    return (
+      <div className="space-y-3">
         <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
-        {isCarouselBanner && target === 'text' && (
-          <span className="text-xs text-gray-500">Slide {currentSlideIndexRef.current + 1}</span>
+
+        <div className="flex gap-1 border-b border-gray-700 pb-2">
+          {(['solid', 'gradient'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab as any)}
+              className={`flex-1 py-1 text-xs rounded transition-colors ${
+                activeTab === tab ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              {tab === 'solid' ? '🎨 Couleur unie' : '🌈 Dégradé'}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'solid' && (
+          <SolidColorPicker
+            currentColor={currentSolidColor}
+            onApply={applySolidColor}
+            showGradientHint={isGradientActive}
+          />
+        )}
+
+        {activeTab === 'gradient' && (
+          <GradientPicker
+            currentGradient={currentGradient}
+            onApply={applyGradient}
+            opacity={currentOpacity}
+            onOpacityChange={(v) => {
+              if (isCanvasSelected) onUpdateCustomization({ backgroundOpacity: v });
+              else onUpdateBlock(selectedBlock.id, { opacity: v });
+            }}
+            showOverlay
+            overlayOpacity={selectedBlock?.props?.overlayOpacity ?? 30}
+            onOverlayOpacityChange={(v) => onUpdateBlock(selectedBlock.id, { overlayOpacity: v })}
+          />
+        )}
+
+        {/* Options spécifiques screen-banner */}
+        {isScreenBanner && (
+          <div className="border-t border-gray-700 pt-3 space-y-3">
+            <h4 className="text-white text-xs font-semibold">🖼️ Bordure</h4>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">
+                Épaisseur : {selectedBlock.props?.borderWidth || 4}px
+              </label>
+              <input type="range" min="0" max="20"
+                value={selectedBlock.props?.borderWidth || 4}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { borderWidth: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Couleur de la bordure</label>
+              <div className="flex items-center gap-2">
+                <input type="color" value={selectedBlock.props?.borderColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input type="text" value={selectedBlock.props?.borderColor || '#ffffff'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { borderColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Style de bordure</label>
+              <select value={selectedBlock.props?.borderStyle || 'solid'}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { borderStyle: e.target.value })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+              >
+                <option value="solid">Plein (solid)</option>
+                <option value="dashed">Tirets (dashed)</option>
+                <option value="dotted">Points (dotted)</option>
+                <option value="double">Double</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">
+                Arrondi : {selectedBlock.props?.borderRadius || 16}px
+              </label>
+              <input type="range" min="0" max="50"
+                value={selectedBlock.props?.borderRadius || 16}
+                onChange={(e) => onUpdateBlock(selectedBlock.id, { borderRadius: parseInt(e.target.value) })}
+                className="w-full"
+              />
+            </div>
+          </div>
         )}
       </div>
+    );
+  }
 
-      <div className="flex gap-2 border-b border-gray-700 pb-2">
-        <button onClick={() => setActiveTab('solid')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'solid' ? 'bg-primary text-white' : 'text-gray-400'}`}>🎨 Couleur unie</button>
-        <button onClick={() => setActiveTab('gradient')} className={`flex-1 py-1 text-xs rounded ${activeTab === 'gradient' ? 'bg-primary text-white' : 'text-gray-400'}`}>🌈 Dégradé</button>
+  // ════════════════════════════════════════════════════════════════════════════
+  // CAS GÉNÉRAL (texte, titre, bouton, canvas, fond bloc quelconque)
+  // ════════════════════════════════════════════════════════════════════════════
+  return (
+    <div className="space-y-3">
+      <h3 className="text-white font-semibold text-sm">{getTitle()}</h3>
+
+      <div className="flex gap-1 border-b border-gray-700 pb-2">
+        {(['solid', 'gradient'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab as any)}
+            className={`flex-1 py-1 text-xs rounded transition-colors ${
+              activeTab === tab ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {tab === 'solid' ? '🎨 Couleur unie' : '🌈 Dégradé'}
+          </button>
+        ))}
       </div>
 
-      {activeTab === 'solid' && renderSolidColors()}
+      {activeTab === 'solid' && (
+        <SolidColorPicker
+          currentColor={currentSolidColor}
+          onApply={applySolidColor}
+          showGradientHint={isGradientActive}
+        />
+      )}
 
       {activeTab === 'gradient' && (
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs text-gray-400 block mb-2">Dégradés</label>
-            <div className="grid grid-cols-2 gap-2">
-              {GRADIENTS.map((grad: { name: string; value: string }, idx: number) => (
-                <button key={idx} onClick={() => applyGradient(grad.value)} className={`h-10 rounded-lg border-2 transition-all hover:scale-105 ${isGradientActive && currentGradient === grad.value ? 'border-primary ring-2 ring-primary/50' : 'border-gray-600'}`} style={{ background: grad.value }} title={grad.name}>
-                  <span className="text-white text-xs font-medium drop-shadow-md">{grad.name}</span>
-                </button>
-              ))}
-            </div>
-            {!isGradientActive && <p className="text-xs text-blue-400 mt-2">✓ Couleur unie active - cliquez sur un dégradé pour le remplacer</p>}
-            <button onClick={() => applySolidColor(currentSolidColor)} className="w-full mt-2 text-xs text-gray-400 hover:text-white">Réinitialiser</button>
-          </div>
-        </div>
+        <GradientPicker
+          currentGradient={currentGradient}
+          onApply={applyGradient}
+          opacity={target === 'background' ? currentOpacity : undefined}
+          onOpacityChange={
+            target === 'background'
+              ? (v) => {
+                  if (isCanvasSelected) onUpdateCustomization({ backgroundOpacity: v });
+                  else onUpdateBlock(selectedBlock.id, { opacity: v });
+                }
+              : undefined
+          }
+        />
       )}
     </div>
   );

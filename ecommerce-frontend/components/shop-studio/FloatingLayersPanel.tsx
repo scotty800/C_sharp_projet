@@ -169,7 +169,6 @@ const GroupItem = ({
           setDragOverPosition(null);
         }}
       >
-        {/* ⭐ FIX: stopPropagation sur mousedown pour ne pas déclencher le drag du panneau */}
         <div
           draggable={true}
           onDragStart={(e) => handleDragStart(e, groupId)}
@@ -366,9 +365,11 @@ const LayerItem = ({
   const isSelected = selectedLayerId === layer.id;
   const isChecked = selectedLayers.has(layer.id);
   const isInternal = layer.isInternal === true;
-  const canHaveChildren = ['banner', 'screen-banner', 'carousel-banner', 'section'].includes(layer.type);
+  const isCarouselSlide = layer.type === 'carousel-slide';
+  const canHaveChildren = ['banner', 'screen-banner', 'carousel-banner', 'section', 'carousel-slide'].includes(layer.type);
   const children = layer.children || [];
 
+  // ⭐ DRAG START - les carousel-slides peuvent être réordonnées
   const handleDragStart = (e: React.DragEvent, layerId: string) => {
     if (layer.locked) {
       e.preventDefault();
@@ -376,6 +377,10 @@ const LayerItem = ({
     }
     e.dataTransfer.setData('text/plain', layerId);
     e.dataTransfer.effectAllowed = 'move';
+    // Marquer si c'est une carousel-slide pour filtrer côté drop
+    if (layer.type === 'carousel-slide') {
+      e.dataTransfer.setData('slide-parent', layer.parentId || '');
+    }
   };
 
   const getBlockIcon = (type: string) => {
@@ -415,7 +420,15 @@ const LayerItem = ({
             e.preventDefault();
             e.stopPropagation();
             const draggedLayerId = e.dataTransfer.getData('text/plain');
+            const draggedSlideParent = e.dataTransfer.getData('slide-parent');
+            
             if (draggedLayerId && draggedLayerId !== layer.id && onReorderLayers && getLayerIndexInParent) {
+              // Pour les slides : réordonner uniquement au sein du même parent
+              if (isCarouselSlide && draggedSlideParent && draggedSlideParent !== layer.parentId) {
+                setDragOverTarget(null);
+                setDragOverPosition(null);
+                return;
+              }
               const targetIndex = getLayerIndexInParent(layer.id, layer.parentId, layersList);
               const draggedIndex = getLayerIndexInParent(draggedLayerId, layer.parentId, layersList);
               if (draggedIndex !== -1 && targetIndex !== -1) {
@@ -458,9 +471,17 @@ const LayerItem = ({
           e.preventDefault();
           e.stopPropagation();
           const draggedLayerId = e.dataTransfer.getData('text/plain');
+          const draggedSlideParent = e.dataTransfer.getData('slide-parent');
           
           if (draggedLayerId && draggedLayerId !== layer.id) {
-            if (layer.isGroupContainer && onAddToGroup) {
+            // Une carousel-slide peut recevoir des blocs normaux comme enfants
+            if (isCarouselSlide) {
+              // Autoriser le drop d'enfants légitimes (blocs non-slide)
+              if (!draggedSlideParent && onReparentLayer) {
+                onReparentLayer(draggedLayerId, layer.id);
+                setIsExpanded(true);
+              }
+            } else if (layer.isGroupContainer && onAddToGroup) {
               onAddToGroup(draggedLayerId, layer.id);
             } else if (onReparentLayer) {
               onReparentLayer(draggedLayerId, layer.id);
@@ -472,18 +493,19 @@ const LayerItem = ({
         }}
         onClick={(e) => { e.stopPropagation(); onSelectLayer(layer.id); }}
       >
-        {/* ⭐ FIX: stopPropagation sur mousedown pour ne pas déclencher le drag du panneau */}
+        {/* Handle de drag — TOUS les éléments non verrouillés peuvent être déplacés */}
         {!isInternal && !layer.locked && (
           <div
             draggable={true}
             onDragStart={(e) => handleDragStart(e, layer.id)}
             onMouseDown={(e) => e.stopPropagation()}
             className="mr-1 cursor-grab"
+            title="Déplacer"
           >
             <FiMove size={12} className="text-gray-500" />
           </div>
         )}
-        {isInternal && <div className="w-4 mr-1" />}
+        {isInternal && !isCarouselSlide && <div className="w-4 mr-1" />}
 
         {/* Checkbox - cachée pour les éléments groupés */}
         {!isInGroup && (
@@ -625,7 +647,15 @@ const LayerItem = ({
             e.preventDefault();
             e.stopPropagation();
             const draggedLayerId = e.dataTransfer.getData('text/plain');
+            const draggedSlideParent = e.dataTransfer.getData('slide-parent');
+            
             if (draggedLayerId && draggedLayerId !== layer.id && onReorderLayers && getLayerIndexInParent) {
+              // Pour les slides : réordonner uniquement au sein du même parent
+              if (isCarouselSlide && draggedSlideParent && draggedSlideParent !== layer.parentId) {
+                setDragOverTarget(null);
+                setDragOverPosition(null);
+                return;
+              }
               const targetIndex = getLayerIndexInParent(layer.id, layer.parentId, layersList);
               const draggedIndex = getLayerIndexInParent(draggedLayerId, layer.parentId, layersList);
               if (draggedIndex !== -1 && targetIndex !== -1) {
@@ -946,12 +976,13 @@ export default function FloatingLayersPanel({
               💡 Astuces:
               <ul className="list-disc list-inside mt-1 space-y-0.5 text-gray-400">
                 <li>📁 Les groupes sont affichés en violet</li>
+                <li>🎠 Les slides de carousel peuvent être réordonnées</li>
+                <li>➕ Utilisez le bouton + pour ajouter des blocs dans une slide</li>
+                <li>🖱️ Glissez-déposez SUR une slide pour ajouter un bloc</li>
                 <li>🖱️ Glissez-déposez SUR l'en-tête d'un groupe pour ajouter l'élément</li>
-                <li>🖱️ Glissez-déposez SUR un calque normal pour le rendre enfant</li>
                 <li>🖱️ Glissez-déposez ENTRE deux calques pour réorganiser l'ordre</li>
                 <li>🖱️ Glissez dans la zone vide pour rendre indépendant</li>
                 <li>🔒 Les calques verrouillés ne peuvent pas être déplacés</li>
-                <li>➕ Bouton + pour ajouter à l'intérieur des blocs parents</li>
                 <li>Cochez plusieurs calques → Grouper / Supprimer</li>
                 <li>👁️ Masquer/Afficher | 🔒 Verrouiller</li>
                 <li>📋 Dupliquer | 🗑️ Supprimer</li>
