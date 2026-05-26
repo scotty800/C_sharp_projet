@@ -113,7 +113,6 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
     };
   };
 
-  // ⭐ VERSION CORRIGÉE DE buildNode AVEC TRI DES ENFANTS PAR order
   const buildNode = (blockId: string): any => {
     const block = blockMap.get(blockId);
     if (!block) return null;
@@ -121,7 +120,6 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
 
     const rawChildrenIds = childrenMap.get(block.id) || [];
 
-    // ✅ FIX : trier les enfants par order avant de construire les nœuds
     const rawChildren = rawChildrenIds
       .map(id => blockMap.get(id))
       .filter((b): b is BlockUI => b !== undefined && b !== null);
@@ -158,7 +156,6 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
     };
   };
 
-  // ⭐ VERSION CORRIGÉE DE buildTree AVEC TRI DES BLOCS RACINES
   const buildTree = (): any[] => {
     const root: any[] = [];
 
@@ -167,7 +164,7 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
 
     const rootBlocks = blocks
       .filter(b => !b.parentId && !b.groupId && b.type !== 'group')
-      .sort((a, b) => (a.order || 0) - (b.order || 0)); // ✅ FIX
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
 
     rootBlocks.forEach(b => {
       const node = buildNode(b.id);
@@ -262,17 +259,13 @@ export default function StudioLayout() {
     refreshCanvas();
   }, [refreshCanvas]);
 
-  // ── reparentLayer ── VERSION CORRIGÉE pour permettre les enfants des slides ──
   const reparentLayer = useCallback((layerId: string, newParentId: string | null) => {
     setState(prev => {
       const blockToMove = prev.blocks.find(b => b.id === layerId);
       if (!blockToMove) return prev;
 
-      // ✅ Une carousel-slide ne peut jamais être déplacée hors de son carousel parent
       if (blockToMove.type === 'carousel-slide') return prev;
 
-      // ✅ Une carousel-slide PEUT avoir des enfants (titre, texte, image, etc.)
-      // On bloque seulement si on essaie de mettre une slide dans une autre slide
       if (newParentId) {
         const newParent = prev.blocks.find(b => b.id === newParentId);
         if (newParent?.type === 'carousel-slide' && blockToMove.type === 'carousel-slide') {
@@ -281,7 +274,6 @@ export default function StudioLayout() {
         }
       }
 
-      // Détection de cycle
       let current = newParentId;
       while (current) {
         const parent = prev.blocks.find(b => b.id === current);
@@ -811,7 +803,8 @@ export default function StudioLayout() {
     refreshCanvas();
   };
 
-  const updateBlockPosition = (blockId: string, position: Partial<BlockPosition>) => {
+  // ⭐ VERSION OPTIMISÉE DE updateBlockPosition - ZÉRO dépendance
+  const updateBlockPosition = useCallback((blockId: string, position: Partial<BlockPosition>) => {
     setState(prev => ({
       ...prev,
       blocks: prev.blocks.map(b =>
@@ -819,8 +812,8 @@ export default function StudioLayout() {
       ),
       isDirty: true,
     }));
-    refreshCanvas();
-  };
+    // ✅ Pas de refreshCanvas() ici pendant le drag — trop coûteux
+  }, []); // ✅ ZÉRO dépendance grâce à la forme fonctionnelle de setState
 
   const duplicateBlock = (blockId: string) => {
     const block = state.blocks.find(b => b.id === blockId);

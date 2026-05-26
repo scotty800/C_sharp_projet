@@ -36,7 +36,6 @@ interface Props {
   getGroupBounds?: (groupId: string) => { x: number; y: number; width: number; height: number } | null;
   onResizeGroupStart?: (groupId: string) => void;
   onResizeGroupEnd?: () => void;
-  // ── Carousel ──
   onAddSlide?: (carouselBlockId: string) => void;
 }
 
@@ -62,10 +61,7 @@ export default function StudioCanvas({
   onResizeGroupEnd,
   onAddSlide,
 }: Props) {
-  const [draggingBlock, setDraggingBlock] = useState<string | null>(null);
   const [resizingBlock, setResizingBlock] = useState<string | null>(null);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [originalPosition, setOriginalPosition] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [resizeDirection, setResizeDirection] = useState<string>('');
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -73,10 +69,38 @@ export default function StudioCanvas({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupBounds, setGroupBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   
+  // ⭐ Refs pour le drag (pas de state pour éviter les re-renders)
+  const draggingBlockRef = useRef<string | null>(null);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const originalPositionRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  const blocksRef = useRef(blocks);
+  
+  // ⭐ Refs pour les callbacks instables (évite de recréer handleMouseMove)
+  const onUpdateBlockPositionRef = useRef(onUpdateBlockPosition);
+  const onMoveGroupRef = useRef(onMoveGroup);
+  const isCropperOpenRef = useRef(isCropperOpen);
+  
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const dragRafId = useRef<number | null>(null);
   const resizeRafId = useRef<number | null>(null);
   const lastUpdateRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  // ✅ Garder les refs toujours à jour
+  useEffect(() => {
+    blocksRef.current = blocks;
+  }, [blocks]);
+  
+  useEffect(() => {
+    onUpdateBlockPositionRef.current = onUpdateBlockPosition;
+  }, [onUpdateBlockPosition]);
+  
+  useEffect(() => {
+    onMoveGroupRef.current = onMoveGroup;
+  }, [onMoveGroup]);
+  
+  useEffect(() => {
+    isCropperOpenRef.current = isCropperOpen;
+  }, [isCropperOpen]);
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -118,15 +142,15 @@ export default function StudioCanvas({
   }, []);
 
   const getChildren = useCallback((parentId: string) => {
-    return blocks.filter(b => b.parentId === parentId);
-  }, [blocks]);
+    return blocksRef.current.filter(b => b.parentId === parentId);
+  }, []);
 
-  // ── Helpers pour calculer les positions absolues à n'importe quelle profondeur ──
+  // ── Helpers pour calculer les positions absolues ──
   const getAbsolutePosition = useCallback((block: any): { x: number; y: number; width: number; height: number } => {
     if (!block.parentId) {
       return { x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height };
     }
-    const parent = blocks.find(b => b.id === block.parentId);
+    const parent = blocksRef.current.find(b => b.id === block.parentId);
     if (!parent) return { x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height };
     
     const parentAbs = getAbsolutePosition(parent);
@@ -136,13 +160,13 @@ export default function StudioCanvas({
       width: (block.position.width / 100) * parentAbs.width,
       height: block.position.height === 0 ? 0 : (block.position.height / 100) * parentAbs.height,
     };
-  }, [blocks]);
+  }, []);
 
   const getParentAbsolutePosition = useCallback((parentId: string): { x: number; y: number; width: number; height: number } | null => {
-    const parent = blocks.find(b => b.id === parentId);
+    const parent = blocksRef.current.find(b => b.id === parentId);
     if (!parent) return null;
     return getAbsolutePosition(parent);
-  }, [blocks, getAbsolutePosition]);
+  }, [getAbsolutePosition]);
 
   const updateGroupBounds = useCallback(() => {
     if (!selectedGroupId || !getGroupBounds) {
@@ -178,65 +202,82 @@ export default function StudioCanvas({
 
   const handleSelectBlockWithGroup = useCallback((blockId: string | null, target?: 'text' | 'background') => {
     if (blockId) {
-      const block = blocks.find(b => b.id === blockId);
+      const block = blocksRef.current.find(b => b.id === blockId);
       setSelectedGroupId(block?.groupId ?? null);
     } else {
       setSelectedGroupId(null);
     }
     onSelectBlock(blockId, target);
-  }, [blocks, onSelectBlock]);
+  }, [onSelectBlock]);
 
-  // ⭐ VERSION CORRIGÉE DE handleMouseMove avec calcul des positions absolues
+  // ⭐ VERSION OPTIMISÉE DE handleMouseMove - ZÉRO dépendance
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (draggingBlock && !isCropperOpen) {
-      if (dragRafId.current) return;
-      dragRafId.current = requestAnimationFrame(() => {
-        const block = blocks.find(b => b.id === draggingBlock);
+    if (!draggingBlockRef.current || isCropperOpenRef.current) return;
+    if (dragRafId.current) return;
 
-        if (block?.groupId && onMoveGroup) {
-          const dx = e.clientX - dragStart.x;
-          const dy = e.clientY - dragStart.y;
-          onMoveGroup(draggingBlock, dx, dy);
-          setDragStart({ x: e.clientX, y: e.clientY });
-          dragRafId.current = null;
-          return;
-        }
+    dragRafId.current = requestAnimationFrame(() => {
+      const blockId = draggingBlockRef.current;
+      if (!blockId) { dragRafId.current = null; return; }
 
-        const isChild = block?.parentId != null;
+      const currentBlocks = blocksRef.current;
+      const block = currentBlocks.find(b => b.id === blockId);
+      if (!block) { dragRafId.current = null; return; }
 
-        if (isChild && block?.parentId) {
-          // ✅ Résoudre la taille absolue du parent (quelle que soit la profondeur)
-          const parentAbs = getParentAbsolutePosition(block.parentId);
-          if (parentAbs) {
-            const cw = block.position.width || 0;
-            const ch = block.position.height || 0;
-            const newX = Math.max(0, Math.min(100 - cw, originalPosition.x + (e.clientX - dragStart.x) / parentAbs.width * 100));
-            const newY = Math.max(0, Math.min(100 - ch, originalPosition.y + (e.clientY - dragStart.y) / parentAbs.height * 100));
+      if (block.groupId && onMoveGroupRef.current) {
+        const dx = e.clientX - dragStartRef.current.x;
+        const dy = e.clientY - dragStartRef.current.y;
+        onMoveGroupRef.current(blockId, dx, dy);
+        dragStartRef.current = { x: e.clientX, y: e.clientY };
+        dragRafId.current = null;
+        return;
+      }
 
-            onUpdateBlockPosition(draggingBlock, {
-              x: newX, y: newY,
-              width: originalPosition.width,
-              height: originalPosition.height,
-            });
-          }
-        } else {
-          const newX = originalPosition.x + (e.clientX - dragStart.x);
-          const newY = originalPosition.y + (e.clientY - dragStart.y);
-          onUpdateBlockPosition(draggingBlock, {
+      if (block.parentId) {
+        const resolveAbs = (b: any): { x: number; y: number; width: number; height: number } => {
+          if (!b.parentId) return { x: b.position.x, y: b.position.y, width: b.position.width, height: b.position.height };
+          const p = blocksRef.current.find((bl: any) => bl.id === b.parentId);
+          if (!p) return { x: b.position.x, y: b.position.y, width: b.position.width, height: b.position.height };
+          const pAbs = resolveAbs(p);
+          return {
+            x: pAbs.x + (b.position.x / 100) * pAbs.width,
+            y: pAbs.y + (b.position.y / 100) * pAbs.height,
+            width: (b.position.width / 100) * pAbs.width,
+            height: b.position.height === 0 ? 0 : (b.position.height / 100) * pAbs.height,
+          };
+        };
+
+        const parent = currentBlocks.find((b: any) => b.id === block.parentId);
+        if (parent) {
+          const parentAbs = resolveAbs(parent);
+          const cw = block.position.width || 0;
+          const ch = block.position.height || 0;
+          const newX = Math.max(0, Math.min(100 - cw,
+            originalPositionRef.current.x + (e.clientX - dragStartRef.current.x) / parentAbs.width * 100
+          ));
+          const newY = Math.max(0, Math.min(100 - ch,
+            originalPositionRef.current.y + (e.clientY - dragStartRef.current.y) / parentAbs.height * 100
+          ));
+          onUpdateBlockPositionRef.current(blockId, {
             x: newX, y: newY,
-            width: originalPosition.width,
-            height: originalPosition.height,
+            width: originalPositionRef.current.width,
+            height: originalPositionRef.current.height,
           });
         }
+      } else {
+        onUpdateBlockPositionRef.current(blockId, {
+          x: originalPositionRef.current.x + (e.clientX - dragStartRef.current.x),
+          y: originalPositionRef.current.y + (e.clientY - dragStartRef.current.y),
+          width: originalPositionRef.current.width,
+          height: originalPositionRef.current.height,
+        });
+      }
 
-        dragRafId.current = null;
-      });
-    }
-  }, [draggingBlock, dragStart, originalPosition, onUpdateBlockPosition, onMoveGroup, isCropperOpen, blocks, getParentAbsolutePosition]);
+      dragRafId.current = null;
+    });
+  }, []); // ✅ ZÉRO dépendance → jamais recréé
 
-  // ⭐ VERSION CORRIGÉE DE handleResizeMove avec calcul des positions absolues
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
-    if (isCropperOpen || resizeRafId.current) return;
+    if (isCropperOpenRef.current || resizeRafId.current) return;
     resizeRafId.current = requestAnimationFrame(() => {
       const dx = e.clientX - startData.startX;
       const dy = e.clientY - startData.startY;
@@ -244,11 +285,10 @@ export default function StudioCanvas({
       let newX = startData.startXpos, newY = startData.startYpos;
       const MIN_PERCENT = 5, MIN_PX = 20;
 
-      const block = blocks.find(b => b.id === blockId);
+      const block = blocksRef.current.find(b => b.id === blockId);
       const isChild = block?.parentId != null;
 
       if (isChild && block?.parentId) {
-        // ✅ Résoudre la taille absolue du parent à n'importe quelle profondeur
         const parentAbs = getParentAbsolutePosition(block.parentId);
         if (parentAbs) {
           const pW = parentAbs.width, pH = parentAbs.height;
@@ -284,34 +324,32 @@ export default function StudioCanvas({
       const last = lastUpdateRef.current;
       if (!last || Math.abs(newX-last.x)>0.5 || Math.abs(newY-last.y)>0.5 || Math.abs(newWidth-last.width)>0.5 || Math.abs(newHeight-last.height)>0.5) {
         lastUpdateRef.current = { x: newX, y: newY, width: newWidth, height: newHeight };
-        onUpdateBlockPosition(blockId, { x: newX, y: newY, width: newWidth, height: newHeight });
+        onUpdateBlockPositionRef.current(blockId, { x: newX, y: newY, width: newWidth, height: newHeight });
         setResizeForceUpdate(p => p + 1);
       }
       resizeRafId.current = null;
     });
-  }, [onUpdateBlockPosition, isCropperOpen, blocks, getParentAbsolutePosition]);
+  }, [getParentAbsolutePosition]); // ✅ ne dépend que de getParentAbsolutePosition
 
+  // ⭐ handleMouseUp avec refs - ZÉRO dépendance
   const handleMouseUp = useCallback(() => {
     if (dragRafId.current) { cancelAnimationFrame(dragRafId.current); dragRafId.current = null; }
     if (resizeRafId.current) { cancelAnimationFrame(resizeRafId.current); resizeRafId.current = null; }
     lastUpdateRef.current = null;
-    setDraggingBlock(null);
+    draggingBlockRef.current = null;
     setResizingBlock(null);
     setIsResizing(false);
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-  }, [handleMouseMove]);
+  }, []); // ✅ ZÉRO dépendance → jamais recréé
 
+  // ✅ Listeners montés UNE SEULE FOIS pour toute la vie du composant
   useEffect(() => {
-    if (draggingBlock && !isCropperOpen) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [draggingBlock, handleMouseMove, handleMouseUp, isCropperOpen]);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []); // ✅ tableau vide → vraiment une seule fois
 
   const handleBlockClick = (e: React.MouseEvent, blockId: string, block: any) => {
     if (isCropperOpen) { e.stopPropagation(); return; }
@@ -336,17 +374,20 @@ export default function StudioCanvas({
     onSelectBackground();
   };
 
-  // ⭐ Les carousel-slide ne sont PAS draggables dans le canvas (elles sont fixes)
+  // ⭐ handleMouseDown avec refs (pas de state pour dragStart/originalPosition)
   const handleMouseDown = (e: React.MouseEvent, blockId: string, block: any) => {
     if (isCropperOpen) { e.stopPropagation(); return; }
-
-    // Les carousel-slide ne sont pas draggables (elles restent attachées au carousel)
     if (block.type === 'carousel-slide') return;
 
     e.stopPropagation();
-    setDraggingBlock(blockId);
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setOriginalPosition({ x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height });
+    draggingBlockRef.current = blockId;
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    originalPositionRef.current = {
+      x: block.position.x,
+      y: block.position.y,
+      width: block.position.width,
+      height: block.position.height,
+    };
   };
 
   const handleResizeStart = (e: React.MouseEvent, blockId: string, block: any, direction: string) => {
@@ -356,8 +397,7 @@ export default function StudioCanvas({
     setIsResizing(true);
     setResizingBlock(blockId);
     setResizeDirection(direction);
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setOriginalPosition({ ...block.position });
+    originalPositionRef.current = { ...block.position };
 
     const startData = {
       startX: e.clientX, startY: e.clientY,
@@ -398,7 +438,7 @@ export default function StudioCanvas({
     }
   };
 
-  // ⭐ RENDER BLOCK
+  // ⭐ RENDER BLOCK (inchangé)
   const renderBlock = useCallback((block: any, isChild: boolean = false) => {
     const isSelected = selectedBlockId === block.id;
     const isEditing = editingTextId === block.id;
