@@ -1,5 +1,5 @@
 // hooks/useGroupManager.ts
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 
 export interface BlockPosition {
   x: number;
@@ -92,7 +92,6 @@ function computeGroupBounds(groupId: string, list: BlockUI[]): Bounds | null {
 
   if (!isFinite(minX)) return null;
 
-  // ⭐ AJOUT DU PADDING INTERNE
   return {
     x: minX - INTERNAL_PADDING,
     y: minY - INTERNAL_PADDING,
@@ -142,6 +141,13 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
   const blocksRef = useRef<BlockUI[]>(blocks);
   blocksRef.current = blocks;
 
+  // ⭐ Refs pour les callbacks (évite de recréer moveGroup)
+  const setBlocksRef = useRef(setBlocks);
+  const refreshCanvasRef = useRef(refreshCanvas);
+  
+  useEffect(() => { setBlocksRef.current = setBlocks; }, [setBlocks]);
+  useEffect(() => { refreshCanvasRef.current = refreshCanvas; }, [refreshCanvas]);
+
   const snapshotRef = useRef<{
     groupId: string;
     oldBounds: Bounds;
@@ -165,7 +171,6 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
     const members = list.filter(b => layerIds.includes(b.id));
     const ids = new Set(layerIds);
 
-    // 1) Détecter si parent/enfant dans la sélection
     let mustFlatten = false;
     for (const m of members) {
       let current = m.parentId;
@@ -177,13 +182,10 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
       if (mustFlatten) break;
     }
 
-    // 2) commonParent : JAMAIS un bloc dans la sélection
     const commonParent = mustFlatten
       ? getSafeCommonParent(members, ids)
       : (members[0]?.parentId || null);
 
-    // 3) Pré-calculer les bounds absolues AVANT tout flatten
-    //    pendant que les parentId sont encore valides
     const absoluteBoundsMap = new Map<string, Bounds>();
     if (mustFlatten) {
       for (const m of members) {
@@ -191,7 +193,6 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
       }
     }
 
-    // 4) Construire la liste aplatie localement avec positions corrigées
     const flattenedList = mustFlatten
       ? list.map(b => {
           if (!ids.has(b.id)) return b;
@@ -209,7 +210,6 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
             }
           }
 
-          // Root → position absolue en px
           return {
             ...b,
             parentId: null,
@@ -227,39 +227,36 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
 
     const groupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // 5) Liste avec groupId assigné (pour computeGroupBounds)
     const listWithGroupId = flattenedList.map(b =>
       ids.has(b.id) ? { ...b, groupId } : b
     );
 
     const parentId = commonParent;
 
-    // 6) Groupe root → pas de bloc group intermédiaire
     if (!parentId) {
-      setBlocks(prev =>
+      setBlocksRef.current(prev =>
         prev.map(b => {
           if (!ids.has(b.id)) return b;
           const flattened = flattenedList.find(f => f.id === b.id)!;
           return { ...flattened, groupId };
         })
       );
-      refreshCanvas?.();
+      refreshCanvasRef.current?.();
       return groupId;
     }
 
-    // 7) Calculer la bounding box sur la liste locale (pas le ref stale)
     const bounds = computeGroupBounds(groupId, listWithGroupId);
     const parent = listWithGroupId.find(b => b.id === parentId);
 
     if (!bounds || !parent) {
-      setBlocks(prev =>
+      setBlocksRef.current(prev =>
         prev.map(b => {
           if (!ids.has(b.id)) return b;
           const flattened = flattenedList.find(f => f.id === b.id)!;
           return { ...flattened, groupId };
         })
       );
-      refreshCanvas?.();
+      refreshCanvasRef.current?.();
       return groupId;
     }
 
@@ -271,8 +268,7 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
 
     const updatedMembers = listWithGroupId.filter(b => ids.has(b.id));
 
-    // 8) Un seul setBlocks : flatten + positions corrigées + groupId + bloc group
-    setBlocks(prev => [
+    setBlocksRef.current(prev => [
       ...prev.map(b => {
         if (!ids.has(b.id)) return b;
         const flattened = flattenedList.find(f => f.id === b.id)!;
@@ -299,9 +295,9 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
       },
     ]);
 
-    refreshCanvas?.();
+    refreshCanvasRef.current?.();
     return groupId;
-  }, [setBlocks, refreshCanvas]);
+  }, []);
 
   // ───────────────────────────────────────────────────────────────
   // UNGROUP
@@ -319,12 +315,12 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
     });
 
     if (changed) {
-      setBlocks(updated.filter(b => b.id !== groupId));
-      refreshCanvas?.();
+      setBlocksRef.current(updated.filter(b => b.id !== groupId));
+      refreshCanvasRef.current?.();
     }
 
     return changed;
-  }, [setBlocks, refreshCanvas]);
+  }, []);
 
   // ───────────────────────────────────────────────────────────────
   // ADD TO GROUP
@@ -337,7 +333,6 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
     const groupMembers = list.filter(b => b.groupId === groupId);
     const ids = new Set([blockId, ...groupMembers.map(m => m.id)]);
 
-    // 1) Détecter parent/enfant
     let mustFlatten = false;
     for (const m of [...groupMembers, block]) {
       let current = m.parentId;
@@ -349,16 +344,13 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
       if (mustFlatten) break;
     }
 
-    // 2) commonParent : JAMAIS dans la sélection
     const allMembers = [...groupMembers, block];
     const commonParent = mustFlatten
       ? getSafeCommonParent(allMembers, ids)
       : (groupMembers[0]?.parentId ?? block.parentId ?? null);
 
-    // 3) Pré-calculer la position absolue du bloc AVANT flatten
     const blockAbs = resolveAbsoluteBounds(block, list);
 
-    // 4) Liste locale aplatie avec positions corrigées
     const flattenedList = mustFlatten
       ? list.map(b => {
           if (!ids.has(b.id)) return b;
@@ -403,7 +395,6 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
       relW = (blockAbs.width / parentAbs.width) * 100;
       relH = (blockAbs.height / parentAbs.height) * 100;
     } else {
-      // Groupe root → utiliser les bounds du groupe sur la liste locale
       const groupBounds = computeGroupBounds(groupId, flattenedList);
       if (groupBounds) {
         relX = ((blockAbs.x - groupBounds.x) / groupBounds.width) * 100;
@@ -413,15 +404,12 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
       }
     }
 
-    // 5) Un seul setBlocks
-    setBlocks(prev =>
+    setBlocksRef.current(prev =>
       prev.map(b => {
-        // Membres existants du groupe à aplatir si besoin
         if (mustFlatten && ids.has(b.id) && b.id !== blockId) {
           const flattened = flattenedList.find(f => f.id === b.id);
           return flattened ?? b;
         }
-        // Le bloc qu'on ajoute au groupe
         if (b.id === blockId) {
           return {
             ...b,
@@ -441,9 +429,9 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
       })
     );
 
-    refreshCanvas?.();
+    refreshCanvasRef.current?.();
     return true;
-  }, [setBlocks, refreshCanvas]);
+  }, []);
 
   // ───────────────────────────────────────────────────────────────
   // GET GROUP BOUNDS
@@ -486,7 +474,7 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
 
     const list = blocksRef.current;
 
-    setBlocks(prev =>
+    setBlocksRef.current(prev =>
       prev.map(b => {
         const s = snap.members.find(m => m.id === b.id);
         if (!s) return b;
@@ -532,14 +520,14 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
     );
 
     return true;
-  }, [setBlocks]);
+  }, []);
 
   const endGroupResize = useCallback((): void => {
     snapshotRef.current = null;
   }, []);
 
   // ───────────────────────────────────────────────────────────────
-  // MOVE GROUP
+  // MOVE GROUP - VERSION OPTIMISÉE (pas de refreshCanvas)
   // ───────────────────────────────────────────────────────────────
   const moveGroup = useCallback((
     movedBlockId: string,
@@ -552,7 +540,7 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
 
     const rootIds = new Set(getRootMembers(mover.groupId, list).map(b => b.id));
 
-    setBlocks(prev =>
+    setBlocksRef.current(prev =>
       prev.map(b => {
         if (!rootIds.has(b.id)) return b;
 
@@ -585,9 +573,9 @@ export function useGroupManager({ blocks, setBlocks, refreshCanvas }: UseGroupMa
       })
     );
 
-    refreshCanvas?.();
+    // ✅ PAS de refreshCanvas() — tuerait la fluidité
     return true;
-  }, [setBlocks, refreshCanvas]);
+  }, []);
 
   // ───────────────────────────────────────────────────────────────
   // HELPERS

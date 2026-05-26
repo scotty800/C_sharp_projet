@@ -812,7 +812,7 @@ export default function StudioLayout() {
       ),
       isDirty: true,
     }));
-    // ✅ Pas de refreshCanvas() ici pendant le drag — trop coûteux
+    // ✅ PAS de refreshCanvas() — c'est lui qui cassait la fluidité
   }, []); // ✅ ZÉRO dépendance grâce à la forme fonctionnelle de setState
 
   const duplicateBlock = (blockId: string) => {

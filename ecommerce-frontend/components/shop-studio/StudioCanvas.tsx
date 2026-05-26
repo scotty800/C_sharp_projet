@@ -80,6 +80,13 @@ export default function StudioCanvas({
   const onMoveGroupRef = useRef(onMoveGroup);
   const isCropperOpenRef = useRef(isCropperOpen);
   
+  // ⭐ Refs pour getGroupBounds et selectedGroupId
+  const getGroupBoundsRef = useRef(getGroupBounds);
+  const selectedGroupIdRef = useRef(selectedGroupId);
+  
+  // ⭐ Ref pour groupBounds (fallback pour l'overlay)
+  const groupBoundsRef = useRef(groupBounds);
+  
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const dragRafId = useRef<number | null>(null);
   const resizeRafId = useRef<number | null>(null);
@@ -101,6 +108,18 @@ export default function StudioCanvas({
   useEffect(() => {
     isCropperOpenRef.current = isCropperOpen;
   }, [isCropperOpen]);
+  
+  useEffect(() => {
+    getGroupBoundsRef.current = getGroupBounds;
+  }, [getGroupBounds]);
+  
+  useEffect(() => {
+    selectedGroupIdRef.current = selectedGroupId;
+  }, [selectedGroupId]);
+  
+  useEffect(() => {
+    if (groupBounds) groupBoundsRef.current = groupBounds;
+  }, [groupBounds]);
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -168,18 +187,21 @@ export default function StudioCanvas({
     return getAbsolutePosition(parent);
   }, [getAbsolutePosition]);
 
+  // ⭐ VERSION OPTIMISÉE DE updateGroupBounds - ZÉRO dépendance
   const updateGroupBounds = useCallback(() => {
-    if (!selectedGroupId || !getGroupBounds) {
+    const gid = selectedGroupIdRef.current;
+    if (!gid || !getGroupBoundsRef.current) {
       setGroupBounds(null);
       return;
     }
-    const bounds = getGroupBounds(selectedGroupId);
+    const bounds = getGroupBoundsRef.current(gid);
     setGroupBounds(bounds ?? null);
-  }, [selectedGroupId, getGroupBounds]);
+  }, []); // ✅ ZÉRO dépendance
 
+  // ✅ Se met à jour uniquement quand les blocs changent
   useEffect(() => {
     updateGroupBounds();
-  }, [blocks, selectedGroupId, updateGroupBounds]);
+  }, [blocks, updateGroupBounds]);
 
   const handleGroupResize = useCallback((groupId: string, newBounds: { x: number; y: number; width: number; height: number }) => {
     if (onResizeGroup) {
@@ -200,12 +222,28 @@ export default function StudioCanvas({
     }
   }, [onResizeGroupEnd]);
 
+  // ⭐ VERSION OPTIMISÉE - synchronise la ref immédiatement ET calcule les bounds
   const handleSelectBlockWithGroup = useCallback((blockId: string | null, target?: 'text' | 'background') => {
     if (blockId) {
       const block = blocksRef.current.find(b => b.id === blockId);
-      setSelectedGroupId(block?.groupId ?? null);
+      const gid = block?.groupId ?? null;
+      selectedGroupIdRef.current = gid;
+      setSelectedGroupId(gid);
+      
+      // ✅ Calculer les bounds immédiatement si bloc groupé
+      if (gid && getGroupBoundsRef.current) {
+        const bounds = getGroupBoundsRef.current(gid);
+        if (bounds) {
+          setGroupBounds(bounds);
+          groupBoundsRef.current = bounds;
+        }
+      } else {
+        setGroupBounds(null);
+      }
     } else {
+      selectedGroupIdRef.current = null;
       setSelectedGroupId(null);
+      setGroupBounds(null);
     }
     onSelectBlock(blockId, target);
   }, [onSelectBlock]);
@@ -329,7 +367,7 @@ export default function StudioCanvas({
       }
       resizeRafId.current = null;
     });
-  }, [getParentAbsolutePosition]); // ✅ ne dépend que de getParentAbsolutePosition
+  }, [getParentAbsolutePosition]);
 
   // ⭐ handleMouseUp avec refs - ZÉRO dépendance
   const handleMouseUp = useCallback(() => {
@@ -371,6 +409,7 @@ export default function StudioCanvas({
   const handleCanvasClick = () => {
     if (isCropperOpen) return;
     setSelectedGroupId(null);
+    selectedGroupIdRef.current = null;
     onSelectBackground();
   };
 
@@ -786,10 +825,11 @@ export default function StudioCanvas({
         {rootBlocks.map(block => renderBlock(block))}
       </div>
       
-      {selectedGroupId && groupBounds && onResizeGroup && (
+      {/* ⭐ Overlay pour le groupe sélectionné - avec fallback via groupBoundsRef */}
+      {selectedGroupId && (groupBounds || groupBoundsRef.current) && onResizeGroup && (
         <GroupOverlay
           groupId={selectedGroupId}
-          bounds={groupBounds}
+          bounds={groupBounds || groupBoundsRef.current!}
           containerRef={canvasContainerRef}
           isSelected={true}
           onResize={handleGroupResize}
