@@ -143,6 +143,10 @@ namespace ECommerceApi.DTO
         public Dictionary<string, object> Settings { get; set; } = new();
         public List<BlockDto> Children { get; set; } = new();
 
+        public string? ParentId { get; set; }   // ✅ CRITIQUE
+        public bool IsLocked { get; set; } = false;  // ✅ CRITIQUE
+        public string? GroupId { get; set; }    // ✅ CRITIQUE
+
         public float Brightness { get; set; } = 1f;
         public float Contrast { get; set; } = 1f;
         public float Saturation { get; set; } = 1f;
@@ -152,15 +156,18 @@ namespace ECommerceApi.DTO
 
     public class BlockPositionDto
     {
-        public int X { get; set; }
-        public int Y { get; set; }
-        public int Width { get; set; } = 0;
-        public int Height { get; set; } = 0;
-        public int ZIndex { get; set; } = 0;
+        public float  X { get; set; }
+        public float  Y { get; set; }
+        public float  Width { get; set; } = 0;
+        public float  Height { get; set; } = 0;
+        public float  ZIndex { get; set; } = 0;
         public string? PositionType { get; set; } = "absolute";
         public string? Alignment { get; set; } = "center";
+        public float Rotation { get; set; } = 0;
+        public string? ParentId { get; set; }  // ✅ Ajoute aussi ça
+        public bool IsLocked { get; set; } = false;
+        public string? GroupId { get; set; }
 
-        public int Rotation { get; set; } = 0;
     }
 
     public class UpdateBackgroundDto

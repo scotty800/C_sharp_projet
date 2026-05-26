@@ -2,13 +2,18 @@ namespace ECommerceApi.Models
 {
     public class BlockPosition
     {
-        public int X { get; set; }
-        public int Y { get; set; }
-        public int Width { get; set; } = 0;
-        public int Height { get; set; } = 0;
-        public int ZIndex { get; set; } = 0;
+        public float X { get; set; }
+        public float Y { get; set; }
+        public float Width { get; set; } = 0;
+        public float Height { get; set; } = 0;
+        public float ZIndex { get; set; } = 0;
+        public float Rotation { get; set; } = 0;
+        
         public string? PositionType { get; set; } = "absolute"; // absolute, relative, fixed
         public string? Alignment { get; set; } = "center"; // top-left, top-center, center, bottom-left, etc.
+        public string? ParentId { get; set; }
+        public string? GroupId { get; set; }
+        public bool IsLocked { get; set; } = false;
     }
 
     public class Block
@@ -19,6 +24,11 @@ namespace ECommerceApi.Models
         public int Order { get; set; }
         public bool IsVisible { get; set; } = true;
         public BlockPosition? Position { get; set; }
+
+        public string? ParentId { get; set; }
+        public bool IsLocked { get; set; } = false;
+        public string? GroupId { get; set; }
+
         public Dictionary<string, object> Settings { get; set; } = new();
         public List<Block> Children { get; set; } = new();
 

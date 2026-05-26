@@ -667,14 +667,18 @@ export default function StudioLayout() {
             type: b.type,
             props: b.settings || {},
             position: b.position ? {
-              x: b.position.x ?? 100,
-              y: b.position.y ?? 100,
-              width: b.position.width ?? 200,
-              height: b.position.height ?? 100,
+              x: b.position.x ?? (b.parentId ? 0 : 100),
+              y: b.position.y ?? (b.parentId ? 0 : 100),
+              width: b.position.width ?? (b.parentId ? 100 : 200),
+              height: b.position.height ?? (b.parentId ? 100 : 100),
               zIndex: b.position.zIndex ?? 1,
               rotation: b.position.rotation ?? 0,
-              positionType: (b.position.positionType as 'absolute' | 'relative' | 'fixed') || 'absolute',
-            } : { ...DEFAULT_POSITION, zIndex: b.order + 1 },
+              positionType: (b.position.positionType as 'absolute' | 'relative' | 'fixed') || (b.parentId ? 'relative' : 'absolute'),
+            } : {
+              ...DEFAULT_POSITION,
+              zIndex: b.order + 1,
+              positionType: b.parentId ? 'relative' : 'absolute',
+            },
             order: b.order ?? 0,
             isVisible: b.isVisible !== false,
             parentId: b.parentId ?? null,
@@ -719,55 +723,96 @@ export default function StudioLayout() {
     return () => window.removeEventListener('openAssetPickerForCarousel', handleOpenAssetPickerForCarousel as EventListener);
   }, []);
 
+  // 🔥 SANITIZER GLOBAL AVANT ENVOI AU BACKEND
+  const sanitizeNumber = useCallback((v: any, fallback: number) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  }, []);
+
+  // ⭐⭐⭐ VERSION CORRIGÉE DE saveChanges - avec sanitizer global ⭐⭐⭐
   const saveChanges = useCallback(async () => {
     if (!state.isDirty) return;
 
     setSaving(true);
     try {
-      const blocksToSave = state.blocks.map(block => ({
-        id: block.id,
-        type: block.type,
-        name: block.type,
-        order: block.order,
-        isVisible: block.isVisible,
-        parentId: block.parentId || null,
-        isLocked: block.isLocked || false,
-        groupId: block.groupId || null,
-        position: {
-          x: Math.round(block.position?.x ?? 100),
-          y: Math.round(block.position?.y ?? 100),
-          width: Math.round(block.position?.width ?? 200),
-          height: Math.round(block.position?.height ?? 100),
-          zIndex: block.position?.zIndex || 1,
-          rotation: block.position?.rotation || 0,
-        },
-        settings: { ...block.props },
-      }));
+      const blocksToSave = state.blocks.map(block => {
+        const isRelative = !!block.parentId || block.position?.positionType === 'relative';
+        const pos = block.position || {};
+
+        return {
+          id: block.id,
+          type: block.type,
+          name: block.type,
+          order: sanitizeNumber(block.order, 0),
+          isVisible: !!block.isVisible,
+          parentId: block.parentId || null,
+          isLocked: !!block.isLocked,
+          groupId: block.groupId || null,
+
+          // ⭐ Position en PascalCase pour ASP.NET Core
+          position: {
+            X: sanitizeNumber(
+              isRelative ? pos.x : Math.round(pos.x),
+              0
+            ),
+            Y: sanitizeNumber(
+              isRelative ? pos.y : Math.round(pos.y),
+              0
+            ),
+            Width: sanitizeNumber(
+              isRelative ? pos.width : Math.round(pos.width),
+              100
+            ),
+            Height: sanitizeNumber(
+              isRelative ? pos.height : Math.round(pos.height),
+              100
+            ),
+            ZIndex: sanitizeNumber(pos.zIndex, 1),
+            Rotation: sanitizeNumber(pos.rotation, 0),
+            PositionType: pos.positionType || (block.parentId ? 'relative' : 'absolute'),
+            ParentId: block.parentId || null,
+            GroupId: block.groupId || null,
+            IsLocked: !!block.isLocked,
+            Alignment: "center",
+          },
+
+          // ⭐ Settings du bloc (props)
+          settings: block.type === 'group' ? {} : { ...block.props },
+
+          // ⭐ Champs obligatoires pour le backend (BlockDto)
+          brightness: sanitizeNumber(block.props?.brightness, 1),
+          contrast: sanitizeNumber(block.props?.contrast, 1),
+          saturation: sanitizeNumber(block.props?.saturation, 1),
+          blur: sanitizeNumber(block.props?.blur, 0),
+          cssFilter: block.props?.cssFilter ?? "none",
+        };
+      });
 
       await Promise.all([
         shopCustomizationService.updateBlocks(Number(id), blocksToSave as any),
         shopCustomizationService.updateCanvasFilters(Number(id), {
-          globalBrightness: state.canvasFilters?.globalBrightness ?? 1,
-          globalContrast: state.canvasFilters?.globalContrast ?? 1,
-          globalSaturation: state.canvasFilters?.globalSaturation ?? 1,
-          globalBlur: state.canvasFilters?.globalBlur ?? 0,
+          globalBrightness: sanitizeNumber(state.canvasFilters?.globalBrightness, 1),
+          globalContrast: sanitizeNumber(state.canvasFilters?.globalContrast, 1),
+          globalSaturation: sanitizeNumber(state.canvasFilters?.globalSaturation, 1),
+          globalBlur: sanitizeNumber(state.canvasFilters?.globalBlur, 0),
           globalCssFilter: state.canvasFilters?.globalCssFilter || 'none',
         }),
         shopCustomizationService.updateBackground(Number(id), {
           backgroundColor: state.customization?.backgroundColor || '#FFFFFF',
           backgroundType: state.customization?.backgroundType || 'solid',
           backgroundValue: state.customization?.backgroundValue || null,
-          backgroundOpacity: state.customization?.backgroundOpacity || 100,
+          backgroundOpacity: sanitizeNumber(state.customization?.backgroundOpacity, 100),
         }),
       ]);
 
       setState(prev => ({ ...prev, isDirty: false }));
+      console.log('✅ Sauvegarde réussie');
     } catch (error) {
       console.error('❌ Erreur sauvegarde:', error);
     } finally {
       setSaving(false);
     }
-  }, [id, state.blocks, state.isDirty, state.canvasFilters, state.customization]);
+  }, [id, state.blocks, state.isDirty, state.canvasFilters, state.customization, sanitizeNumber]);
 
   useEffect(() => {
     if (state.isDirty && !saving) {
@@ -803,7 +848,6 @@ export default function StudioLayout() {
     refreshCanvas();
   };
 
-  // ⭐ VERSION OPTIMISÉE DE updateBlockPosition - ZÉRO dépendance
   const updateBlockPosition = useCallback((blockId: string, position: Partial<BlockPosition>) => {
     setState(prev => ({
       ...prev,
@@ -812,8 +856,7 @@ export default function StudioLayout() {
       ),
       isDirty: true,
     }));
-    // ✅ PAS de refreshCanvas() — c'est lui qui cassait la fluidité
-  }, []); // ✅ ZÉRO dépendance grâce à la forme fonctionnelle de setState
+  }, []);
 
   const duplicateBlock = (blockId: string) => {
     const block = state.blocks.find(b => b.id === blockId);
