@@ -556,7 +556,7 @@ export default function StudioLayout() {
         ...prev,
         blocks: [...prev.blocks, newSlide],
         isDirty: true,
-        selectedBlockId: newSlide.id,
+        selectedBlockId: carouselBlockId,
         selectedTarget: 'background',
         isBackgroundSelected: false,
       };
@@ -946,6 +946,7 @@ export default function StudioLayout() {
 
   const floatingLayers = generateLayersFromBlocks(state.blocks, expandedLayers);
 
+  // ⭐ RACCOURCI CLAVIER POUR CTRL+SHIFT+L
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'L') {
@@ -955,6 +956,16 @@ export default function StudioLayout() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // ⭐ ÉCOUTEUR D'ÉVÉNEMENT POUR OUVRIR LE PANNEAU DEPUIS LA SIDEBAR
+  useEffect(() => {
+    const handleToggleFloatingLayers = () => {
+      setShowFloatingLayers(prev => !prev);
+    };
+    
+    window.addEventListener('toggleFloatingLayers', handleToggleFloatingLayers);
+    return () => window.removeEventListener('toggleFloatingLayers', handleToggleFloatingLayers);
   }, []);
 
   useEffect(() => {

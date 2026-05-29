@@ -69,22 +69,22 @@ export default function StudioCanvas({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupBounds, setGroupBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   
-  // ⭐ Refs pour le drag (pas de state pour éviter les re-renders)
+  // Refs pour le drag
   const draggingBlockRef = useRef<string | null>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const originalPositionRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   const blocksRef = useRef(blocks);
   
-  // ⭐ Refs pour les callbacks instables (évite de recréer handleMouseMove)
+  // Refs pour les callbacks instables
   const onUpdateBlockPositionRef = useRef(onUpdateBlockPosition);
   const onMoveGroupRef = useRef(onMoveGroup);
   const isCropperOpenRef = useRef(isCropperOpen);
   
-  // ⭐ Refs pour getGroupBounds et selectedGroupId
+  // Refs pour getGroupBounds et selectedGroupId
   const getGroupBoundsRef = useRef(getGroupBounds);
   const selectedGroupIdRef = useRef(selectedGroupId);
   
-  // ⭐ Ref pour groupBounds (fallback pour l'overlay)
+  // Ref pour groupBounds (fallback pour l'overlay)
   const groupBoundsRef = useRef(groupBounds);
   
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -92,7 +92,7 @@ export default function StudioCanvas({
   const resizeRafId = useRef<number | null>(null);
   const lastUpdateRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
-  // ✅ Garder les refs toujours à jour
+  // Garder les refs toujours à jour
   useEffect(() => {
     blocksRef.current = blocks;
   }, [blocks]);
@@ -164,7 +164,7 @@ export default function StudioCanvas({
     return blocksRef.current.filter(b => b.parentId === parentId);
   }, []);
 
-  // ── Helpers pour calculer les positions absolues ──
+  // Helpers pour calculer les positions absolues
   const getAbsolutePosition = useCallback((block: any): { x: number; y: number; width: number; height: number } => {
     if (!block.parentId) {
       return { x: block.position.x, y: block.position.y, width: block.position.width, height: block.position.height };
@@ -187,7 +187,7 @@ export default function StudioCanvas({
     return getAbsolutePosition(parent);
   }, [getAbsolutePosition]);
 
-  // ⭐ VERSION OPTIMISÉE DE updateGroupBounds - ZÉRO dépendance
+  // Version optimisée de updateGroupBounds
   const updateGroupBounds = useCallback(() => {
     const gid = selectedGroupIdRef.current;
     if (!gid || !getGroupBoundsRef.current) {
@@ -196,9 +196,9 @@ export default function StudioCanvas({
     }
     const bounds = getGroupBoundsRef.current(gid);
     setGroupBounds(bounds ?? null);
-  }, []); // ✅ ZÉRO dépendance
+  }, []);
 
-  // ✅ Se met à jour uniquement quand les blocs changent
+  // Se met à jour uniquement quand les blocs changent
   useEffect(() => {
     updateGroupBounds();
   }, [blocks, updateGroupBounds]);
@@ -222,7 +222,7 @@ export default function StudioCanvas({
     }
   }, [onResizeGroupEnd]);
 
-  // ⭐ VERSION OPTIMISÉE - synchronise la ref immédiatement ET calcule les bounds
+  // Version optimisée - synchronise la ref immédiatement ET calcule les bounds
   const handleSelectBlockWithGroup = useCallback((blockId: string | null, target?: 'text' | 'background') => {
     if (blockId) {
       const block = blocksRef.current.find(b => b.id === blockId);
@@ -230,7 +230,7 @@ export default function StudioCanvas({
       selectedGroupIdRef.current = gid;
       setSelectedGroupId(gid);
       
-      // ✅ Calculer les bounds immédiatement si bloc groupé
+      // Calculer les bounds immédiatement si bloc groupé
       if (gid && getGroupBoundsRef.current) {
         const bounds = getGroupBoundsRef.current(gid);
         if (bounds) {
@@ -248,7 +248,7 @@ export default function StudioCanvas({
     onSelectBlock(blockId, target);
   }, [onSelectBlock]);
 
-  // ⭐ VERSION OPTIMISÉE DE handleMouseMove - ZÉRO dépendance
+  // Version optimisée de handleMouseMove
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggingBlockRef.current || isCropperOpenRef.current) return;
     if (dragRafId.current) return;
@@ -312,7 +312,7 @@ export default function StudioCanvas({
 
       dragRafId.current = null;
     });
-  }, []); // ✅ ZÉRO dépendance → jamais recréé
+  }, []);
 
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
     if (isCropperOpenRef.current || resizeRafId.current) return;
@@ -369,7 +369,7 @@ export default function StudioCanvas({
     });
   }, [getParentAbsolutePosition]);
 
-  // ⭐ handleMouseUp avec refs - ZÉRO dépendance
+  // handleMouseUp avec refs
   const handleMouseUp = useCallback(() => {
     if (dragRafId.current) { cancelAnimationFrame(dragRafId.current); dragRafId.current = null; }
     if (resizeRafId.current) { cancelAnimationFrame(resizeRafId.current); resizeRafId.current = null; }
@@ -377,9 +377,9 @@ export default function StudioCanvas({
     draggingBlockRef.current = null;
     setResizingBlock(null);
     setIsResizing(false);
-  }, []); // ✅ ZÉRO dépendance → jamais recréé
+  }, []);
 
-  // ✅ Listeners montés UNE SEULE FOIS pour toute la vie du composant
+  // Listeners montés UNE SEULE FOIS
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -387,7 +387,7 @@ export default function StudioCanvas({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, []); // ✅ tableau vide → vraiment une seule fois
+  }, []);
 
   const handleBlockClick = (e: React.MouseEvent, blockId: string, block: any) => {
     if (isCropperOpen) { e.stopPropagation(); return; }
@@ -413,7 +413,7 @@ export default function StudioCanvas({
     onSelectBackground();
   };
 
-  // ⭐ handleMouseDown avec refs (pas de state pour dragStart/originalPosition)
+  // handleMouseDown avec refs
   const handleMouseDown = (e: React.MouseEvent, blockId: string, block: any) => {
     if (isCropperOpen) { e.stopPropagation(); return; }
     if (block.type === 'carousel-slide') return;
@@ -477,7 +477,7 @@ export default function StudioCanvas({
     }
   };
 
-  // ⭐ RENDER BLOCK (inchangé)
+  // Render BLOCK avec le nouveau blockStyle corrigé
   const renderBlock = useCallback((block: any, isChild: boolean = false) => {
     const isSelected = selectedBlockId === block.id;
     const isEditing = editingTextId === block.id;
@@ -608,7 +608,9 @@ export default function StudioCanvas({
                   className="absolute inset-0"
                   style={{ pointerEvents: 'none' }}
                 >
-                  {children.filter(c => c.type !== 'carousel-slide').map(child => {
+                  {children
+                    .filter(child => child.type !== 'group') // ⭐ FILTRE POUR EXCLURE LES GROUPES
+                    .map(child => {
                     return (
                       <div
                         key={`child-wrapper-${child.id}`}
@@ -682,16 +684,24 @@ export default function StudioCanvas({
       }
     };
 
-    const blockStyle = {
-      position: 'absolute' as const,
-      left: isChild ? `${block.position.x}%` : block.position.x,
-      top: isChild ? `${block.position.y}%` : block.position.y,
-      width: isChild ? `${block.position.width}%` : block.position.width,
-      height: isChild ? (block.position.height === 0 ? 'auto' : `${block.position.height}%`) : block.position.height,
-      minHeight: isChild ? '30px' : undefined,
-      zIndex: block.position.zIndex,
-      transform: block.position.rotation ? `rotate(${block.position.rotation}deg)` : 'none',
-    };
+    // ⭐ NOUVEAU blockStyle CORRIGÉ
+    const blockStyle: React.CSSProperties = isChild
+      ? {
+          width: '100%',
+          height: '100%',
+          position: 'relative' as const,
+          zIndex: block.position.zIndex,
+          transform: block.position.rotation ? `rotate(${block.position.rotation}deg)` : 'none',
+        }
+      : {
+          position: 'absolute' as const,
+          left: block.position.x,
+          top: block.position.y,
+          width: block.position.width,
+          height: block.position.height,
+          zIndex: block.position.zIndex,
+          transform: block.position.rotation ? `rotate(${block.position.rotation}deg)` : 'none',
+        };
 
     const hasChildren = children && children.length > 0;
 
@@ -723,7 +733,9 @@ export default function StudioCanvas({
               className="absolute inset-0"
               style={{ pointerEvents: 'none' }}
             >
-              {children.map(child => {
+              {children
+                .filter(child => child.type !== 'group') // ⭐ FILTRE POUR EXCLURE LES GROUPES
+                .map(child => {
                 const childStyle = {
                   position: 'absolute' as const,
                   left: `${child.position.x}%`,
@@ -825,7 +837,7 @@ export default function StudioCanvas({
         {rootBlocks.map(block => renderBlock(block))}
       </div>
       
-      {/* ⭐ Overlay pour le groupe sélectionné - avec fallback via groupBoundsRef */}
+      {/* Overlay pour le groupe sélectionné - avec fallback via groupBoundsRef */}
       {selectedGroupId && (groupBounds || groupBoundsRef.current) && onResizeGroup && (
         <GroupOverlay
           groupId={selectedGroupId}
