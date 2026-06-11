@@ -32,6 +32,7 @@ export default function FontsPanel({
   const isTextBlock = selectedBlock?.type === 'text';
   const isTitleBlock = selectedBlock?.type === 'title';
   const isButtonBlock = selectedBlock?.type === 'button';
+  const isGridProducts = selectedBlock?.type === 'products';
   
   const isCanvasSelected = isBackgroundSelected;
   const isBlockSelected = !isCanvasSelected && selectedBlock !== null;
@@ -166,6 +167,165 @@ export default function FontsPanel({
               <option key={font} value={font}>{font}</option>
             ))}
           </select>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== POUR LE BLOC GRID-PRODUCTS ====================
+  if (isBlockSelected && isGridProducts && target === 'text') {
+    const blockProps = selectedBlock.props || {};
+
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2 border-b border-gray-700 pb-2">
+          <button 
+            onClick={() => setActiveTab('fonts')}
+            className={`flex-1 py-1 text-xs rounded ${activeTab === 'fonts' ? 'bg-primary text-white' : 'text-gray-400'}`}
+          >
+            📝 Polices
+          </button>
+          <button 
+            onClick={() => setActiveTab('text-effects')}
+            className={`flex-1 py-1 text-xs rounded ${activeTab === 'text-effects' ? 'bg-primary text-white' : 'text-gray-400'}`}
+          >
+            🎨 Couleurs
+          </button>
+        </div>
+
+        {activeTab === 'fonts' && (
+          <>
+            {/* ── Nom du produit ── */}
+            <div className="bg-gray-800/50 rounded-lg p-3 space-y-2">
+              <h4 className="text-white text-xs font-semibold">🏷️ Nom du produit</h4>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Police</label>
+                <select
+                  value={blockProps.productNameFont || 'Inter'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { productNameFont: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fonts.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">
+                  Taille : {blockProps.productNameSize
+                    ? parseInt(blockProps.productNameSize)
+                    : 14}px
+                </label>
+                <input 
+                  type="range" 
+                  min="10" 
+                  max="32" 
+                  step="1"
+                  value={blockProps.productNameSize ? parseInt(blockProps.productNameSize) : 14}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { productNameSize: `${e.target.value}px` })}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Graisse</label>
+                <select
+                  value={blockProps.productNameWeight || '600'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { productNameWeight: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fontWeights.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* ── Prix ── */}
+            <div className="bg-gray-800/50 rounded-lg p-3 space-y-2">
+              <h4 className="text-white text-xs font-semibold">💰 Prix</h4>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Police</label>
+                <select
+                  value={blockProps.priceFont || 'Inter'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { priceFont: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fonts.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">
+                  Taille : {blockProps.priceSize
+                    ? parseInt(blockProps.priceSize)
+                    : 14}px
+                </label>
+                <input 
+                  type="range" 
+                  min="10" 
+                  max="32" 
+                  step="1"
+                  value={blockProps.priceSize ? parseInt(blockProps.priceSize) : 14}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { priceSize: `${e.target.value}px` })}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Graisse</label>
+                <select
+                  value={blockProps.priceWeight || '700'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { priceWeight: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                >
+                  {fontWeights.map(w => <option key={w.value} value={w.value}>{w.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'text-effects' && (
+          <>
+            {/* ── Couleur nom ── */}
+            <div className="bg-gray-800/50 rounded-lg p-3 space-y-2">
+              <h4 className="text-white text-xs font-semibold">🏷️ Couleur du nom</h4>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="color"
+                  value={blockProps.productNameColor || '#1F2937'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { productNameColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input 
+                  type="text"
+                  value={blockProps.productNameColor || '#1F2937'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { productNameColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* ── Couleur prix ── */}
+            <div className="bg-gray-800/50 rounded-lg p-3 space-y-2">
+              <h4 className="text-white text-xs font-semibold">💰 Couleur du prix</h4>
+              <div className="flex items-center gap-2">
+                <input 
+                  type="color"
+                  value={blockProps.priceColor || '#2563EB'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { priceColor: e.target.value })}
+                  className="w-8 h-8 rounded border-0 cursor-pointer"
+                />
+                <input 
+                  type="text"
+                  value={blockProps.priceColor || '#2563EB'}
+                  onChange={(e) => onUpdateBlock(selectedBlock.id, { priceColor: e.target.value })}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="text-center py-2 bg-blue-900/30 rounded-lg">
+          <p className="text-blue-300 text-xs">
+            💡 Ces réglages s'appliquent au mode traditionnel.<br/>
+            Mode interactif : couleurs gérées dans le panel Grille → Style du slot
+          </p>
         </div>
       </div>
     );

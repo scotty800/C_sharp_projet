@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { BannerBlock } from './blocks/BannerBlock';
 import { LogoBlock } from './blocks/LogoBlock';
 import { TitleBlock } from './blocks/TitleBlock';
-import { ProductsBlock } from './blocks/ProductsBlock';
+import { GridProductsBlock } from './blocks/GridProductsBlock';
 import { TextBlock } from './blocks/TextBlock';
 import { ImageBlock } from './blocks/ImageBlock';
 import { ButtonBlock } from './blocks/ButtonBlock';
@@ -13,6 +13,7 @@ import { ShapeBlock } from './blocks/ShapeBlock';
 import { ScreenBannerBlock } from './blocks/ScreenBannerBlock';
 import { CarouselBannerBlock } from './blocks/CarouselBannerBlock';
 import { GroupOverlay } from './GroupOverlay';
+import { ProductGridConfig, StudioProduct, ProductCustomization } from '@/types/studio';
 
 interface Props {
   shop: any;
@@ -37,6 +38,13 @@ interface Props {
   onResizeGroupStart?: (groupId: string) => void;
   onResizeGroupEnd?: () => void;
   onAddSlide?: (carouselBlockId: string) => void;
+  gridConfig?: ProductGridConfig;
+  onUpdateGridConfig?: (config: ProductGridConfig) => void;
+  productsList?: StudioProduct[];
+  onLinkProduct?: (slotId: string, product: StudioProduct) => void;
+  onOpenProductCustomization?: (productId: number, productName: string, customization: ProductCustomization) => void;
+  globalProductCustomizations?: Map<number, ProductCustomization>;
+  onUpdateGlobalProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
 }
 
 export default function StudioCanvas({
@@ -60,6 +68,13 @@ export default function StudioCanvas({
   onResizeGroupStart,
   onResizeGroupEnd,
   onAddSlide,
+  gridConfig,
+  onUpdateGridConfig,
+  productsList,
+  onLinkProduct,
+  onOpenProductCustomization,
+  globalProductCustomizations,
+  onUpdateGlobalProductCustomization,
 }: Props) {
   const [resizingBlock, setResizingBlock] = useState<string | null>(null);
   const [resizeDirection, setResizeDirection] = useState<string>('');
@@ -91,6 +106,17 @@ export default function StudioCanvas({
   const dragRafId = useRef<number | null>(null);
   const resizeRafId = useRef<number | null>(null);
   const lastUpdateRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  // ⭐ Ref pour stocker les hauteurs mesurées des blocs products
+  const productBlockHeights = useRef<Map<string, number>>(new Map());
+
+  // ⭐ Ref pour le callback stable du bloc products
+  const productsOnUpdateRef = useRef<((updates: any) => void) | null>(null);
+  
+  // ⭐ Callback stable pour onUpdate du bloc products (ne change jamais de référence)
+  const stableProductsOnUpdate = useCallback((updates: any) => {
+    productsOnUpdateRef.current?.(updates);
+  }, []);
 
   // Garder les refs toujours à jour
   useEffect(() => {
@@ -153,6 +179,18 @@ export default function StudioCanvas({
         letter-spacing: 0.5px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.1);
       }
+      
+      /* ⭐ Stabiliser le bloc products pendant les changements de couleur */
+      .products-block-wrapper {
+        transition: none !important;
+        will-change: auto !important;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+      }
+      
+      .products-block-wrapper > div {
+        transition: none !important;
+      }
     `;
     document.head.appendChild(style);
     return () => {
@@ -161,8 +199,8 @@ export default function StudioCanvas({
   }, []);
 
   const getChildren = useCallback((parentId: string) => {
-    return blocksRef.current.filter(b => b.parentId === parentId);
-  }, []);
+    return blocks.filter(b => b.parentId === parentId);
+  }, [blocks]);
 
   // Helpers pour calculer les positions absolues
   const getAbsolutePosition = useCallback((block: any): { x: number; y: number; width: number; height: number } => {
@@ -326,35 +364,58 @@ export default function StudioCanvas({
       const block = blocksRef.current.find(b => b.id === blockId);
       const isChild = block?.parentId != null;
 
+      // ⭐ Pour les blocs products, empêcher le redimensionnement vertical
+      const isProductsBlock = block?.type === 'products';
+      if (isProductsBlock) {
+        newHeight = startData.startHeight;
+        newY = startData.startYpos;
+      }
+
       if (isChild && block?.parentId) {
         const parentAbs = getParentAbsolutePosition(block.parentId);
         if (parentAbs) {
           const pW = parentAbs.width, pH = parentAbs.height;
           const dpx = (dx / pW) * 100, dpy = (dy / pH) * 100;
           switch (startData.direction) {
-            case 'se': newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); break;
+            case 'se': newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); 
+                       if (!isProductsBlock) newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); 
+                       break;
             case 'e':  newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); break;
-            case 's':  newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); break;
-            case 'ne': newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; break;
-            case 'nw': newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newX = startData.startXpos + dpx; newY = startData.startYpos + dpy; break;
-            case 'sw': newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); newX = startData.startXpos + dpx; break;
-            case 'n':  newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; break;
+            case 's':  if (!isProductsBlock) newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); break;
+            case 'ne': newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); 
+                       if (!isProductsBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; }
+                       break;
+            case 'nw': newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); 
+                       if (!isProductsBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newX = startData.startXpos + dpx; newY = startData.startYpos + dpy; }
+                       break;
+            case 'sw': newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); 
+                       if (!isProductsBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); newX = startData.startXpos + dpx; }
+                       break;
+            case 'n':  if (!isProductsBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; } break;
             case 'w':  newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); newX = startData.startXpos + dpx; break;
           }
           newWidth = Math.max(MIN_PERCENT, Math.min(100 - newX, newWidth));
-          newHeight = Math.max(MIN_PERCENT, Math.min(100 - newY, newHeight));
+          if (!isProductsBlock) newHeight = Math.max(MIN_PERCENT, Math.min(100 - newY, newHeight));
           newX = Math.max(0, Math.min(100 - newWidth, newX));
-          newY = Math.max(0, Math.min(100 - newHeight, newY));
+          if (!isProductsBlock) newY = Math.max(0, Math.min(100 - newHeight, newY));
         }
       } else {
         switch (startData.direction) {
-          case 'se': newWidth = Math.max(MIN_PX, startData.startWidth + dx); newHeight = Math.max(MIN_PX, startData.startHeight + dy); break;
+          case 'se': newWidth = Math.max(MIN_PX, startData.startWidth + dx); 
+                     if (!isProductsBlock) newHeight = Math.max(MIN_PX, startData.startHeight + dy); 
+                     break;
           case 'e':  newWidth = Math.max(MIN_PX, startData.startWidth + dx); break;
-          case 's':  newHeight = Math.max(MIN_PX, startData.startHeight + dy); break;
-          case 'ne': newWidth = Math.max(MIN_PX, startData.startWidth + dx); newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; break;
-          case 'nw': newWidth = Math.max(MIN_PX, startData.startWidth - dx); newHeight = Math.max(MIN_PX, startData.startHeight - dy); newX = startData.startXpos + dx; newY = startData.startYpos + dy; break;
-          case 'sw': newWidth = Math.max(MIN_PX, startData.startWidth - dx); newHeight = Math.max(MIN_PX, startData.startHeight + dy); newX = startData.startXpos + dx; break;
-          case 'n':  newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; break;
+          case 's':  if (!isProductsBlock) newHeight = Math.max(MIN_PX, startData.startHeight + dy); break;
+          case 'ne': newWidth = Math.max(MIN_PX, startData.startWidth + dx); 
+                     if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; }
+                     break;
+          case 'nw': newWidth = Math.max(MIN_PX, startData.startWidth - dx); 
+                     if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newX = startData.startXpos + dx; newY = startData.startYpos + dy; }
+                     break;
+          case 'sw': newWidth = Math.max(MIN_PX, startData.startWidth - dx); 
+                     if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight + dy); newX = startData.startXpos + dx; }
+                     break;
+          case 'n':  if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; } break;
           case 'w':  newWidth = Math.max(MIN_PX, startData.startWidth - dx); newX = startData.startXpos + dx; break;
         }
       }
@@ -477,6 +538,69 @@ export default function StudioCanvas({
     }
   };
 
+  // ⭐ Mémoriser les valeurs pour éviter les re-rendus du GridProductsBlock
+  const memoizedGridConfig = useMemo(() => gridConfig, [gridConfig]);
+  const memoizedProductsList = useMemo(() => productsList, [productsList]);
+  const memoizedGlobalProductCustomizations = useMemo(() => globalProductCustomizations, [globalProductCustomizations]);
+
+  // ⭐ Mémoriser les callbacks stables
+  const stableOnUpdateGridConfig = useCallback((config: ProductGridConfig) => {
+    onUpdateGridConfig?.(config);
+  }, [onUpdateGridConfig]);
+
+  const stableOnLinkProduct = useCallback((slotId: string, product: StudioProduct) => {
+    onLinkProduct?.(slotId, product);
+  }, [onLinkProduct]);
+
+  const stableOnOpenProductCustomization = useCallback((productId: number, productName: string, customization: ProductCustomization) => {
+    onOpenProductCustomization?.(productId, productName, customization);
+  }, [onOpenProductCustomization]);
+
+  const stableOnUpdateGlobalProductCustomization = useCallback((productId: number, updates: Partial<ProductCustomization>) => {
+    onUpdateGlobalProductCustomization?.(productId, updates);
+  }, [onUpdateGlobalProductCustomization]);
+
+  const stableOnOpenAssetPicker = useCallback((callback: (url: string) => void) => {
+    const event = new CustomEvent('openAssetPicker', { detail: { callback } });
+    window.dispatchEvent(event);
+  }, []);
+
+  // ⭐ MODIFICATION 1: stableShop - ne dépend que des valeurs stables (pas de themeColor, backgroundColor, textColor)
+  const stableShop = useMemo(() => ({
+    id: shop?.id,
+    name: shop?.name,
+    slug: shop?.slug,
+    ownerId: shop?.ownerId,
+  }), [shop?.id, shop?.name, shop?.slug, shop?.ownerId]);
+
+  // ⭐ FIX CRITIQUE: stableCustomization pour les blocs non-products
+  const stableCustomizationForOtherBlocks = useMemo(() => ({
+    primaryColor: customization?.primaryColor,
+    backgroundColor: customization?.backgroundColor,
+    textColor: customization?.textColor,
+    backgroundType: customization?.backgroundType,
+    backgroundValue: customization?.backgroundValue,
+    headingFont: customization?.headingFont,
+    bodyFont: customization?.bodyFont,
+  }), [customization?.primaryColor, customization?.backgroundColor, customization?.textColor, customization?.backgroundType, customization?.backgroundValue, customization?.headingFont, customization?.bodyFont]);
+
+  // ⭐ Callbacks stables
+  const stableOnUpdateBlock = useCallback((id: string, updates: any) => {
+    onUpdateBlock(id, updates);
+  }, [onUpdateBlock]);
+
+  const stableOnDeleteBlock = useCallback((id: string) => {
+    onDeleteBlock(id);
+  }, [onDeleteBlock]);
+
+  const stableOnDuplicateBlock = useCallback((id: string) => {
+    onDuplicateBlock(id);
+  }, [onDuplicateBlock]);
+
+  const stableOnUpdateBlockPosition = useCallback((id: string, position: any) => {
+    onUpdateBlockPosition(id, position);
+  }, [onUpdateBlockPosition]);
+
   // Render BLOCK avec le nouveau blockStyle corrigé
   const renderBlock = useCallback((block: any, isChild: boolean = false) => {
     const isSelected = selectedBlockId === block.id;
@@ -490,10 +614,33 @@ export default function StudioCanvas({
     const showSelectionRing = isSelected && !isCropperOpen;
     const showResizeHandles = isSelected && !isCropperOpen && block.type !== 'group';
     
+    // ⭐ Détecter si c'est un bloc products
+    const isProductsBlock = block.type === 'products';
+    
+    // ⭐ Pour le bloc products, mettre à jour la ref avec la vraie logique (accès aux closures fraîches)
+    if (isProductsBlock) {
+      productsOnUpdateRef.current = (updates: any) => {
+        if (updates._blockHeight) {
+          if (isResizing) return;
+          const currentBlock = blocksRef.current.find(b => b.id === block.id);
+          if (currentBlock && currentBlock.position.height !== updates._blockHeight) {
+            productBlockHeights.current.set(block.id, updates._blockHeight);
+            stableOnUpdateBlockPosition(block.id, {
+              ...currentBlock.position,
+              height: updates._blockHeight,
+            });
+          }
+        } else {
+          stableOnUpdateBlock(block.id, updates);
+        }
+      };
+    }
+    
+    // ⭐ Props communes pour tous les blocs (shop et customization stables)
     const commonProps = {
-      shop,
+      shop: stableShop,
       block,
-      customization,
+      customization: isProductsBlock ? {} : stableCustomizationForOtherBlocks,
       isSelected: showSelectionRing,
       isEditing,
       textOpacity,
@@ -502,9 +649,11 @@ export default function StudioCanvas({
         if (isCropperOpen) return;
         handleSelectBlockWithGroup(block.id, 'background');
       },
-      onUpdate: (updates: any) => onUpdateBlock(block.id, updates),
-      onDelete: () => onDeleteBlock(block.id),
-      onDuplicate: () => onDuplicateBlock(block.id),
+      onUpdate: isProductsBlock ? stableProductsOnUpdate : ((updates: any) => {
+        stableOnUpdateBlock(block.id, updates);
+      }),
+      onDelete: () => stableOnDeleteBlock(block.id),
+      onDuplicate: () => stableOnDuplicateBlock(block.id),
       onDoubleClick: (e: React.MouseEvent) => {
         if (isCropperOpen) return;
         handleTextDoubleClick(e, block.id);
@@ -557,7 +706,7 @@ export default function StudioCanvas({
                 filter: blockFilter,
                 opacity: blockOpacity,
                 transform: block.position.rotation ? `rotate(${block.position.rotation}deg)` : 'none',
-                overflow: 'hidden',
+                overflow: 'visible',
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
               }}
@@ -609,7 +758,7 @@ export default function StudioCanvas({
                   style={{ pointerEvents: 'none' }}
                 >
                   {children
-                    .filter(child => child.type !== 'group') // ⭐ FILTRE POUR EXCLURE LES GROUPES
+                    .filter(child => child.type !== 'group')
                     .map(child => {
                     return (
                       <div
@@ -672,19 +821,50 @@ export default function StudioCanvas({
 
     const renderContent = () => {
       switch (block.type) {
-        case 'logo': return <LogoBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
-        case 'title': return <TitleBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
-        case 'products': return <ProductsBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
-        case 'text': return <TextBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
+        case 'logo':   return <LogoBlock key={block.id} {...commonProps} />;
+        case 'title':  return <TitleBlock key={block.id} {...commonProps} />;
+        case 'products': {
+          // ⭐ Appel direct à GridProductsBlock (sans wrapper mémorisé)
+          return (
+            <div className="products-block-wrapper">
+              <GridProductsBlock
+                shop={stableShop}
+                block={block}
+                customization={{}}
+                isSelected={showSelectionRing}
+                textOpacity={textOpacity}
+                isResizing={isResizing}
+                onSelect={() => {
+                  if (isCropperOpen) return;
+                  handleSelectBlockWithGroup(block.id, 'background');
+                }}
+                onUpdate={stableProductsOnUpdate}
+                gridConfig={memoizedGridConfig}
+                onUpdateGridConfig={stableOnUpdateGridConfig}
+                productsList={memoizedProductsList}
+                onLinkProduct={stableOnLinkProduct}
+                onOpenCustomization={stableOnOpenProductCustomization}
+                globalProductCustomizations={memoizedGlobalProductCustomizations}
+                onUpdateGlobalProductCustomization={stableOnUpdateGlobalProductCustomization}
+                onOpenAssetPicker={stableOnOpenAssetPicker}
+              />
+            </div>
+          );
+        }
+        case 'text':   return <TextBlock key={block.id} {...commonProps} />;
         case 'image': return <ImageBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
-        case 'button': return <ButtonBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
+        case 'button': return <ButtonBlock key={block.id} {...commonProps} />;
         case 'spacer': return <SpacerBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
         case 'shape': return <ShapeBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
         default: return <div key={block.id} className="w-full h-full bg-gray-100 flex items-center justify-center">⚠️ {block.type}</div>;
       }
     };
 
-    // ⭐ NOUVEAU blockStyle CORRIGÉ
+    // ⭐ Pour les blocs products, on utilise la hauteur stockée ou auto
+    const blockHeight = isProductsBlock && productBlockHeights.current.has(block.id)
+      ? productBlockHeights.current.get(block.id)
+      : block.position.height;
+
     const blockStyle: React.CSSProperties = isChild
       ? {
           width: '100%',
@@ -698,7 +878,7 @@ export default function StudioCanvas({
           left: block.position.x,
           top: block.position.y,
           width: block.position.width,
-          height: block.position.height,
+          height: isProductsBlock ? 'auto' : blockHeight,
           zIndex: block.position.zIndex,
           transform: block.position.rotation ? `rotate(${block.position.rotation}deg)` : 'none',
         };
@@ -734,7 +914,7 @@ export default function StudioCanvas({
               style={{ pointerEvents: 'none' }}
             >
               {children
-                .filter(child => child.type !== 'group') // ⭐ FILTRE POUR EXCLURE LES GROUPES
+                .filter(child => child.type !== 'group')
                 .map(child => {
                 const childStyle = {
                   position: 'absolute' as const,
@@ -794,7 +974,7 @@ export default function StudioCanvas({
         )}
       </div>
     );
-  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, shop, customization, onUpdateBlock, onDeleteBlock, onDuplicateBlock, onUpdateBlockPosition, onAddSlide]);
+  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, memoizedGridConfig, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent, handleCanvasClick, onSelectBackground, onResizeGroup, onResizeGroupStart, onResizeGroupEnd, getGroupBounds, onMoveGroup, onSelectBlock]);
 
   let backgroundStyle: React.CSSProperties = {
     minHeight: '100vh',
@@ -837,7 +1017,6 @@ export default function StudioCanvas({
         {rootBlocks.map(block => renderBlock(block))}
       </div>
       
-      {/* Overlay pour le groupe sélectionné - avec fallback via groupBoundsRef */}
       {selectedGroupId && (groupBounds || groupBoundsRef.current) && onResizeGroup && (
         <GroupOverlay
           groupId={selectedGroupId}

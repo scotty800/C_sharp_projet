@@ -226,7 +226,7 @@ export interface Block {
 // ⭐ Interface BlockUI (pour le frontend - transformation)
 export interface BlockUI {
   id: string;
-  type: 'banner' | 'logo' | 'title' | 'products' | 'section' | 'text' | 'image' | 'button' | 'spacer';
+  type: 'banner' | 'logo' | 'title' | 'products' | 'section' | 'text' | 'image' | 'button' | 'spacer' | 'products-grid' | 'product-slot';
   props: any;
   order: number;
   position?: { x: number; y: number; width?: number; height?: number; zIndex?: number };
@@ -577,4 +577,348 @@ export interface ShopCustomizationStatsDto {
   version: number;
   totalViews: number;
   totalEdits: number;
+}
+
+// types/studio.ts - AJOUTER À LA FIN DU FICHIER
+
+// ==================== TYPES POUR LES PRODUITS ====================
+
+export interface ProductVariant {
+  id: number;
+  size?: string;
+  color?: string;
+  price: number;
+  stock: number;
+  sku?: string;
+}
+
+export interface StudioProduct {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  originalPrice?: number;
+  stock: number;
+  imageUrl?: string;
+  imageUrl1?: string;
+  imageUrl2?: string;
+  imageUrl3?: string;
+  category: string;
+  sizes?: string[];
+  colors?: string[];
+  variants?: ProductVariant[];
+  isInStock: boolean;
+  createdAt: string;
+}
+
+// ==================== TYPES POUR LE CONTENU PERSONNALISÉ DES SLOTS ====================
+
+export interface CustomSlotContent {
+  customTitle?: string;
+  customImage?: string;
+  customLink?: string;
+  customDescription?: string;
+}
+
+// ==================== TYPES POUR LES SLOTS PRODUITS ====================
+
+export interface ProductSlotData {
+  productId: number | null;
+  displayMode: 'traditional' | 'interactive';
+
+  // ⭐ Frame style (peut être défini ici aussi pour override)
+  frameStyle?: 'square' | 'horizontal' | 'vertical' | 'circle' | 'rounded';
+  
+  // Configuration pour mode interactif
+  interactiveConfig?: {
+    showPriceOnClick: boolean;
+    showDescriptionOnClick: boolean;
+    showSizeSelector: boolean;
+    showColorSelector: boolean;
+    showStockStatus: boolean;
+    showAddToCart: boolean;
+    overlayStyle: 'modal' | 'tooltip' | 'slide' | 'fade';
+    overlayBackground: string;
+    overlayBlur: number;
+    animationDuration: number;
+    triggerType: 'click' | 'hover';
+    
+    showNameOnClick?: boolean;
+    namePosition?: string;
+    pricePosition?: string;
+    buttonPosition?: string;
+    descriptionPosition?: string;
+    nameColor?: string;
+    priceColor?: string;
+    cartButtonText?: string;
+  };
+  
+  // Configuration pour mode traditionnel
+  traditionalConfig?: {
+    showImage: boolean;
+    showName: boolean;
+    showPrice: boolean;
+    showDescription: boolean;
+    showSizeSelector: boolean;
+    showColorSelector: boolean;
+    showStockStatus: boolean;
+    showAddToCart: boolean;
+    imagePosition: 'top' | 'left' | 'right';
+    cardStyle: 'default' | 'minimal' | 'compact' | 'detailed';
+    buttonStyle: 'primary' | 'outline' | 'text';
+  };
+  
+  // Liaison du produit
+  linkedProduct?: StudioProduct;
+  
+  // Customisation visuelle
+  customStyles?: {
+    backgroundColor?: string;
+    borderRadius?: number;
+    shadow?: string;
+    padding?: number;
+    gap?: number;
+  };
+}
+
+export interface SlotPosition {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  order: number;
+}
+
+export interface ProductSlotBlock extends BlockUI {
+  type: 'product-slot';
+  props: ProductSlotData;
+}
+
+// ==================== TYPES POUR LA GRILLE DE PRODUITS ====================
+
+export interface ProductGridConfig {
+  // Structure de grille
+  layoutType: 'grid' | 'flex' | 'masonry';
+  columns: {
+    desktop: number;
+    tablet: number;
+    mobile: number;
+  };
+  rows: number;
+  gap: number;
+  padding: number;
+
+  // ⭐ Dimension globale de la grille (comme un bloc)
+  dimension: Dimension;
+  uniformSize?: UniformSize;
+  
+  // Slots individuels
+  slots: ProductGridSlot[];
+}
+
+export interface ProductGridSlot {
+  id: string;
+  order: number;
+  productId: number | null;
+  linkedProduct?: StudioProduct;
+  displayMode: 'traditional' | 'interactive';
+  // ⭐ NOUVEAU : Frame style au niveau du slot (pour les deux modes)
+  frameStyle?: 'square' | 'horizontal' | 'vertical' | 'circle' | 'rounded';
+  // ⭐ NOUVEAU : Index de l'image à afficher (1, 2, 3 ou null pour l'image par défaut)
+  imageIndex?: number | null;
+
+  // ⭐ Dimension individuelle du slot (override la grille)
+  customSize?: Dimension;
+
+  carouselConfig?: {
+    enabled: boolean;
+    interval: number;      // en millisecondes (ex: 3000 = 3 secondes)
+    animation: 'fade' | 'slide';
+    stopOnHover: boolean;
+    showDots: boolean;
+    showArrows: boolean;
+    currentImageIndex?: number;  // pour suivre l'image actuelle
+  };
+
+  // Configuration spécifique au slot (peut surcharger la config globale)
+  customConfig?: Partial<ProductSlotData> & CustomSlotContent;
+  // Position dans la grille
+  gridPosition: {
+    row: number;
+    col: number;
+    rowSpan?: number;
+    colSpan?: number;
+  };
+}
+
+export interface Dimension {
+  width: number;
+  height: number;
+  widthUnit: 'px' | 'auto';
+  heightUnit: 'px' | 'auto';
+}
+
+export interface UniformSize {
+  enabled: boolean;
+  width: number;
+  height: number;
+}
+
+// types/studio.ts - Ajouter après l'interface StudioProduct
+
+export interface CreateStudioProduct {
+  name: string;
+  description?: string;
+  price: number;
+  originalPrice?: number;
+  stock?: number;
+  imageUrl?: string;
+  imageUrl1?: string;
+  imageUrl2?: string;
+  imageUrl3?: string;
+  category?: string;
+  sizes?: string[];
+  colors?: string[];
+  isInStock?: boolean;
+}
+
+// types/studio.ts - Ajouter à la fin
+
+// ==================== TYPES POUR LA PERSONNALISATION DES PRODUITS ====================
+
+// ⭐ Type pour la configuration d'une slide
+export interface SlideCustomization {
+  // Background
+  backgroundType?: 'solid' | 'gradient' | 'image' | '3d' | 'transparent';
+  backgroundColor?: string;
+  backgroundGradient?: string;
+  backgroundImage?: string;
+  backgroundOpacity?: number;
+  backgroundBlur?: number;
+  
+  // Frame / Cadre
+  frameColor?: string;
+  frameWidth?: number;
+  frameShadow?: boolean;
+  frameShadowColor?: string;
+  
+  // Hover effect
+  hoverEffect?: 'zoom' | 'glow' | 'slide' | 'rotate' | 'none';
+  hoverScale?: number;
+  hoverGlowColor?: string;
+  hoverGlowIntensity?: number;
+  hoverSlideDirection?: 'up' | 'down' | 'left' | 'right';
+  hoverSlideDistance?: number;
+  hoverRotate?: number;
+  
+  // Badge
+  badge?: {
+    text: string;
+    backgroundColor: string;
+    textColor: string;
+    position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    fontSize?: number;
+    borderRadius?: number;
+    animation?: 'pulse' | 'bounce' | 'none';
+  };
+  
+  // Featured
+  isFeatured?: boolean;
+  featuredOrder?: number;
+  featuredBadge?: string;
+  featuredBadgeColor?: string;
+  
+  // Animation
+  entranceAnimation?: 'fade' | 'slide-up' | 'slide-down' | 'slide-left' | 'slide-right' | 'zoom-in' | 'bounce' | 'none';
+  animationDuration?: number;
+  animationDelay?: number;
+  animationEasing?: 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'linear';
+}
+
+export interface ProductCustomization {
+  // Background
+  backgroundType: 'solid' | 'gradient' | 'image' | '3d' | 'transparent';
+  backgroundColor?: string;
+  backgroundGradient?: string;
+  backgroundImage?: string;
+  backgroundOpacity?: number;
+  backgroundBlur?: number;
+  backgroundValue?: string;
+  
+  // Frame / Cadre
+  frameColor?: string;
+  frameWidth?: number;
+  frameShadow?: boolean;
+  frameShadowColor?: string;
+  
+  // Hover effect
+  hoverEffect: 'zoom' | 'glow' | 'slide' | 'rotate' | 'none';
+  hoverScale?: number;        // 1.0 à 1.5
+  hoverGlowColor?: string;    // pour effet glow
+  hoverGlowIntensity?: number; // 0 à 50
+  hoverSlideDirection?: 'up' | 'down' | 'left' | 'right';
+  hoverSlideDistance?: number;
+  hoverRotate?: number;        // degrés
+  
+  // Badge
+  badge?: {
+    text: string;
+    backgroundColor: string;
+    textColor: string;
+    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    fontSize?: number;
+    borderRadius?: number;
+    animation?: 'pulse' | 'bounce' | 'none';
+  };
+  
+  // Featured
+  isFeatured: boolean;
+  featuredOrder?: number;
+  featuredBadge?: string;
+  featuredBadgeColor?: string;
+  
+  // Animation d'apparition
+  entranceAnimation: 'fade' | 'slide-up' | 'slide-down' | 'slide-left' | 'slide-right' | 'zoom-in' | 'bounce' | 'none';
+  animationDuration: number;    // ms
+  animationDelay: number;       // ms
+  animationEasing?: 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'linear';
+
+   // ⭐ Configuration par slide (optionnelle)
+  slidesConfig?: {
+    [slideIndex: number]: SlideCustomization;
+  };
+}
+
+export interface ProductSlotCustomization extends ProductCustomization {
+  slotId: string;
+  productId: number | null;
+}
+
+// Backgrounds prédéfinis
+export interface PresetBackground {
+  id: string;
+  name: string;
+  type: 'solid' | 'gradient' | 'image' | '3d';
+  value: string;
+  thumbnail?: string;
+  preview?: string;
+}
+
+// Badges prédéfinis
+export interface PresetBadge {
+  id: string;
+  name: string;
+  text: string;
+  backgroundColor: string;
+  textColor: string;
+}
+
+// Animations d'entrée prédéfinies
+export interface PresetAnimation {
+  id: string;
+  name: string;
+  cssClass: string;
+  duration: number;
+  easing: string;
 }

@@ -15,6 +15,9 @@ import ProductsPanel from './panels/ProductsPanel';
 import SettingsPanel from './panels/SettingsPanel';
 import SnapshotsPanel from './panels/SnapshotsPanel';
 import TextPanel from './panels/TextPanel';
+import GridManagerPanel from './panels/GridManagerPanel';
+import ProductCustomizationSidebar from './panels/ProductCustomizationSidebar';
+import { ProductGridConfig, ProductGridSlot, StudioProduct, ProductCustomization } from '@/types/studio';
 
 interface Props {
   shop: any;
@@ -45,6 +48,23 @@ interface Props {
   onDeleteInternalElement?: (elementId: string, parentId: string) => void;
   shopId: number;
   onAddSlide?: (carouselBlockId: string) => void;
+  // ⭐ Props pour la gestion de grille
+  gridConfig?: ProductGridConfig;
+  onUpdateGrid?: (config: ProductGridConfig) => void;
+  onSelectSlot?: (slotId: string) => void;
+  onLinkProductToSlot?: (slotId: string, product: StudioProduct) => void;
+  onUnlinkProductFromSlot?: (slotId: string) => void;
+  onUpdateSlotConfig?: (slotId: string, config: Partial<ProductGridSlot>) => void;
+  // ⭐ Sélection de bloc depuis le panneau
+  onSelectBlock?: (blockId: string | null, target?: 'text' | 'background') => void;
+  // ⭐ Props pour la personnalisation produit dans la sidebar
+  selectedProductForCustomization?: {
+    id: number;
+    name: string;
+    customization: ProductCustomization;
+  } | null;
+  onUpdateProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
+  onCloseProductCustomization?: () => void;
 }
 
 const PANELS = [
@@ -58,7 +78,7 @@ const PANELS = [
   { id: 'products', label: 'Produits', icon: FiPackage },
   { id: 'snapshots', label: 'Versions', icon: FiCamera },
   { id: 'settings', label: 'Paramètres', icon: FiSettings },
-  { id: 'layers', label: 'Calques', icon: FiLayers }, // ⭐ NOUVEAU PANEL CALQUES
+  { id: 'layers', label: 'Calques', icon: FiLayers },
 ];
 
 export default function StudioSidebar({ 
@@ -82,9 +102,22 @@ export default function StudioSidebar({
   onSelectBackground,
   shopId,
   onAddSlide,
+  // ⭐ Nouvelles props
+  gridConfig,
+  onUpdateGrid,
+  onSelectSlot,
+  onLinkProductToSlot,
+  onUnlinkProductFromSlot,
+  onUpdateSlotConfig,
+  onSelectBlock,
+  // ⭐ Props personnalisation produit
+  selectedProductForCustomization,
+  onUpdateProductCustomization,
+  onCloseProductCustomization,
 }: Props) {
   const [selectedBlock, setSelectedBlock] = useState<any>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [products, setProducts] = useState<StudioProduct[]>([]);
 
   useEffect(() => {
     if (selectedBlockId && !isBackgroundSelected) {
@@ -95,6 +128,27 @@ export default function StudioSidebar({
     }
   }, [selectedBlockId, blocks, isBackgroundSelected]);
 
+  // Charger les produits de la boutique
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const { productService } = await import('@/services/api/products');
+        const response = await productService.getProductsByShop(shopId, { pageSize: 100 });
+        let extractedProducts: StudioProduct[] = [];
+        const data: any = response;
+        if (data.products?.items) extractedProducts = data.products.items;
+        else if (data.items) extractedProducts = data.items;
+        else if (Array.isArray(data)) extractedProducts = data;
+        setProducts(extractedProducts);
+      } catch (error) {
+        console.error('Erreur chargement produits:', error);
+      }
+    };
+    if (shopId && activePanel === 'products') {
+      fetchProducts();
+    }
+  }, [shopId, activePanel]);
+
   const handlePanelChange = (panelId: string) => {
     const event = new CustomEvent('changePanel', { detail: panelId });
     window.dispatchEvent(event);
@@ -102,6 +156,15 @@ export default function StudioSidebar({
 
   const handleUpdateBlock = (blockId: string, updates: any) => {
     onUpdateBlock(blockId, updates);
+  };
+
+  const handleSelectSlot = (slotId: string) => {
+    if (onSelectSlot) {
+      onSelectSlot(slotId);
+    }
+    if (onSelectBlock) {
+      onSelectBlock(slotId, 'background');
+    }
   };
 
   return (
@@ -194,7 +257,22 @@ export default function StudioSidebar({
               />
             )}
 
-            {activePanel === 'products' && (
+            {/* ⭐ REMPLACEMENT: ProductsPanel par GridManagerPanel */}
+            {activePanel === 'products' && gridConfig && onUpdateGrid && (
+              <GridManagerPanel
+                gridConfig={gridConfig}
+                products={products}
+                selectedSlotId={selectedBlockId}
+                onUpdateGrid={onUpdateGrid}
+                onSelectSlot={handleSelectSlot}
+                onLinkProduct={onLinkProductToSlot || (() => {})}
+                onUnlinkProduct={onUnlinkProductFromSlot || (() => {})}
+                onUpdateSlotConfig={onUpdateSlotConfig || (() => {})}
+              />
+            )}
+
+            {/* Fallback si gridConfig n'est pas disponible */}
+            {activePanel === 'products' && !gridConfig && (
               <ProductsPanel shopId={shopId} featuredProducts={[]} onUpdateFeatured={() => {}} />
             )}
 
@@ -204,6 +282,22 @@ export default function StudioSidebar({
 
             {activePanel === 'settings' && (
               <SettingsPanel customization={customization} onUpdate={onUpdateCustomization} />
+            )}
+
+            {/* ⭐ PANEL DE PERSONNALISATION PRODUIT - Version temps réel (sans bouton Appliquer) */}
+            {selectedProductForCustomization && (
+              <div className="border-t border-gray-700 mt-4 pt-4">
+                <ProductCustomizationSidebar
+                  productId={selectedProductForCustomization.id}
+                  productName={selectedProductForCustomization.name}
+                  customization={selectedProductForCustomization.customization}
+                  onUpdate={(updates) => {
+                    // ⭐ Mise à jour en temps réel - chaque modification est immédiate
+                    onUpdateProductCustomization?.(selectedProductForCustomization.id, updates);
+                  }}
+                  onClose={onCloseProductCustomization || (() => {})}
+                />
+              </div>
             )}
 
             {/* ⭐ PANEL CALQUES - Ouvre le panneau flottant */}
