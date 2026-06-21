@@ -217,7 +217,7 @@ export default function FontsPanel({
                 <input 
                   type="range" 
                   min="10" 
-                  max="32" 
+                  max="200" 
                   step="1"
                   value={blockProps.productNameSize ? parseInt(blockProps.productNameSize) : 14}
                   onChange={(e) => onUpdateBlock(selectedBlock.id, { productNameSize: `${e.target.value}px` })}
@@ -258,7 +258,7 @@ export default function FontsPanel({
                 <input 
                   type="range" 
                   min="10" 
-                  max="32" 
+                  max="200" 
                   step="1"
                   value={blockProps.priceSize ? parseInt(blockProps.priceSize) : 14}
                   onChange={(e) => onUpdateBlock(selectedBlock.id, { priceSize: `${e.target.value}px` })}
@@ -529,7 +529,10 @@ export default function FontsPanel({
                 {hasTitle && (
                   <>
                     <div><label className="text-xs text-gray-400 block mb-1">Police du titre</label><select value={getTitleValue('titleFont', 'Poppins')} onChange={(e) => handleTitleUpdate({ titleFont: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fonts.map(font => (<option key={font} value={font}>{font}</option>))}</select></div>
-                    <div><label className="text-xs text-gray-400 block mb-1">Taille du titre: {getTitleValue('titleFontSize', 48)}px</label><input type="range" min="24" max="96" step="1" value={getTitleValue('titleFontSize', 48)} onChange={(e) => handleTitleUpdate({ titleFontSize: parseInt(e.target.value) })} className="w-full" /></div>
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">Taille du titre: {getTitleValue('titleFontSize', 48)}px</label>
+                      <input type="range" min="24" max="200" step="1" value={getTitleValue('titleFontSize', 48)} onChange={(e) => handleTitleUpdate({ titleFontSize: parseInt(e.target.value) })} className="w-full" />
+                    </div>
                     <div><label className="text-xs text-gray-400 block mb-1">Poids du titre</label><select value={getTitleValue('titleFontWeight', '700')} onChange={(e) => handleTitleUpdate({ titleFontWeight: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fontWeights.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}</select></div>
                   </>
                 )}
@@ -538,7 +541,10 @@ export default function FontsPanel({
                   <div className="border-t border-gray-700 pt-3 mt-2">
                     <h4 className="text-white text-xs font-semibold mb-2">Sous-titre</h4>
                     <div><label className="text-xs text-gray-400 block mb-1">Police du sous-titre</label><select value={getSubtitleValue('subtitleFont', 'Inter')} onChange={(e) => handleSubtitleUpdate({ subtitleFont: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fonts.map(font => (<option key={font} value={font}>{font}</option>))}</select></div>
-                    <div className="mt-2"><label className="text-xs text-gray-400 block mb-1">Taille du sous-titre: {getSubtitleValue('subtitleFontSize', 18)}px</label><input type="range" min="12" max="48" step="1" value={getSubtitleValue('subtitleFontSize', 18)} onChange={(e) => handleSubtitleUpdate({ subtitleFontSize: parseInt(e.target.value) })} className="w-full" /></div>
+                    <div className="mt-2">
+                      <label className="text-xs text-gray-400 block mb-1">Taille du sous-titre: {getSubtitleValue('subtitleFontSize', 18)}px</label>
+                      <input type="range" min="12" max="200" step="1" value={getSubtitleValue('subtitleFontSize', 18)} onChange={(e) => handleSubtitleUpdate({ subtitleFontSize: parseInt(e.target.value) })} className="w-full" />
+                    </div>
                     <div className="mt-2"><label className="text-xs text-gray-400 block mb-1">Poids du sous-titre</label><select value={getSubtitleValue('subtitleFontWeight', '400')} onChange={(e) => handleSubtitleUpdate({ subtitleFontWeight: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fontWeights.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}</select></div>
                   </div>
                 )}
@@ -547,7 +553,10 @@ export default function FontsPanel({
                   <div className="border-t border-gray-700 pt-3 mt-2">
                     <h4 className="text-white text-xs font-semibold mb-2">Bouton</h4>
                     <div><label className="text-xs text-gray-400 block mb-1">Police du bouton</label><select value={getButtonValue('buttonFont', 'Inter')} onChange={(e) => handleButtonUpdate({ buttonFont: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fonts.map(font => (<option key={font} value={font}>{font}</option>))}</select></div>
-                    <div className="mt-2"><label className="text-xs text-gray-400 block mb-1">Taille du bouton: {getButtonValue('buttonFontSize', 16)}px</label><input type="range" min="12" max="32" step="1" value={getButtonValue('buttonFontSize', 16)} onChange={(e) => handleButtonUpdate({ buttonFontSize: parseInt(e.target.value) })} className="w-full" /></div>
+                    <div className="mt-2">
+                      <label className="text-xs text-gray-400 block mb-1">Taille du bouton: {getButtonValue('buttonFontSize', 16)}px</label>
+                      <input type="range" min="12" max="200" step="1" value={getButtonValue('buttonFontSize', 16)} onChange={(e) => handleButtonUpdate({ buttonFontSize: parseInt(e.target.value) })} className="w-full" />
+                    </div>
                     <div className="mt-2"><label className="text-xs text-gray-400 block mb-1">Poids du bouton</label><select value={getButtonValue('buttonFontWeight', '500')} onChange={(e) => handleButtonUpdate({ buttonFontWeight: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fontWeights.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}</select></div>
                   </div>
                 )}
@@ -677,7 +686,10 @@ export default function FontsPanel({
                 {hasTitle && (
                   <>
                     <div><label className="text-xs text-gray-400 block mb-1">Police du titre</label><select value={blockProps.titleFont || 'Poppins'} onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFont: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fonts.map(font => (<option key={font} value={font}>{font}</option>))}</select></div>
-                    <div><label className="text-xs text-gray-400 block mb-1">Taille du titre: {blockProps.titleFontSize || 48}px</label><input type="range" min="24" max="96" step="1" value={blockProps.titleFontSize || 48} onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFontSize: parseInt(e.target.value) })} className="w-full" /></div>
+                    <div>
+                      <label className="text-xs text-gray-400 block mb-1">Taille du titre: {blockProps.titleFontSize || 48}px</label>
+                      <input type="range" min="24" max="200" step="1" value={blockProps.titleFontSize || 48} onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFontSize: parseInt(e.target.value) })} className="w-full" />
+                    </div>
                     <div><label className="text-xs text-gray-400 block mb-1">Poids du titre</label><select value={blockProps.titleFontWeight || '700'} onChange={(e) => onUpdateBlock(selectedBlock.id, { titleFontWeight: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fontWeights.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}</select></div>
                   </>
                 )}
@@ -686,7 +698,10 @@ export default function FontsPanel({
                   <div className="border-t border-gray-700 pt-3 mt-2">
                     <h4 className="text-white text-xs font-semibold mb-2">Sous-titre</h4>
                     <div><label className="text-xs text-gray-400 block mb-1">Police du sous-titre</label><select value={blockProps.subtitleFont || 'Inter'} onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFont: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fonts.map(font => (<option key={font} value={font}>{font}</option>))}</select></div>
-                    <div className="mt-2"><label className="text-xs text-gray-400 block mb-1">Taille du sous-titre: {blockProps.subtitleFontSize || 18}px</label><input type="range" min="12" max="48" step="1" value={blockProps.subtitleFontSize || 18} onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFontSize: parseInt(e.target.value) })} className="w-full" /></div>
+                    <div className="mt-2">
+                      <label className="text-xs text-gray-400 block mb-1">Taille du sous-titre: {blockProps.subtitleFontSize || 18}px</label>
+                      <input type="range" min="12" max="200" step="1" value={blockProps.subtitleFontSize || 18} onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFontSize: parseInt(e.target.value) })} className="w-full" />
+                    </div>
                     <div className="mt-2"><label className="text-xs text-gray-400 block mb-1">Poids du sous-titre</label><select value={blockProps.subtitleFontWeight || '400'} onChange={(e) => onUpdateBlock(selectedBlock.id, { subtitleFontWeight: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fontWeights.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}</select></div>
                   </div>
                 )}
@@ -695,7 +710,10 @@ export default function FontsPanel({
                   <div className="border-t border-gray-700 pt-3 mt-2">
                     <h4 className="text-white text-xs font-semibold mb-2">Bouton</h4>
                     <div><label className="text-xs text-gray-400 block mb-1">Police du bouton</label><select value={blockProps.buttonFont || 'Inter'} onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFont: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fonts.map(font => (<option key={font} value={font}>{font}</option>))}</select></div>
-                    <div className="mt-2"><label className="text-xs text-gray-400 block mb-1">Taille du bouton: {blockProps.buttonFontSize || 16}px</label><input type="range" min="12" max="32" step="1" value={blockProps.buttonFontSize || 16} onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFontSize: parseInt(e.target.value) })} className="w-full" /></div>
+                    <div className="mt-2">
+                      <label className="text-xs text-gray-400 block mb-1">Taille du bouton: {blockProps.buttonFontSize || 16}px</label>
+                      <input type="range" min="12" max="200" step="1" value={blockProps.buttonFontSize || 16} onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFontSize: parseInt(e.target.value) })} className="w-full" />
+                    </div>
                     <div className="mt-2"><label className="text-xs text-gray-400 block mb-1">Poids du bouton</label><select value={blockProps.buttonFontWeight || '500'} onChange={(e) => onUpdateBlock(selectedBlock.id, { buttonFontWeight: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fontWeights.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}</select></div>
                   </div>
                 )}
@@ -781,14 +799,17 @@ export default function FontsPanel({
         {activeTab === 'fonts' && (
           <>
             <div><label className="text-xs text-gray-400 block mb-1">Police</label><select value={blockProps.fontFamily || customization?.bodyFont || 'Inter'} onChange={(e) => onUpdateBlock(selectedBlock.id, { fontFamily: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fonts.map(font => (<option key={font} value={font}>{font}</option>))}</select></div>
-            <div><label className="text-xs text-gray-400 block mb-1">Taille: {blockProps.fontSize || 16}px</label><input type="range" min="12" max="72" value={blockProps.fontSize || 16} onChange={(e) => onUpdateBlock(selectedBlock.id, { fontSize: parseInt(e.target.value) })} className="w-full" /></div>
-            <div><label className="text-xs text-gray-400 block mb-1">Poids</label><select value={blockProps.fontWeight || '400'} onChange={(e) => onUpdateBlock(selectedBlock.id, { fontWeight: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fontWeights.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}</select></div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Taille: {blockProps.fontSize || 32}px</label>
+              <input type="range" min="8" max="200" step="1" value={blockProps.fontSize || 32} onChange={(e) => onUpdateBlock(selectedBlock.id, { fontSize: parseInt(e.target.value) })} className="w-full" />
+            </div>
+            <div><label className="text-xs text-gray-400 block mb-1">Poids</label><select value={blockProps.fontWeight || '700'} onChange={(e) => onUpdateBlock(selectedBlock.id, { fontWeight: e.target.value })} className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs">{fontWeights.map(w => (<option key={w.value} value={w.value}>{w.label}</option>))}</select></div>
           </>
         )}
 
         {activeTab === 'text-effects' && (
           <>
-            <div><label className="text-xs text-gray-400 block mb-1">Couleur</label><div className="flex items-center gap-2"><input type="color" value={blockProps.textColor || '#000000'} onChange={(e) => onUpdateBlock(selectedBlock.id, { textColor: e.target.value })} className="w-8 h-8 rounded border-0 cursor-pointer" /><input type="text" value={blockProps.textColor || '#000000'} onChange={(e) => onUpdateBlock(selectedBlock.id, { textColor: e.target.value })} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" /></div></div>
+            <div><label className="text-xs text-gray-400 block mb-1">Couleur</label><div className="flex items-center gap-2"><input type="color" value={blockProps.textColor || '#ffffff'} onChange={(e) => onUpdateBlock(selectedBlock.id, { textColor: e.target.value })} className="w-8 h-8 rounded border-0 cursor-pointer" /><input type="text" value={blockProps.textColor || '#ffffff'} onChange={(e) => onUpdateBlock(selectedBlock.id, { textColor: e.target.value })} className="flex-1 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs font-mono" /></div></div>
             <div><label className="text-xs text-gray-400 block mb-1">Alignement</label><div className="flex gap-2">{['left', 'center', 'right'].map(align => (<button key={align} onClick={() => onUpdateBlock(selectedBlock.id, { textAlign: align })} className={`flex-1 py-1 rounded text-xs ${blockProps.textAlign === align ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}>{align === 'left' ? '← Gauche' : align === 'center' ? '↔ Centre' : '→ Droite'}</button>))}</div></div>
             <div><label className="text-xs text-gray-400 block mb-1">Opacité: {blockProps.textOpacity || 100}%</label><input type="range" min="0" max="100" value={blockProps.textOpacity || 100} onChange={(e) => onUpdateBlock(selectedBlock.id, { textOpacity: parseInt(e.target.value) })} className="w-full" /></div>
           </>

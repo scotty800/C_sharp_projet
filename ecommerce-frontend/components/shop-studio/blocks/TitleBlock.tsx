@@ -1,5 +1,4 @@
 'use client';
-
 import { useRef, useEffect } from 'react';
 
 interface Props {
@@ -18,77 +17,99 @@ interface Props {
   isResizing?: boolean;
 }
 
-export function TitleBlock({ 
-  shop, 
-  block, 
-  customization, 
-  isSelected, 
-  isEditing, 
-  onSelect, 
-  onUpdate, 
-  onDelete, 
-  onDuplicate, 
-  onDoubleClick, 
-  onTextBlur, 
-  textOpacity = 1,
-  isResizing 
+export function TitleBlock({
+  shop, block, customization, isSelected, isEditing,
+  onSelect, onUpdate, onDelete, onDuplicate,
+  onDoubleClick, onTextBlur, textOpacity = 1, isResizing
 }: Props) {
-  const { props, position } = block;
-  const level = props.level || 'h2';
+  const { props } = block;
   const textRef = useRef<HTMLDivElement>(null);
+  // ⭐ Ref pour savoir si on est en train d'éditer (évite les syncs DOM intempestives)
+  const isEditingRef = useRef(false);
 
-  // ⭐ Style du conteneur avec overflow caché
+  const fontSize = props.fontSize || 32;
+
   const containerStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: props.textAlign === 'left' ? 'flex-start' : props.textAlign === 'right' ? 'flex-end' : 'center',
-    padding: '4px 8px',
+    justifyContent: props.textAlign === 'left' ? 'flex-start'
+      : props.textAlign === 'right' ? 'flex-end' : 'center',
+    padding: '4px 6px',
     boxSizing: 'border-box',
-    overflow: 'hidden', // ⭐ Empêche le débordement
+    overflow: 'hidden',
+    position: 'relative',
   };
-
-  // ⭐ Taille de police limitée pour éviter le débordement
-  let fontSize: number;
-  
-  if (props.fontSize) {
-    fontSize = Math.min(props.fontSize, position?.height * 0.8);
-  } else {
-    const blockHeight = position?.height || 100;
-    const textLength = (props.title || props.content || 'Nouveau titre').length;
-    
-    let newSize = Math.min(blockHeight * 0.6, 48);
-    newSize = Math.max(12, Math.min(48, newSize));
-    fontSize = newSize;
-  }
 
   const titleStyle: React.CSSProperties = {
     fontSize: `${fontSize}px`,
     fontWeight: props.fontWeight || customization?.headingWeight || '700',
     textAlign: props.textAlign || 'center',
     fontFamily: props.fontFamily || customization?.headingFont || 'Poppins',
-    lineHeight: 1.3,
+    lineHeight: 1.2,
     opacity: textOpacity,
     margin: 0,
     padding: 0,
-    wordBreak: 'break-word',
-    overflowWrap: 'break-word',
     width: '100%',
     color: props.textColor || customization?.textColor || '#ffffff',
-    overflow: 'hidden', // ⭐ Cache le texte qui dépasse
-    textOverflow: 'ellipsis', // ⭐ Ajoute des points de suspension si besoin
-    display: '-webkit-box',
-    WebkitLineClamp: 3, // ⭐ Limite à 3 lignes maximum
-    WebkitBoxOrient: 'vertical',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    overflowWrap: 'break-word',
+    overflow: 'visible',
+  };
+
+  // ⭐ FIX 1 : Initialiser le DOM une seule fois au montage
+  useEffect(() => {
+    if (textRef.current && !isEditingRef.current) {
+      textRef.current.innerText = props.title || props.content || 'Nouveau titre';
+    }
+  }, []); // volontairement vide — montage uniquement
+
+  // ⭐ FIX 2 : Sync externe (ex: undo/redo) UNIQUEMENT hors édition
+  useEffect(() => {
+    if (!isEditingRef.current && textRef.current) {
+      const newContent = props.title || props.content || 'Nouveau titre';
+      if (textRef.current.innerText !== newContent) {
+        textRef.current.innerText = newContent;
+      }
+    }
+  }, [props.title, props.content]);
+
+  // ⭐ FIX 3 : Quand on entre en édition, focus + curseur à la fin
+  useEffect(() => {
+    if (isEditing && textRef.current) {
+      isEditingRef.current = true;
+      textRef.current.focus();
+
+      // Placer le curseur à la fin (pas au début !)
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(textRef.current);
+      range.collapse(false); // false = fin du contenu
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    } else if (!isEditing) {
+      isEditingRef.current = false;
+    }
+  }, [isEditing]);
+
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    // On met à jour le state mais React ne va PAS réécrire le DOM
+    // car on ne passe aucun enfant au div contentEditable
+    onUpdate({ title: e.currentTarget.innerText });
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
     const newContent = e.currentTarget.innerText;
+    isEditingRef.current = false;
     if (onTextBlur) {
       onTextBlur(newContent);
     } else {
       onUpdate({ title: newContent });
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('forceSave'));
+      }, 100);
     }
   };
 
@@ -104,16 +125,14 @@ export function TitleBlock({
         <div
           ref={textRef}
           style={titleStyle}
-          contentEditable={isSelected}
+          contentEditable={isEditing} // ← isEditing, pas isSelected
+          onInput={handleInput}
           onBlur={handleBlur}
           suppressContentEditableWarning
           className="outline-none w-full"
-        >
-          {props.title || props.content || 'Nouveau titre'}
-        </div>
+          // ⭐ Pas d'enfant React ici — le DOM est géré manuellement via useEffect
+        />
       </div>
-
-      {/* ⭐ TAG SUPPRIMÉ - Plus aucun badge flottant */}
     </div>
   );
 }

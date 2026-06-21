@@ -80,10 +80,25 @@ export function TextBlock({ block, customization, isSelected, onSelect, onUpdate
     textStyle.backgroundColor = props?.backgroundColor || 'transparent';
   }
 
-  const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+  // ⭐⭐ NOUVEAU : handleInput pour marquer isDirty pendant la frappe
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
     const newContent = e.currentTarget.innerText;
+    console.log('📝 [TextBlock] handleInput - nouveau contenu:', newContent);
     setLocalContent(newContent);
     onUpdate({ content: newContent });
+  };
+
+  // ⭐⭐ MODIFICATION : handleBlur avec forceSave APRÈS la mise à jour du state
+  const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    const newContent = e.currentTarget.innerText;
+    console.log('📝 [TextBlock] handleBlur - nouveau contenu:', newContent);
+    setLocalContent(newContent);
+    onUpdate({ content: newContent });
+    // ⭐ Force la sauvegarde APRÈS que le state soit mis à jour
+    setTimeout(() => {
+      console.log('🔥 [TextBlock] Dispatch forceSave (delay)');
+      window.dispatchEvent(new CustomEvent('forceSave'));
+    }, 100);
   };
 
   return (
@@ -98,6 +113,7 @@ export function TextBlock({ block, customization, isSelected, onSelect, onUpdate
           ref={textRef}
           style={textStyle}
           contentEditable={isSelected}
+          onInput={handleInput}   // ⭐ AJOUTÉ : marque isDirty pendant la frappe
           onBlur={handleBlur}
           suppressContentEditableWarning
           className="outline-none w-full"

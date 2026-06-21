@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   FiDroplet, FiType, FiFilter, FiImage, FiLayout, 
   FiPackage, FiSettings, FiCamera, FiPlusSquare, FiLayers
@@ -17,7 +17,7 @@ import SnapshotsPanel from './panels/SnapshotsPanel';
 import TextPanel from './panels/TextPanel';
 import GridManagerPanel from './panels/GridManagerPanel';
 import ProductCustomizationSidebar from './panels/ProductCustomizationSidebar';
-import { ProductGridConfig, ProductGridSlot, StudioProduct, ProductCustomization } from '@/types/studio';
+import { ProductGridConfig, ProductGridSlot, StudioProduct, ProductCustomization, CreateStudioProduct } from '@/types/studio';
 
 interface Props {
   shop: any;
@@ -48,23 +48,23 @@ interface Props {
   onDeleteInternalElement?: (elementId: string, parentId: string) => void;
   shopId: number;
   onAddSlide?: (carouselBlockId: string) => void;
-  // ⭐ Props pour la gestion de grille
   gridConfig?: ProductGridConfig;
   onUpdateGrid?: (config: ProductGridConfig) => void;
   onSelectSlot?: (slotId: string) => void;
   onLinkProductToSlot?: (slotId: string, product: StudioProduct) => void;
   onUnlinkProductFromSlot?: (slotId: string) => void;
   onUpdateSlotConfig?: (slotId: string, config: Partial<ProductGridSlot>) => void;
-  // ⭐ Sélection de bloc depuis le panneau
   onSelectBlock?: (blockId: string | null, target?: 'text' | 'background') => void;
-  // ⭐ Props pour la personnalisation produit dans la sidebar
+  onCreateProduct?: (product: CreateStudioProduct) => Promise<StudioProduct>;
   selectedProductForCustomization?: {
     id: number;
     name: string;
     customization: ProductCustomization;
+    slideCount?: number;
   } | null;
   onUpdateProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
   onCloseProductCustomization?: () => void;
+  productsList?: StudioProduct[];
 }
 
 const PANELS = [
@@ -102,7 +102,6 @@ export default function StudioSidebar({
   onSelectBackground,
   shopId,
   onAddSlide,
-  // ⭐ Nouvelles props
   gridConfig,
   onUpdateGrid,
   onSelectSlot,
@@ -110,44 +109,29 @@ export default function StudioSidebar({
   onUnlinkProductFromSlot,
   onUpdateSlotConfig,
   onSelectBlock,
-  // ⭐ Props personnalisation produit
+  onCreateProduct,
   selectedProductForCustomization,
   onUpdateProductCustomization,
   onCloseProductCustomization,
+  productsList = [],
 }: Props) {
-  const [selectedBlock, setSelectedBlock] = useState<any>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [products, setProducts] = useState<StudioProduct[]>([]);
+  
+  // ⭐ Pas besoin de state, on cherche le bloc directement dans blocks
+  const getSelectedBlock = () => {
+    if (!selectedBlockId || isBackgroundSelected) return null;
+    return blocks.find(b => b.id === selectedBlockId) || null;
+  };
 
-  useEffect(() => {
-    if (selectedBlockId && !isBackgroundSelected) {
-      const block = blocks.find(b => b.id === selectedBlockId);
-      setSelectedBlock(block);
-    } else {
-      setSelectedBlock(null);
-    }
-  }, [selectedBlockId, blocks, isBackgroundSelected]);
+  // ⭐ Le bloc sélectionné est calculé à chaque rendu
+  const selectedBlock = getSelectedBlock();
 
-  // Charger les produits de la boutique
+  // ⭐ Écouter les changements de productsList
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const { productService } = await import('@/services/api/products');
-        const response = await productService.getProductsByShop(shopId, { pageSize: 100 });
-        let extractedProducts: StudioProduct[] = [];
-        const data: any = response;
-        if (data.products?.items) extractedProducts = data.products.items;
-        else if (data.items) extractedProducts = data.items;
-        else if (Array.isArray(data)) extractedProducts = data;
-        setProducts(extractedProducts);
-      } catch (error) {
-        console.error('Erreur chargement produits:', error);
-      }
-    };
-    if (shopId && activePanel === 'products') {
-      fetchProducts();
-    }
-  }, [shopId, activePanel]);
+    window.dispatchEvent(new CustomEvent('productsListUpdated', { 
+      detail: { products: productsList }
+    }));
+  }, [productsList]);
 
   const handlePanelChange = (panelId: string) => {
     const event = new CustomEvent('changePanel', { detail: panelId });
@@ -257,23 +241,27 @@ export default function StudioSidebar({
               />
             )}
 
-            {/* ⭐ REMPLACEMENT: ProductsPanel par GridManagerPanel */}
             {activePanel === 'products' && gridConfig && onUpdateGrid && (
               <GridManagerPanel
                 gridConfig={gridConfig}
-                products={products}
+                products={productsList}
                 selectedSlotId={selectedBlockId}
                 onUpdateGrid={onUpdateGrid}
                 onSelectSlot={handleSelectSlot}
                 onLinkProduct={onLinkProductToSlot || (() => {})}
                 onUnlinkProduct={onUnlinkProductFromSlot || (() => {})}
                 onUpdateSlotConfig={onUpdateSlotConfig || (() => {})}
+                onCreateProduct={onCreateProduct}
               />
             )}
 
-            {/* Fallback si gridConfig n'est pas disponible */}
             {activePanel === 'products' && !gridConfig && (
-              <ProductsPanel shopId={shopId} featuredProducts={[]} onUpdateFeatured={() => {}} />
+              <ProductsPanel 
+                shopId={shopId} 
+                featuredProducts={[]} 
+                onUpdateFeatured={() => {}} 
+                onCreateProduct={onCreateProduct}
+              />
             )}
 
             {activePanel === 'snapshots' && (
@@ -284,15 +272,14 @@ export default function StudioSidebar({
               <SettingsPanel customization={customization} onUpdate={onUpdateCustomization} />
             )}
 
-            {/* ⭐ PANEL DE PERSONNALISATION PRODUIT - Version temps réel (sans bouton Appliquer) */}
             {selectedProductForCustomization && (
               <div className="border-t border-gray-700 mt-4 pt-4">
                 <ProductCustomizationSidebar
                   productId={selectedProductForCustomization.id}
                   productName={selectedProductForCustomization.name}
                   customization={selectedProductForCustomization.customization}
+                  slideCount={selectedProductForCustomization.slideCount}
                   onUpdate={(updates) => {
-                    // ⭐ Mise à jour en temps réel - chaque modification est immédiate
                     onUpdateProductCustomization?.(selectedProductForCustomization.id, updates);
                   }}
                   onClose={onCloseProductCustomization || (() => {})}
@@ -300,7 +287,6 @@ export default function StudioSidebar({
               </div>
             )}
 
-            {/* ⭐ PANEL CALQUES - Ouvre le panneau flottant */}
             {activePanel === 'layers' && (
               <div className="p-2">
                 <button

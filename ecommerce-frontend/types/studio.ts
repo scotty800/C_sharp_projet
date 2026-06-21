@@ -234,6 +234,7 @@ export interface BlockUI {
   parentId?: string | null;
   isLocked?: boolean;
   children?: BlockUI[];
+  gridConfig?: ProductGridConfig;
 }
 
 // Interface principale SHOP CUSTOMIZATION (mise à jour avec blocks)
@@ -579,8 +580,6 @@ export interface ShopCustomizationStatsDto {
   totalEdits: number;
 }
 
-// types/studio.ts - AJOUTER À LA FIN DU FICHIER
-
 // ==================== TYPES POUR LES PRODUITS ====================
 
 export interface ProductVariant {
@@ -609,6 +608,22 @@ export interface StudioProduct {
   variants?: ProductVariant[];
   isInStock: boolean;
   createdAt: string;
+}
+
+export interface CreateStudioProduct {
+  name: string;
+  description?: string;
+  price: number;
+  originalPrice?: number;
+  stock?: number;
+  imageUrl?: string;
+  imageUrl1?: string;
+  imageUrl2?: string;
+  imageUrl3?: string;
+  category?: string;
+  sizes?: string[];
+  colors?: string[];
+  isInStock?: boolean;
 }
 
 // ==================== TYPES POUR LE CONTENU PERSONNALISÉ DES SLOTS ====================
@@ -765,29 +780,20 @@ export interface UniformSize {
   height: number;
 }
 
-// types/studio.ts - Ajouter après l'interface StudioProduct
-
-export interface CreateStudioProduct {
-  name: string;
-  description?: string;
-  price: number;
-  originalPrice?: number;
-  stock?: number;
-  imageUrl?: string;
-  imageUrl1?: string;
-  imageUrl2?: string;
-  imageUrl3?: string;
-  category?: string;
-  sizes?: string[];
-  colors?: string[];
-  isInStock?: boolean;
-}
-
-// types/studio.ts - Ajouter à la fin
-
 // ==================== TYPES POUR LA PERSONNALISATION DES PRODUITS ====================
 
-// ⭐ Type pour la configuration d'une slide
+// ⭐ Interface Badge (partagée entre ProductCustomization et SlideCustomization)
+export interface ProductBadge {
+  text: string;
+  backgroundColor: string;
+  textColor: string;
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  fontSize?: number;
+  borderRadius?: number;
+  animation?: 'pulse' | 'bounce' | 'none';
+}
+
+// ⭐ Type pour la configuration d'une slide (tous les champs sont optionnels car une slide peut hériter du global)
 export interface SlideCustomization {
   // Background
   backgroundType?: 'solid' | 'gradient' | 'image' | '3d' | 'transparent';
@@ -796,6 +802,7 @@ export interface SlideCustomization {
   backgroundImage?: string;
   backgroundOpacity?: number;
   backgroundBlur?: number;
+  backgroundValue?: string;
   
   // Frame / Cadre
   frameColor?: string;
@@ -812,18 +819,10 @@ export interface SlideCustomization {
   hoverSlideDistance?: number;
   hoverRotate?: number;
   
-  // Badge
-  badge?: {
-    text: string;
-    backgroundColor: string;
-    textColor: string;
-    position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-    fontSize?: number;
-    borderRadius?: number;
-    animation?: 'pulse' | 'bounce' | 'none';
-  };
+  // Badge (optionnel car peut hériter du global)
+  badge?: ProductBadge;
   
-  // Featured
+  // Featured (optionnel car peut hériter du global)
   isFeatured?: boolean;
   featuredOrder?: number;
   featuredBadge?: string;
@@ -836,6 +835,7 @@ export interface SlideCustomization {
   animationEasing?: 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'linear';
 }
 
+// ⭐ Configuration globale du produit (tous les champs requis ont des valeurs par défaut)
 export interface ProductCustomization {
   // Background
   backgroundType: 'solid' | 'gradient' | 'image' | '3d' | 'transparent';
@@ -854,23 +854,15 @@ export interface ProductCustomization {
   
   // Hover effect
   hoverEffect: 'zoom' | 'glow' | 'slide' | 'rotate' | 'none';
-  hoverScale?: number;        // 1.0 à 1.5
-  hoverGlowColor?: string;    // pour effet glow
-  hoverGlowIntensity?: number; // 0 à 50
+  hoverScale?: number;
+  hoverGlowColor?: string;
+  hoverGlowIntensity?: number;
   hoverSlideDirection?: 'up' | 'down' | 'left' | 'right';
   hoverSlideDistance?: number;
-  hoverRotate?: number;        // degrés
+  hoverRotate?: number;
   
   // Badge
-  badge?: {
-    text: string;
-    backgroundColor: string;
-    textColor: string;
-    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-    fontSize?: number;
-    borderRadius?: number;
-    animation?: 'pulse' | 'bounce' | 'none';
-  };
+  badge?: ProductBadge;
   
   // Featured
   isFeatured: boolean;
@@ -880,14 +872,17 @@ export interface ProductCustomization {
   
   // Animation d'apparition
   entranceAnimation: 'fade' | 'slide-up' | 'slide-down' | 'slide-left' | 'slide-right' | 'zoom-in' | 'bounce' | 'none';
-  animationDuration: number;    // ms
-  animationDelay: number;       // ms
+  animationDuration: number;
+  animationDelay: number;
   animationEasing?: 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'linear';
 
-   // ⭐ Configuration par slide (optionnelle)
+  // ⭐ Configuration par slide (optionnelle)
   slidesConfig?: {
     [slideIndex: number]: SlideCustomization;
   };
+
+  selectedSize?: string;
+  selectedColor?: string;
 }
 
 export interface ProductSlotCustomization extends ProductCustomization {

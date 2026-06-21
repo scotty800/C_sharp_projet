@@ -19,9 +19,9 @@ namespace ECommerceApi.DTO
         [Range(0, int.MaxValue, ErrorMessage = "Le stock doit être un nombre positif")]
         public int Stock { get; set; }
 
-        public string? Size { get; set; }
+        public List<string>? Size { get; set; }
 
-        public string? Color { get; set; }
+        public List<string>? Color { get; set; }
 
         [Required]
         public string Category { get; set; } = string.Empty;

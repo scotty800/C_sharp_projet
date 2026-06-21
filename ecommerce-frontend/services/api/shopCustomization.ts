@@ -52,14 +52,16 @@ export const shopCustomizationService = {
   },
 
   async updateBlocks(shopId: number, blocks: Block[]): Promise<void> {
-    try {
-      await api.put(`/shops/${shopId}/customization/blocks`, blocks);
-      console.log('✅ Blocs sauvegardés avec succès');
-    } catch (error: any) {
-      console.error('❌ Erreur updateBlocks:', error.response?.status, error.response?.data);
-      throw error;
-    }
-  },
+  try {
+    await api.put(`/shops/${shopId}/customization/blocks`, blocks, {
+      timeout: 60000, // ← ajouter ceci
+    });
+    console.log('✅ Blocs sauvegardés avec succès');
+  } catch (error: any) {
+    console.error('❌ Erreur updateBlocks:', error.response?.status, error.response?.data);
+    throw error;
+  }
+},
 
   // ⭐ AJOUTER CETTE MÉTHODE POUR RÉCUPÉRER LES FILTRES DU CANVAS
   async getCanvasFilters(shopId: number): Promise<any> {

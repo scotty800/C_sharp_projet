@@ -38,11 +38,11 @@ interface Props {
   onResizeGroupStart?: (groupId: string) => void;
   onResizeGroupEnd?: () => void;
   onAddSlide?: (carouselBlockId: string) => void;
-  gridConfig?: ProductGridConfig;
-  onUpdateGridConfig?: (config: ProductGridConfig) => void;
+  // ⭐ 2.1 - Supprimer gridConfig des props
+  onUpdateGridConfig?: (blockId: string, config: ProductGridConfig) => void;
   productsList?: StudioProduct[];
-  onLinkProduct?: (slotId: string, product: StudioProduct) => void;
-  onOpenProductCustomization?: (productId: number, productName: string, customization: ProductCustomization) => void;
+  onLinkProduct?: (blockId: string, slotId: string, product: StudioProduct) => void;
+  onOpenProductCustomization?: (productId: number, productName: string, customization: ProductCustomization, slideCount?: number) => void;
   globalProductCustomizations?: Map<number, ProductCustomization>;
   onUpdateGlobalProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
 }
@@ -68,14 +68,16 @@ export default function StudioCanvas({
   onResizeGroupStart,
   onResizeGroupEnd,
   onAddSlide,
-  gridConfig,
   onUpdateGridConfig,
-  productsList,
+  productsList = [],
   onLinkProduct,
   onOpenProductCustomization,
   globalProductCustomizations,
   onUpdateGlobalProductCustomization,
 }: Props) {
+  // ⭐ Log pour vérifier que productsList est bien reçu
+  console.log('🔵🔵🔵 StudioCanvas - productsList reçus:', productsList?.length);
+
   const [resizingBlock, setResizingBlock] = useState<string | null>(null);
   const [resizeDirection, setResizeDirection] = useState<string>('');
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -84,6 +86,14 @@ export default function StudioCanvas({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupBounds, setGroupBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   
+  // ⭐⭐ NOUVEAU : État pour la hauteur du canvas infini
+  const [canvasHeight, setCanvasHeight] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerHeight || 800;
+    }
+    return 800;
+  });
+
   // Refs pour le drag
   const draggingBlockRef = useRef<string | null>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
@@ -198,6 +208,203 @@ export default function StudioCanvas({
     };
   }, []);
 
+  // ⭐⭐ NOUVEAU : Calculer la hauteur nécessaire du canvas (version complète)
+  const calculateCanvasHeight = useCallback(() => {
+    const minHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    
+    if (!blocks.length) return minHeight;
+
+    let maxBottom = 0;
+
+    // Fonction pour obtenir la position absolue d'un bloc
+    const getAbsPos = (block: any): { x: number; y: number; width: number; height: number } => {
+      let absX = block.position?.x || 0;
+      let absY = block.position?.y || 0;
+      let absW = block.position?.width || 100;
+      let absH = block.position?.height || 100;
+      
+      let currentId = block.parentId;
+      while (currentId) {
+        const parent = blocks.find(b => b.id === currentId);
+        if (!parent) break;
+        
+        if (parent.position?.positionType === 'relative') {
+          absX += parent.position?.x || 0;
+          absY += parent.position?.y || 0;
+        } else {
+          absX = (parent.position?.x || 0) + (absX * (parent.position?.width || 100) / 100);
+          absY = (parent.position?.y || 0) + (absY * (parent.position?.height || 100) / 100);
+          absW = absW * (parent.position?.width || 100) / 100;
+          absH = absH * (parent.position?.height || 100) / 100;
+        }
+        
+        currentId = parent.parentId;
+      }
+      
+      return { x: absX, y: absY, width: absW, height: absH };
+    };
+
+    // Parcourir tous les blocs
+    blocks.forEach(block => {
+      if (block.type === 'group') return;
+      
+      const absPos = getAbsPos(block);
+      let bottom = absPos.y + absPos.height;
+      
+      // ⭐ Pour les blocs products, utiliser la hauteur de contenu stockée
+      if (block.type === 'products') {
+        const contentHeight = productBlockHeights.current.get(block.id);
+        if (contentHeight) {
+          bottom = absPos.y + contentHeight;
+        }
+      }
+      
+      if (bottom > maxBottom) maxBottom = bottom;
+      
+      // ⭐ Vérifier les enfants directs
+      const children = blocks.filter(b => b.parentId === block.id && b.type !== 'carousel-slide');
+      children.forEach(child => {
+        const childAbsPos = getAbsPos(child);
+        const childBottom = childAbsPos.y + childAbsPos.height;
+        if (childBottom > maxBottom) maxBottom = childBottom;
+      });
+    });
+
+    // ⭐ Padding de 200px pour avoir de l'espace en bas
+    const padding = 200;
+    const neededHeight = Math.max(minHeight, maxBottom + padding);
+    
+    // Arrondir pour éviter les micro-changements
+    return Math.ceil(neededHeight / 50) * 50;
+  }, [blocks]);
+
+  // ⭐⭐ NOUVEAU : Surveiller en continu les blocs qui dépassent
+  useEffect(() => {
+    let animationFrameId: number;
+    let lastHeight = canvasHeight;
+
+    const checkHeight = () => {
+      const minHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+      let maxBottom = 0;
+
+      // Fonction pour obtenir la position absolue
+      const getAbsPos = (block: any): { x: number; y: number; width: number; height: number } => {
+        let absX = block.position?.x || 0;
+        let absY = block.position?.y || 0;
+        let absW = block.position?.width || 100;
+        let absH = block.position?.height || 100;
+        
+        let currentId = block.parentId;
+        while (currentId) {
+          const parent = blocks.find(b => b.id === currentId);
+          if (!parent) break;
+          
+          if (parent.position?.positionType === 'relative') {
+            absX += parent.position?.x || 0;
+            absY += parent.position?.y || 0;
+          } else {
+            absX = (parent.position?.x || 0) + (absX * (parent.position?.width || 100) / 100);
+            absY = (parent.position?.y || 0) + (absY * (parent.position?.height || 100) / 100);
+            absW = absW * (parent.position?.width || 100) / 100;
+            absH = absH * (parent.position?.height || 100) / 100;
+          }
+          
+          currentId = parent.parentId;
+        }
+        
+        return { x: absX, y: absY, width: absW, height: absH };
+      };
+
+      blocks.forEach(block => {
+        if (block.type === 'group') return;
+        const absPos = getAbsPos(block);
+        let bottom = absPos.y + absPos.height;
+        
+        // ⭐ Pour les blocs products, utiliser la hauteur de contenu stockée
+        if (block.type === 'products') {
+          const contentHeight = productBlockHeights.current.get(block.id);
+          if (contentHeight) {
+            bottom = absPos.y + contentHeight;
+          }
+        }
+        
+        if (bottom > maxBottom) maxBottom = bottom;
+        
+        // Vérifier les enfants
+        const children = blocks.filter(b => b.parentId === block.id);
+        children.forEach(child => {
+          const childAbsPos = getAbsPos(child);
+          const childBottom = childAbsPos.y + childAbsPos.height;
+          if (childBottom > maxBottom) maxBottom = childBottom;
+        });
+      });
+
+      const padding = 200;
+      const neededHeight = Math.max(minHeight, maxBottom + padding);
+      const roundedHeight = Math.ceil(neededHeight / 50) * 50;
+
+      // Mettre à jour seulement si la hauteur a changé de manière significative
+      if (Math.abs(roundedHeight - lastHeight) > 10) {
+        lastHeight = roundedHeight;
+        if (roundedHeight > canvasHeight) {
+          setCanvasHeight(roundedHeight + 50);
+        } else if (canvasHeight - roundedHeight > 200) {
+          setCanvasHeight(roundedHeight);
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(checkHeight);
+    };
+
+    animationFrameId = requestAnimationFrame(checkHeight);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [blocks, canvasHeight]);
+
+  // ⭐⭐ NOUVEAU : Mettre à jour la hauteur du canvas quand les blocs changent
+  useEffect(() => {
+    const newHeight = calculateCanvasHeight();
+    if (newHeight !== canvasHeight) {
+      setCanvasHeight(newHeight);
+    }
+  }, [blocks, calculateCanvasHeight]);
+
+  // ⭐⭐ NOUVEAU : Mettre à jour la hauteur quand la fenêtre est redimensionnée
+  useEffect(() => {
+    const handleResize = () => {
+      const newHeight = calculateCanvasHeight();
+      setCanvasHeight(newHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [calculateCanvasHeight]);
+
+  // ⭐⭐ NOUVEAU : Écouter l'événement pour agrandir le canvas
+  useEffect(() => {
+    const handleExpandCanvas = (event: CustomEvent) => {
+      const height = event.detail?.height || 200;
+      setCanvasHeight(prev => prev + height);
+    };
+
+    const handleFitCanvasToContent = () => {
+      const newHeight = calculateCanvasHeight();
+      setCanvasHeight(newHeight);
+    };
+
+    window.addEventListener('expandCanvas', handleExpandCanvas as EventListener);
+    window.addEventListener('fitCanvasToContent', handleFitCanvasToContent);
+
+    return () => {
+      window.removeEventListener('expandCanvas', handleExpandCanvas as EventListener);
+      window.removeEventListener('fitCanvasToContent', handleFitCanvasToContent);
+    };
+  }, [calculateCanvasHeight]);
+
   const getChildren = useCallback((parentId: string) => {
     return blocks.filter(b => b.parentId === parentId);
   }, [blocks]);
@@ -224,6 +431,36 @@ export default function StudioCanvas({
     if (!parent) return null;
     return getAbsolutePosition(parent);
   }, [getAbsolutePosition]);
+
+  // ⭐⭐ NOUVEAU : Surveiller les changements de hauteur des produits
+  useEffect(() => {
+    const checkProductHeights = () => {
+      let maxBottom = 0;
+      const minHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+      
+      blocks.forEach(block => {
+        if (block.type === 'products') {
+          const height = productBlockHeights.current.get(block.id) || block.position?.height || 200;
+          const absPos = getAbsolutePosition(block);
+          const bottom = absPos.y + height;
+          if (bottom > maxBottom) maxBottom = bottom;
+        }
+      });
+      
+      if (maxBottom > 0) {
+        const padding = 200;
+        const neededHeight = Math.max(minHeight, maxBottom + padding);
+        const roundedHeight = Math.ceil(neededHeight / 50) * 50;
+        
+        if (roundedHeight > canvasHeight) {
+          setCanvasHeight(roundedHeight + 50);
+        }
+      }
+    };
+
+    const timeoutId = setTimeout(checkProductHeights, 50);
+    return () => clearTimeout(timeoutId);
+  }, [blocks, canvasHeight]);
 
   // Version optimisée de updateGroupBounds
   const updateGroupBounds = useCallback(() => {
@@ -286,7 +523,7 @@ export default function StudioCanvas({
     onSelectBlock(blockId, target);
   }, [onSelectBlock]);
 
-  // Version optimisée de handleMouseMove
+  // ⭐⭐ MODIFICATION : handleMouseMove avec contrainte du canvas
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggingBlockRef.current || isCropperOpenRef.current) return;
     if (dragRafId.current) return;
@@ -340,11 +577,23 @@ export default function StudioCanvas({
           });
         }
       } else {
+        const w = originalPositionRef.current.width;
+        const h = originalPositionRef.current.height;
+        const canvasEl = canvasContainerRef.current;
+        const canvasW = canvasEl?.clientWidth ?? Infinity;
+
+        let newX = originalPositionRef.current.x + (e.clientX - dragStartRef.current.x);
+        let newY = originalPositionRef.current.y + (e.clientY - dragStartRef.current.y);
+
+        // ⭐ Empêche de sortir du canevas (gauche/droite + haut)
+        newX = Math.max(0, Math.min(canvasW - w, newX));
+        newY = Math.max(0, newY);
+
         onUpdateBlockPositionRef.current(blockId, {
-          x: originalPositionRef.current.x + (e.clientX - dragStartRef.current.x),
-          y: originalPositionRef.current.y + (e.clientY - dragStartRef.current.y),
-          width: originalPositionRef.current.width,
-          height: originalPositionRef.current.height,
+          x: newX,
+          y: newY,
+          width: w,
+          height: h,
         });
       }
 
@@ -352,6 +601,7 @@ export default function StudioCanvas({
     });
   }, []);
 
+  // ⭐⭐ MODIFICATION : handleResizeMove - gère le redimensionnement avec contraintes du canvas
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
     if (isCropperOpenRef.current || resizeRafId.current) return;
     resizeRafId.current = requestAnimationFrame(() => {
@@ -364,7 +614,7 @@ export default function StudioCanvas({
       const block = blocksRef.current.find(b => b.id === blockId);
       const isChild = block?.parentId != null;
 
-      // ⭐ Pour les blocs products, empêcher le redimensionnement vertical
+      // ⭐ Pour les blocs products, on bloque le redimensionnement vertical manuel
       const isProductsBlock = block?.type === 'products';
       if (isProductsBlock) {
         newHeight = startData.startHeight;
@@ -417,6 +667,25 @@ export default function StudioCanvas({
                      break;
           case 'n':  if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; } break;
           case 'w':  newWidth = Math.max(MIN_PX, startData.startWidth - dx); newX = startData.startXpos + dx; break;
+        }
+
+        // ⭐ Empêche le redimensionnement de sortir du canevas (gauche/droite + haut)
+        const canvasEl = canvasContainerRef.current;
+        const canvasW = canvasEl?.clientWidth ?? Infinity;
+
+        if (newX < 0) {
+          newWidth += newX;
+          newX = 0;
+        }
+        if (newX + newWidth > canvasW) {
+          newWidth = canvasW - newX;
+        }
+        newWidth = Math.max(MIN_PX, newWidth);
+
+        if (!isProductsBlock && newY < 0) {
+          newHeight += newY;
+          newY = 0;
+          newHeight = Math.max(MIN_PX, newHeight);
         }
       }
 
@@ -524,9 +793,17 @@ export default function StudioCanvas({
     handleSelectBlockWithGroup(blockId, 'text');
   };
 
+  // ⭐⭐ MODIFICATION AVEC setTimeout : handleTextBlur avec forceSave APRÈS la mise à jour du state
   const handleTextBlur = (blockId: string, newContent: string) => {
+    console.log('📝 handleTextBlur appelé pour', blockId, 'nouveau contenu:', newContent);
     setEditingTextId(null);
     onUpdateBlock(blockId, { content: newContent });
+    
+    // ⭐ Force la sauvegarde APRÈS que le state soit mis à jour
+    setTimeout(() => {
+      console.log('🔥 Dispatch forceSave depuis handleTextBlur (delay)');
+      window.dispatchEvent(new CustomEvent('forceSave'));
+    }, 100);
   };
 
   const renderParentContent = (block: any, commonProps: any) => {
@@ -539,21 +816,20 @@ export default function StudioCanvas({
   };
 
   // ⭐ Mémoriser les valeurs pour éviter les re-rendus du GridProductsBlock
-  const memoizedGridConfig = useMemo(() => gridConfig, [gridConfig]);
   const memoizedProductsList = useMemo(() => productsList, [productsList]);
   const memoizedGlobalProductCustomizations = useMemo(() => globalProductCustomizations, [globalProductCustomizations]);
 
-  // ⭐ Mémoriser les callbacks stables
-  const stableOnUpdateGridConfig = useCallback((config: ProductGridConfig) => {
-    onUpdateGridConfig?.(config);
+  // ⭐ 2.2 - Callbacks stables avec blockId
+  const stableOnUpdateGridConfig = useCallback((blockId: string, config: ProductGridConfig) => {
+    onUpdateGridConfig?.(blockId, config);
   }, [onUpdateGridConfig]);
 
-  const stableOnLinkProduct = useCallback((slotId: string, product: StudioProduct) => {
-    onLinkProduct?.(slotId, product);
+  const stableOnLinkProduct = useCallback((blockId: string, slotId: string, product: StudioProduct) => {
+    onLinkProduct?.(blockId, slotId, product);
   }, [onLinkProduct]);
 
-  const stableOnOpenProductCustomization = useCallback((productId: number, productName: string, customization: ProductCustomization) => {
-    onOpenProductCustomization?.(productId, productName, customization);
+  const stableOnOpenProductCustomization = useCallback((productId: number, productName: string, customization: ProductCustomization, slideCount?: number) => {
+    onOpenProductCustomization?.(productId, productName, customization, slideCount);
   }, [onOpenProductCustomization]);
 
   const stableOnUpdateGlobalProductCustomization = useCallback((productId: number, updates: Partial<ProductCustomization>) => {
@@ -565,7 +841,7 @@ export default function StudioCanvas({
     window.dispatchEvent(event);
   }, []);
 
-  // ⭐ MODIFICATION 1: stableShop - ne dépend que des valeurs stables (pas de themeColor, backgroundColor, textColor)
+  // ⭐ MODIFICATION 1: stableShop - ne dépend que des valeurs stables
   const stableShop = useMemo(() => ({
     id: shop?.id,
     name: shop?.name,
@@ -586,6 +862,7 @@ export default function StudioCanvas({
 
   // ⭐ Callbacks stables
   const stableOnUpdateBlock = useCallback((id: string, updates: any) => {
+    console.log('📝 stableOnUpdateBlock appelé pour', id, updates);
     onUpdateBlock(id, updates);
   }, [onUpdateBlock]);
 
@@ -621,18 +898,22 @@ export default function StudioCanvas({
     if (isProductsBlock) {
       productsOnUpdateRef.current = (updates: any) => {
         if (updates._blockHeight) {
-          if (isResizing) return;
           const currentBlock = blocksRef.current.find(b => b.id === block.id);
-          if (currentBlock && currentBlock.position.height !== updates._blockHeight) {
-            productBlockHeights.current.set(block.id, updates._blockHeight);
+          const newHeight = updates._blockHeight;
+          
+          // On stocke la hauteur réelle dans la ref
+          productBlockHeights.current.set(block.id, newHeight);
+          
+          // Si la hauteur a significativement changé, on met à jour la position du bloc
+          if (currentBlock && Math.abs(newHeight - (currentBlock.position?.height || 0)) > 5) {
             stableOnUpdateBlockPosition(block.id, {
               ...currentBlock.position,
-              height: updates._blockHeight,
+              height: newHeight
             });
           }
-        } else {
-          stableOnUpdateBlock(block.id, updates);
+          return;
         }
+        stableOnUpdateBlock(block.id, updates);
       };
     }
     
@@ -824,10 +1105,11 @@ export default function StudioCanvas({
         case 'logo':   return <LogoBlock key={block.id} {...commonProps} />;
         case 'title':  return <TitleBlock key={block.id} {...commonProps} />;
         case 'products': {
-          // ⭐ Appel direct à GridProductsBlock (sans wrapper mémorisé)
+          console.log('🟣🟣🟣 StudioCanvas - Rendu GridProductsBlock, productsList reçu:', memoizedProductsList?.length);
           return (
             <div className="products-block-wrapper">
               <GridProductsBlock
+                key={`products-${block.id}-${memoizedProductsList?.length || 0}`}
                 shop={stableShop}
                 block={block}
                 customization={{}}
@@ -839,10 +1121,11 @@ export default function StudioCanvas({
                   handleSelectBlockWithGroup(block.id, 'background');
                 }}
                 onUpdate={stableProductsOnUpdate}
-                gridConfig={memoizedGridConfig}
-                onUpdateGridConfig={stableOnUpdateGridConfig}
+                // ⭐ 2.3 - Utiliser block.gridConfig et passer block.id
+                gridConfig={block.gridConfig}
+                onUpdateGridConfig={(config) => stableOnUpdateGridConfig(block.id, config)}
                 productsList={memoizedProductsList}
-                onLinkProduct={stableOnLinkProduct}
+                onLinkProduct={(slotId, product) => stableOnLinkProduct(block.id, slotId, product)}
                 onOpenCustomization={stableOnOpenProductCustomization}
                 globalProductCustomizations={memoizedGlobalProductCustomizations}
                 onUpdateGlobalProductCustomization={stableOnUpdateGlobalProductCustomization}
@@ -974,15 +1257,20 @@ export default function StudioCanvas({
         )}
       </div>
     );
-  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, memoizedGridConfig, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent, handleCanvasClick, onSelectBackground, onResizeGroup, onResizeGroupStart, onResizeGroupEnd, getGroupBounds, onMoveGroup, onSelectBlock]);
+    // ⭐ 2.4 - Dépendances mises à jour
+  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent]);
 
+  // ⭐⭐ MODIFICATION : Style du fond pour le canvas - avec minHeight et height: 100%
   let backgroundStyle: React.CSSProperties = {
-    minHeight: '100vh',
-    width: '100%',
     position: 'absolute',
     top: 0,
     left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 0,
+    width: '100%',
+    minHeight: canvasHeight + 'px',
+    height: '100%',
   };
 
   const canvasFilter = canvasFilters?.globalCssFilter || 'none';
@@ -1006,15 +1294,44 @@ export default function StudioCanvas({
   const sortedBlocks = [...blocks].sort((a, b) => (a.position?.zIndex || 0) - (b.position?.zIndex || 0));
   const rootBlocks = sortedBlocks.filter(block => !block.parentId && block.type !== 'group');
 
+  const hasBlocks = rootBlocks.length > 0;
+
   return (
     <div 
       ref={canvasContainerRef}
-      className={`relative w-full min-h-screen ${isBackgroundSelected ? 'ring-4 ring-primary ring-offset-4 rounded-lg' : ''}`}
+      className={`relative w-full ${isBackgroundSelected ? 'ring-4 ring-primary ring-offset-4 rounded-lg' : ''}`}
+      style={{ 
+        minHeight: canvasHeight + 'px',
+        height: 'auto',
+        position: 'relative',
+      }}
       onClick={handleCanvasClick}
     >
+      {/* Fond */}
       <div style={backgroundStyle} />
-      <div style={{ position: 'relative', zIndex: 1, minHeight: '100vh', width: '100%' }}>
+      
+      {/* Contenu du canvas */}
+      <div 
+        style={{ 
+          position: 'relative', 
+          zIndex: 1, 
+          width: '100%',
+          height: '100%',
+        }}
+      >
         {rootBlocks.map(block => renderBlock(block))}
+        
+        {/* Indicateur de zone infinie */}
+        {hasBlocks && (
+          <div 
+            className="absolute bottom-4 left-0 right-0 text-center pointer-events-none"
+            style={{ zIndex: 100 }}
+          >
+            <div className="inline-block bg-gray-800/50 backdrop-blur-sm px-4 py-2 rounded-full text-xs text-gray-400 border border-gray-700/30">
+              ⬇️ Zone infinie — Ajoutez des blocs en bas
+            </div>
+          </div>
+        )}
       </div>
       
       {selectedGroupId && (groupBounds || groupBoundsRef.current) && onResizeGroup && (

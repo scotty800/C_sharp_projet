@@ -328,6 +328,22 @@ public class ProductController : ControllerBase
         });
     }
 
+    [HttpGet("shop/{shopId}/all")]
+    public async Task<IActionResult> GetAllProductsByShop(int shopId)
+    {
+        var shop = await _shopService.GetShopByIdAsync(shopId);
+        if (shop == null)
+            return NotFound("Shop non trouvé");
+
+        var products = await _productService.GetProductsByShopIdAsync(shopId);
+    
+        return Ok(new
+        {
+            shop = new { shop.Id, shop.Name, shop.Slug, shop.ProductCount },
+            products = products
+        });
+    }
+
     [HttpPost("upload-images")]
     [Authorize]
     public async Task<IActionResult> UploadProductImages([FromForm] ProductImageUploadDto images)
@@ -350,56 +366,125 @@ public class ProductController : ControllerBase
     }
 
     [HttpDelete("{productId}/image/{imageNumber}")]
-    [Authorize]
-    public async Task<IActionResult> DeleteProductImage(int productId, int imageNumber)
+[Authorize]
+public async Task<IActionResult> DeleteProductImage(int productId, int imageNumber)
+{
+    if (imageNumber < 1 || imageNumber > 3)
+        return BadRequest("Le numéro d'image doit être entre 1 et 3");
+
+    try
     {
-        if (imageNumber < 1 || imageNumber > 3)
-            return BadRequest("Le numéro d'image doit être entre 1 et 3");
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
-        try
+        var product = await _context.Products
+            .Include(p => p.Shop)
+            .FirstOrDefaultAsync(p => p.Id == productId);
+
+        if (product == null)
+            return NotFound("Produit non trouvé");
+
+        if (product.ShopId.HasValue)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-
-            var product = await _context.Products
-                .Include(p => p.Shop)
-                .FirstOrDefaultAsync(p => p.Id == productId);
-
-            if (product == null)
-                return NotFound("Produit non trouvé");
-
-            if (product.ShopId.HasValue)
-            {
-                if (product.Shop == null || product.Shop.OwnerId != userId)
-                    return Unauthorized("Vous n'êtes pas autorisé");
-            }
-
-            string? imageUrl = null;
-            switch (imageNumber)
-            {
-                case 1: imageUrl = product.ImageUrl1; product.ImageUrl1 = null; break;
-                case 2: imageUrl = product.ImageUrl2; product.ImageUrl2 = null; break;
-                case 3: imageUrl = product.ImageUrl3; product.ImageUrl3 = null; break;
-            }
-
-            if (!string.IsNullOrEmpty(imageUrl))
-            {
-                var filePath = Path.Combine(_environment.WebRootPath, imageUrl.TrimStart('/'));
-                if (System.IO.File.Exists(filePath))
-                    System.IO.File.Delete(filePath);
-            }
-
-            product.ImageUrl = product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3;
-            product.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = $"Image {imageNumber} supprimée avec succès" });
+            if (product.Shop == null || product.Shop.OwnerId != userId)
+                return Unauthorized("Vous n'êtes pas autorisé");
         }
-        catch (Exception ex)
+
+        // ⭐⭐ RÉCUPÉRER LES IMAGES ACTUELLES ⭐⭐
+        string? currentImage1 = product.ImageUrl1;
+        string? currentImage2 = product.ImageUrl2;
+        string? currentImage3 = product.ImageUrl3;
+
+        Console.WriteLine($"📸 Images avant suppression: Image1={currentImage1}, Image2={currentImage2}, Image3={currentImage3}");
+
+        // ⭐⭐ SUPPRIMER LE FICHIER PHYSIQUE SI NÉCESSAIRE ⭐⭐
+        string? imageUrlToDelete = null;
+        switch (imageNumber)
         {
-            return BadRequest(new { message = ex.Message });
+            case 1: imageUrlToDelete = product.ImageUrl1; break;
+            case 2: imageUrlToDelete = product.ImageUrl2; break;
+            case 3: imageUrlToDelete = product.ImageUrl3; break;
         }
+
+        if (!string.IsNullOrEmpty(imageUrlToDelete))
+        {
+            var filePath = Path.Combine(_environment.WebRootPath, imageUrlToDelete.TrimStart('/'));
+            if (System.IO.File.Exists(filePath))
+            {
+                System.IO.File.Delete(filePath);
+                Console.WriteLine($"🗑️ Fichier supprimé: {filePath}");
+            }
+        }
+
+        // ⭐⭐ RÉORGANISER LES IMAGES (DÉCALAGE VERS LE HAUT) ⭐⭐
+        string? newImageUrl1 = currentImage1;
+        string? newImageUrl2 = currentImage2;
+        string? newImageUrl3 = currentImage3;
+
+        if (imageNumber == 1)
+        {
+            // Suppression de l'image principale → Image2 devient Image1, Image3 devient Image2
+            newImageUrl1 = currentImage2;
+            newImageUrl2 = currentImage3;
+            newImageUrl3 = null;
+            Console.WriteLine("🔄 Réorganisation après suppression Image1");
+        }
+        else if (imageNumber == 2)
+        {
+            // Suppression de l'image 2 → Image1 reste Image1, Image3 devient Image2
+            newImageUrl1 = currentImage1;
+            newImageUrl2 = currentImage3;
+            newImageUrl3 = null;
+            Console.WriteLine("🔄 Réorganisation après suppression Image2");
+        }
+        else if (imageNumber == 3)
+        {
+            // Suppression de l'image 3 → Image1 reste Image1, Image2 reste Image2
+            newImageUrl1 = currentImage1;
+            newImageUrl2 = currentImage2;
+            newImageUrl3 = null;
+            Console.WriteLine("🔄 Réorganisation après suppression Image3");
+        }
+
+        // ⭐⭐ APPLIQUER LES MODIFICATIONS ⭐⭐
+        product.ImageUrl1 = newImageUrl1;
+        product.ImageUrl2 = newImageUrl2;
+        product.ImageUrl3 = newImageUrl3;
+        product.ImageUrl = newImageUrl1 ?? newImageUrl2 ?? newImageUrl3;
+        product.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        Console.WriteLine($"📸 Images après réorganisation: Image1={product.ImageUrl1}, Image2={product.ImageUrl2}, Image3={product.ImageUrl3}");
+
+        // ⭐⭐ RETOURNER LE PRODUIT MIS À JOUR ⭐⭐
+        var updatedProduct = new
+        {
+            product.Id,
+            product.Name,
+            product.Description,
+            product.Price,
+            product.Stock,
+            product.Category,
+            product.ShopId,
+            ImageUrl1 = product.ImageUrl1,
+            ImageUrl2 = product.ImageUrl2,
+            ImageUrl3 = product.ImageUrl3,
+            ImageUrl = product.ImageUrl,
+            product.CreatedAt,
+            product.UpdatedAt
+        };
+
+        return Ok(new { 
+            message = $"Image {imageNumber} supprimée avec succès",
+            product = updatedProduct
+        });
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Erreur suppression image: {ex.Message}");
+        return BadRequest(new { message = ex.Message });
+    }
+}
 
     [HttpGet("{productId}/images")]
     public async Task<IActionResult> GetProductImages(int productId)

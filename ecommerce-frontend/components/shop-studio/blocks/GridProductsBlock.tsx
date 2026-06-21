@@ -1,9 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { FiPlus, FiTrash2, FiEdit2, FiGrid, FiX, FiImage, FiStar, FiAward, FiZap, FiDroplet, FiLayers, FiClock, FiEye } from 'react-icons/fi';
 import { ProductGridConfig, StudioProduct, ProductGridSlot, ProductCustomization } from '@/types/studio';
+import ProductDetailBar from '../ProductDetailBar';
+
+// ⭐⭐ DÉCLARATION GLOBALE POUR SAUVEGARDER L'ÉTAT DES CARROUSELS
+declare global {
+  interface Window {
+    __carouselStates?: Record<string, {
+      currentIndex: number;
+      isTransitioning: boolean;
+      lastUpdate: number;
+    }>;
+  }
+}
 
 interface Props {
   shop: any;
@@ -20,7 +33,7 @@ interface Props {
   productsList?: StudioProduct[];
   onLinkProduct?: (slotId: string, product: StudioProduct) => void;
   onUpdateProductCustomization?: (productId: number, customization: Partial<ProductCustomization>) => void;
-  onOpenCustomization?: (productId: number, productName: string, customization: ProductCustomization) => void;
+  onOpenCustomization?: (productId: number, productName: string, customization: ProductCustomization, slideCount?: number) => void;
   globalProductCustomizations?: Map<number, ProductCustomization>;
   onUpdateGlobalProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
   onUpdateSlotConfig?: (slotId: string, config: Partial<ProductGridSlot>) => void;
@@ -113,6 +126,16 @@ const getModeIcon = (mode: 'traditional' | 'interactive') => mode === 'tradition
 const DEFAULT_DIMENSION = { width: 800, height: 400, widthUnit: 'px' as const, heightUnit: 'px' as const };
 const DEFAULT_UNIFORM_SIZE = { enabled: false, width: 200, height: 200 };
 
+const getSlideCustomization = (
+  base: ProductCustomization | null,
+  slideIndex: number
+): ProductCustomization | null => {
+  if (!base) return null;
+  const override = base.slidesConfig?.[slideIndex];
+  if (!override || Object.keys(override).length === 0) return base;
+  return { ...base, ...override };
+};
+
 const getHoverEffectClass = (customization: ProductCustomization | null): string => {
   if (!customization) return '';
   switch (customization.hoverEffect) {
@@ -129,10 +152,6 @@ const getCustomFrameStylesUtil = (c: ProductCustomization | null): React.CSSProp
   const s: React.CSSProperties = {};
   if (c.frameColor && c.frameWidth) s.border = `${c.frameWidth}px solid ${c.frameColor}`;
   if (c.frameShadow && c.frameShadowColor) s.boxShadow = `0 4px 12px ${c.frameShadowColor}`;
-  if (c.backgroundType === 'gradient' && c.backgroundGradient) s.background = c.backgroundGradient;
-  else if (c.backgroundType === 'image' && c.backgroundImage) { s.backgroundImage = `url(${c.backgroundImage})`; s.backgroundSize = 'cover'; s.backgroundPosition = 'center'; }
-  else if (c.backgroundType === 'transparent') s.backgroundColor = 'transparent';
-  else if (c.backgroundColor) s.backgroundColor = c.backgroundColor;
   return s;
 };
 
@@ -197,36 +216,144 @@ const renderCustomBadgeUtil = (c: ProductCustomization, frameConfig: any) => {
   return null;
 };
 
-// ⭐ ProductCarousel modifié pour accepter imageCrops (un objet par index d'image)
+const getBackgroundStylesOnly = (custom: ProductCustomization | null): React.CSSProperties => {
+  if (!custom) return {};
+  const s: React.CSSProperties = {};
+  const bgType = custom.backgroundType || 'solid';
+  
+  switch (bgType) {
+    case 'gradient':
+      if (custom.backgroundGradient) {
+        s.background = custom.backgroundGradient;
+      } else if (custom.backgroundColor) {
+        s.backgroundColor = custom.backgroundColor;
+      }
+      break;
+    case 'image':
+      if (custom.backgroundImage) {
+        s.backgroundImage = `url(${custom.backgroundImage})`;
+        s.backgroundSize = 'cover';
+        s.backgroundPosition = 'center';
+        s.backgroundRepeat = 'no-repeat';
+      } else if (custom.backgroundColor) {
+        s.backgroundColor = custom.backgroundColor;
+      }
+      break;
+    case '3d':
+      if (custom.backgroundValue === 'paper') {
+        s.background = 'repeating-linear-gradient(45deg, #f5f5f5 0px, #f5f5f5 2px, #e8e8e8 2px, #e8e8e8 8px)';
+      } else if (custom.backgroundValue === 'metal') {
+        s.background = 'linear-gradient(135deg, #e0e0e0 0%, #b0b0b0 50%, #e0e0e0 100%)';
+      } else if (custom.backgroundValue === 'glass') {
+        s.background = 'linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%)';
+        s.backdropFilter = 'blur(10px)';
+      } else if (custom.backgroundValue === 'wood') {
+        s.background = 'repeating-linear-gradient(90deg, #8B6914 0px, #8B6914 2px, #A0782C 2px, #A0782C 6px)';
+      } else {
+        s.backgroundColor = '#e5e7eb';
+      }
+      break;
+    case 'transparent':
+      s.backgroundColor = 'transparent';
+      break;
+    default:
+      if (custom.backgroundColor) {
+        s.backgroundColor = custom.backgroundColor;
+      }
+      break;
+  }
+  return s;
+};
+
+// ⭐ ProductCarousel - Version avec sauvegarde d'état et synchronisation
 const ProductCarousel = ({
   images, productName, frameConfig, onImageChange, carouselConfig: config, autoPlay = true,
   imageCrops,
+  slideCustomizations,
+  slotId,
 }: {
   images: string[]; productName: string; frameConfig: any; onImageChange?: (index: number) => void;
   carouselConfig?: ProductGridSlot['carouselConfig']; autoPlay?: boolean;
   imageCrops?: Record<number, React.CSSProperties>;
+  slideCustomizations?: Record<number, ProductCustomization | null>;
+  slotId: string;
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(config?.currentImageIndex || 0);
+  // ⭐ Récupérer l'état sauvegardé ou utiliser la valeur par défaut
+  const getSavedIndex = useCallback(() => {
+    if (typeof window !== 'undefined' && window.__carouselStates?.[slotId]) {
+      const saved = window.__carouselStates[slotId];
+      return saved.currentIndex;
+    }
+    return config?.currentImageIndex || 0;
+  }, [slotId, config?.currentImageIndex]);
+
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    return getSavedIndex();
+  });
+  
   const [isHovered, setIsHovered] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const validImages = images.filter(Boolean);
   const imageCount = validImages.length;
+  const isInitialMount = useRef(true);
+
+  // ⭐ Sauvegarder l'état globalement ET synchroniser avec le parent
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (!window.__carouselStates) {
+        window.__carouselStates = {};
+      }
+      window.__carouselStates[slotId] = {
+        currentIndex,
+        isTransitioning,
+        lastUpdate: Date.now()
+      };
+      
+      // ⭐ Synchroniser avec le parent si ce n'est pas le montage initial
+      if (!isInitialMount.current && onImageChange) {
+        onImageChange(currentIndex);
+      }
+    }
+  }, [currentIndex, isTransitioning, slotId, onImageChange]);
+
+  // ⭐ Restaurer l'état au montage si nécessaire
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      const saved = getSavedIndex();
+      if (saved !== currentIndex) {
+        setCurrentIndex(saved);
+        
+        // ⭐ Mettre à jour le carouselConfig du slot
+        if (onImageChange) {
+          onImageChange(saved);
+        }
+      }
+    }
+  }, [getSavedIndex, currentIndex, slotId, onImageChange]);
 
   const nextImage = useCallback(() => {
-    if (isTransitioning) return;
+    if (isTransitioning || imageCount <= 1) return;
     setIsTransitioning(true);
-    setCurrentIndex(prev => { const next = (prev + 1) % imageCount; onImageChange?.(next); return next; });
+    setCurrentIndex(prev => { 
+      const next = (prev + 1) % imageCount; 
+      return next; 
+    });
     setTimeout(() => setIsTransitioning(false), 500);
-  }, [imageCount, onImageChange, isTransitioning]);
+  }, [imageCount, isTransitioning]);
 
   const prevImage = useCallback(() => {
-    if (isTransitioning) return;
+    if (isTransitioning || imageCount <= 1) return;
     setIsTransitioning(true);
-    setCurrentIndex(prev => { const next = (prev - 1 + imageCount) % imageCount; onImageChange?.(next); return next; });
+    setCurrentIndex(prev => { 
+      const next = (prev - 1 + imageCount) % imageCount; 
+      return next; 
+    });
     setTimeout(() => setIsTransitioning(false), 500);
-  }, [imageCount, onImageChange, isTransitioning]);
+  }, [imageCount, isTransitioning]);
 
+  // Timer du carrousel
   useEffect(() => {
     if (!autoPlay || !config?.enabled || imageCount <= 1) return;
     if (config.stopOnHover && isHovered) return;
@@ -240,13 +367,30 @@ const ProductCarousel = ({
   if (imageCount === 0) return null;
   const isFade = config?.animation === 'fade';
 
-  const getImageStyle = (idx: number) => ({
-    backgroundColor: 'transparent',
-    ...(imageCrops?.[idx] || {}),
-  });
+  const getImageStyle = (idx: number): React.CSSProperties => {
+    const sc = slideCustomizations?.[idx];
+    return {
+      backgroundColor: 'transparent',
+      opacity: sc?.backgroundOpacity != null ? sc.backgroundOpacity / 100 : 1,
+      filter: sc?.backgroundBlur ? `blur(${sc.backgroundBlur}px)` : 'none',
+      ...(imageCrops?.[idx] || {}),
+    };
+  };
+
+  const getCurrentSlideBackgroundStyle = (): React.CSSProperties => {
+    const sc = slideCustomizations?.[currentIndex];
+    if (!sc) return {};
+    return getBackgroundStylesOnly(sc);
+  };
 
   return (
-    <div className="relative w-full h-full overflow-hidden carousel-container" style={{ borderRadius: frameConfig.borderRadius }}
+    <div
+      className="relative w-full h-full overflow-hidden carousel-container"
+      style={{
+        borderRadius: frameConfig.borderRadius,
+        transition: 'background 0.3s ease',
+        ...getCurrentSlideBackgroundStyle(),
+      }}
       onMouseEnter={() => config?.stopOnHover && setIsHovered(true)}
       onMouseLeave={() => config?.stopOnHover && setIsHovered(false)}
     >
@@ -296,7 +440,6 @@ const ProductCarousel = ({
   );
 };
 
-// ⭐ Fonction pour obtenir le style de recadrage pour une image spécifique
 const getImageCropStyle = (slot: ProductGridSlot, imageIndex?: number): React.CSSProperties => {
   const imageCrops = (slot.customConfig as any)?.imageCrops;
   const legacyCrop = (slot.customConfig as any)?.imageCrop;
@@ -319,15 +462,17 @@ const SlotContent = ({
   loadingProducts, setEditingSlot, setShowSlotEditor, setCustomTitle, setCustomImageUrl,
   setActiveTab, clearSlot, getProductCustomization, getSlotProduct, getDisplayImageForSlot, getAllProductImages
 }: any) => {
-  // ⭐ 1. TOUS LES HOOKS SONT DÉCLARÉS AU DÉBUT (avant tout return conditionnel)
   const [localOverlay, setLocalOverlay] = useState(false);
   
-  // ⭐ 2. TOUTES LES VARIABLES DÉRIVÉES
   const product = getSlotProduct(slot);
   const cc = slot.customConfig as any;
   const hasCustom = cc?.customTitle || cc?.customImage;
   const isEmpty = !product && !hasCustom;
   const productCustom = product ? getProductCustomization(product.id) : null;
+  const allImages = getAllProductImages(product);
+  const currentImageIndex = (slot.carouselConfig as any)?.currentImageIndex ?? 0;
+
+  const effectiveCustom = getSlideCustomization(productCustom, currentImageIndex) || productCustom;
 
   const frameStyle = slot.frameStyle || 'square';
   const frameConfig = FRAME_STYLE_CONFIG[frameStyle as keyof typeof FRAME_STYLE_CONFIG] || FRAME_STYLE_CONFIG.square;
@@ -335,25 +480,50 @@ const SlotContent = ({
   const displayName = cc?.customTitle || product?.name || 'Sans titre';
   const displayPrice = product?.price;
   const displayImage = getDisplayImageForSlot(slot);
-  const allImages = getAllProductImages(product);
   const carCfg = slot.carouselConfig;
   const isCarousel = carCfg?.enabled && allImages.length > 1;
 
-  // Récupération des personnalisations amont
-  const frameStyles = getCustomFrameStylesUtil(productCustom);
-  const imgStyles = getImageStylesUtil(productCustom);
-  const hoverClass = getHoverEffectClass(productCustom);
-  const hoverVars = getHoverEffectVarsUtil(productCustom);
-  const entranceClass = getEntranceAnimationClassUtil(productCustom);
-  const entranceStyle = getEntranceAnimationStyleUtil(productCustom);
+  const frameStyles = getCustomFrameStylesUtil(effectiveCustom);
+  const imgStyles = getImageStylesUtil(effectiveCustom);
+  const bgStyles = getBackgroundStylesOnly(effectiveCustom);
+  const hoverClass = getHoverEffectClass(effectiveCustom);
+  const hoverVars = getHoverEffectVarsUtil(effectiveCustom);
+  const entranceClass = getEntranceAnimationClassUtil(effectiveCustom);
+  const entranceStyle = getEntranceAnimationStyleUtil(effectiveCustom);
 
+  // ⭐ FIX HAUTEUR SLOT : prendre en compte à la fois rowSpan ET colSpan
   const rowSpan = slot.gridPosition.rowSpan || 1;
+  const colSpan = slot.gridPosition.colSpan || 1;
+  
+  // ⭐ FIX FLUIDITÉ : on garde le calcul en pixels (nécessaire pour le rowSpan / gap),
+  // mais containerWidth est maintenant mis à jour en continu (voir ResizeObserver dans le parent),
+  // donc cellWidth/slotHeight suivent le redimensionnement sans à-coups.
   const cellWidth = containerWidth > 0 ? (containerWidth - gridPadding * 2 - gap * (columns - 1)) / columns : 200;
   const [ar1, ar2] = frameConfig.aspectRatio.split('/').map(Number);
   const cellHeight = cellWidth * (ar2 / ar1);
   const slotHeight = cellHeight * rowSpan + gap * (rowSpan - 1);
+
+  // ⭐⭐⭐ FIX FLUIDITÉ #3 (le vrai correctif pour les slots) ⭐⭐⭐
+  // Avant : la hauteur de chaque slot était un `height: Npx` calculé en JS à partir de
+  // containerWidth (une valeur React qui transite par un ResizeObserver + RAF + state).
+  // Même avec ce calcul "rapide", il y a toujours un aller-retour JS -> setState ->
+  // re-render avant que la hauteur visuelle ne suive la largeur du conteneur pendant
+  // le drag -> léger décalage visible ("effet élastique") sur chaque slot.
+  // Le fix : pour les slots simples (rowSpan = 1, l'immense majorité des cas), on
+  // laisse le NAVIGATEUR calculer la hauteur directement via la propriété CSS native
+  // `aspect-ratio` (qui prend exactement la même valeur que frameConfig.aspectRatio,
+  // ex: '1/1', '4/3'). La largeur vient déjà du CSS Grid (colonnes en `fr`), donc avec
+  // aspect-ratio la hauteur est dérivée de la largeur AU MÊME MOMENT par le moteur de
+  // layout du navigateur, sans repasser par React. Résultat : latence nulle, peu
+  // importe la vitesse du drag de redimensionnement du bloc.
+  // Pour les slots qui couvrent plusieurs lignes (rowSpan > 1) OU plusieurs colonnes (colSpan > 1),
+  // on garde le calcul en pixels car aspect-ratio seul ne sait pas répartir une hauteur
+  // sur plusieurs lignes de grille + gap, et pour colSpan > 1 on ne veut pas que la hauteur
+  // change quand seule la largeur est modifiée.
+  const slotBoxStyle: React.CSSProperties = (rowSpan > 1 || colSpan > 1)
+    ? { height: `${slotHeight}px` }
+    : { aspectRatio: frameConfig.aspectRatio, height: 'auto' };
   
-  // ⭐ Construction du map des styles de crop — mémoïsé pour éviter les re-renders du carrousel
   const imageCropsMap = useMemo((): Record<number, React.CSSProperties> => {
     const map: Record<number, React.CSSProperties> = {};
     for (let idx = 0; idx < allImages.length; idx++) {
@@ -365,11 +535,34 @@ const SlotContent = ({
     JSON.stringify((slot.customConfig as any)?.imageCrops),
   ]);
 
-  // ⭐ 3. COMPOSANTS INTERNES (pas des hooks, donc OK après la logique conditionnelle)
+  const slideCustomizationsMap = useMemo((): Record<number, ProductCustomization | null> => {
+    if (!productCustom) return {};
+    const map: Record<number, ProductCustomization | null> = {};
+    for (let idx = 0; idx < allImages.length; idx++) {
+      map[idx] = getSlideCustomization(productCustom, idx);
+    }
+    return map;
+  }, [
+    productCustom,
+    allImages.length,
+    JSON.stringify(productCustom?.slidesConfig),
+  ]);
+
+  const getCustomForImageIndex = useCallback((imageIdx: number) => {
+    const imageCustom = getSlideCustomization(productCustom, imageIdx);
+    return imageCustom || productCustom;
+  }, [productCustom]);
+
   const ActionButtons = ({ showCustomize = true }: { showCustomize?: boolean }) => (
     <div className="absolute top-2 right-2 flex gap-1 z-50" style={{ pointerEvents: 'auto' }}>
       {showCustomize && product && (
-        <button onClick={(e) => { e.stopPropagation(); onOpenCustomization?.(product.id, product.name, getProductCustomization(product.id)); }} className="p-1.5 bg-purple-500 text-white rounded-full shadow-md hover:bg-purple-600 transition-colors" title="Personnaliser">
+        <button onClick={(e) => { 
+          e.stopPropagation(); 
+          const slideCount = allImages.length;
+          onOpenCustomization?.(product.id, product.name, getProductCustomization(product.id), slideCount);
+        }} 
+        className="p-1.5 bg-purple-500 text-white rounded-full shadow-md hover:bg-purple-600 transition-colors" 
+        title="Personnaliser">
           <FiZap size={14} />
         </button>
       )}
@@ -386,19 +579,18 @@ const SlotContent = ({
 
   const OuterWrapper = ({ children, showActions = false }: { children: React.ReactNode; showActions?: boolean }) => (
     <div className={`relative w-full ${hoverClass}`} style={{ borderRadius: frameConfig.borderRadius, ...hoverVars }}>
-      <div className="relative overflow-hidden transition-all duration-300" style={{ position: 'relative', borderRadius: frameConfig.borderRadius, backgroundColor: 'transparent', width: '100%', height: `${slotHeight}px`, ...frameStyles }}>
+      <div className="relative overflow-hidden" style={{ position: 'relative', borderRadius: frameConfig.borderRadius, width: '100%', ...slotBoxStyle, transition: 'background 0.3s ease', ...frameStyles }}>
         {children}
       </div>
       {showActions && <div className="absolute inset-0" style={{ borderRadius: frameConfig.borderRadius }} />}
     </div>
   );
 
-  // ⭐ 4. RETOURS CONDITIONNELS (maintenant sûrs car tous les hooks sont déjà appelés)
   if (isEmpty) {
     return (
-      <div className="relative cursor-pointer group transition-all hover:scale-[1.02] duration-200 w-full"
-        style={{ height: `${slotHeight}px`, borderRadius: frameConfig.borderRadius, backgroundColor: 'transparent', border: '2px dashed rgba(156,163,175,0.5)' }}
-        onClick={() => { setEditingSlot(slot.id); setShowSlotEditor(true); }}
+      // ⭐ FIX REBOND : transition-all → transition-transform (pour le hover)
+      <div className="relative cursor-pointer group transition-transform hover:scale-[1.02] duration-200 w-full"
+        style={{ ...slotBoxStyle, borderRadius: frameConfig.borderRadius, backgroundColor: 'transparent', border: '2px dashed rgba(156,163,175,0.5)' }}
       >
         <div className="absolute inset-0 flex items-center justify-center opacity-20" style={{ borderRadius: frameConfig.borderRadius }}>
           <div className="text-center"><div className="text-4xl mb-2">{frameConfig.icon}</div><div className="text-xs text-gray-500">{frameConfig.name}</div></div>
@@ -418,9 +610,18 @@ const SlotContent = ({
     );
   }
 
-  // ⭐ MODE INTERACTIF - maintenant safe car localOverlay est déclaré en haut
+  // MODE INTERACTIF
   if (slot.displayMode === 'interactive') {
     const triggerType = cc?.interactiveConfig?.triggerType || 'click';
+    const currentImageIdx = slot.imageIndex ?? 0;
+    const customForImage = getCustomForImageIndex(currentImageIdx);
+    
+    const interactiveImgStyles = getImageStylesUtil(customForImage);
+    const interactiveBgStyles = getBackgroundStylesOnly(customForImage);
+    const interactiveBadge = customForImage && renderCustomBadgeUtil(customForImage, frameConfig);
+    const interactiveHoverClass = getHoverEffectClass(customForImage);
+    const interactiveHoverVars = getHoverEffectVarsUtil(customForImage);
+    const interactiveFrameStyles = getCustomFrameStylesUtil(customForImage);
 
     const handleToggle = () => {
       if (triggerType === 'click') {
@@ -431,17 +632,21 @@ const SlotContent = ({
 
     return (
       <>
-        {/* Slot réduit (état normal) */}
         <div
-          className={`relative cursor-pointer w-full group ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''} ${hoverClass}`}
-          style={{ height: `${slotHeight}px`, overflow: 'visible', ...hoverVars }}
+          className={`relative cursor-pointer w-full group ${isSelected ? 'ring-2 ring-primary ring-offset-2 rounded-lg' : ''} ${interactiveHoverClass}`}
+          style={{ ...slotBoxStyle, overflow: 'visible', ...interactiveHoverVars }}
           onClick={handleToggle}
           onMouseEnter={() => triggerType === 'hover' && setLocalOverlay(true)}
           onMouseLeave={() => triggerType === 'hover' && setLocalOverlay(false)}
         >
+          {/* ⭐ FIX REBOND : transition-all → transition-colors (seule la couleur s'anime) */}
           <div 
-            className="relative w-full h-full overflow-hidden transition-all duration-300" 
-            style={{ borderRadius: frameConfig.borderRadius, ...frameStyles }}
+            className="relative w-full h-full overflow-hidden transition-colors duration-300" 
+            style={{ 
+              borderRadius: frameConfig.borderRadius,
+              ...interactiveFrameStyles,
+              ...interactiveBgStyles 
+            }}
           >
             {isCarousel && product ? (
               <ProductCarousel
@@ -449,12 +654,18 @@ const SlotContent = ({
                 productName={displayName}
                 frameConfig={frameConfig}
                 carouselConfig={carCfg}
-                autoPlay={false}
-                onImageChange={(i) => onUpdateSlotConfig?.(slot.id, { carouselConfig: { ...carCfg, currentImageIndex: i } })}
+                autoPlay={true}
+                onImageChange={(i) => {
+                  onUpdateSlotConfig?.(slot.id, { 
+                    carouselConfig: { ...carCfg, currentImageIndex: i } 
+                  });
+                }}
                 imageCrops={imageCropsMap}
+                slideCustomizations={slideCustomizationsMap}
+                slotId={slot.id}
               />
             ) : displayImage ? (
-              <div style={imgStyles} className="w-full h-full relative">
+              <div style={interactiveImgStyles} className="w-full h-full relative">
                 <Image
                   src={displayImage}
                   alt={displayName}
@@ -483,23 +694,19 @@ const SlotContent = ({
               {product && <span>✓</span>}
             </div>
 
-            {productCustom && renderCustomBadgeUtil(productCustom, frameConfig)}
+            {interactiveBadge}
           </div>
 
           {isSelected && <ActionButtons />}
         </div>
 
-        {/* Popup overlay agrandi avec intégration des personnalisations */}
         {localOverlay && (
           <>
-            {/* Fond flouté */}
             <div
               className="fixed inset-0 z-[999]"
               style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: `blur(${cc?.interactiveConfig?.overlayBlur ?? 4}px)` }}
               onClick={() => setLocalOverlay(false)}
             />
-
-            {/* Popup centrée avec les styles personnalisés */}
             <div
               className={`fixed z-[1000] ${entranceClass}`}
               style={{
@@ -512,12 +719,12 @@ const SlotContent = ({
                 overflow: 'hidden',
                 boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
                 animation: entranceClass ? undefined : 'interactiveSlotIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
-                ...frameStyles,
+                ...interactiveFrameStyles,
+                ...interactiveBgStyles,
                 ...entranceStyle,
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Image pleine largeur avec styles personnalisés */}
               <div
                 className="relative w-full"
                 style={{
@@ -536,11 +743,17 @@ const SlotContent = ({
                     }}
                     carouselConfig={{ ...carCfg, showArrows: true, showDots: true }}
                     autoPlay={true}
-                    onImageChange={(i) => onUpdateSlotConfig?.(slot.id, { carouselConfig: { ...carCfg, currentImageIndex: i } })}
+                    onImageChange={(i) => {
+                      onUpdateSlotConfig?.(slot.id, { 
+                        carouselConfig: { ...carCfg, currentImageIndex: i } 
+                      });
+                    }}
                     imageCrops={imageCropsMap}
+                    slideCustomizations={slideCustomizationsMap}
+                    slotId={`${slot.id}-overlay`}
                   />
                 ) : displayImage ? (
-                  <div style={imgStyles} className="w-full h-full relative">
+                  <div style={interactiveImgStyles} className="w-full h-full relative">
                     <Image
                       src={displayImage}
                       alt={displayName}
@@ -556,19 +769,14 @@ const SlotContent = ({
                     <span className="text-sm text-gray-400">Aucune image</span>
                   </div>
                 )}
-
-                {productCustom && renderCustomBadgeUtil(productCustom, frameConfig)}
+                {interactiveBadge}
               </div>
-
-              {/* Bouton fermer */}
               <button
                 onClick={() => setLocalOverlay(false)}
                 className="absolute top-2 right-2 z-20 w-7 h-7 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white transition-colors shadow-md"
               >
                 <FiX size={14} />
               </button>
-
-              {/* Éléments positionnables superposés sur l'image */}
               {(() => {
                 const cfg = cc?.interactiveConfig || {};
                 const getStyle = (pos: string): React.CSSProperties => {
@@ -587,7 +795,6 @@ const SlotContent = ({
                     default:              return { ...base, bottom: 12, left: 12, textShadow: shadow };
                   }
                 };
-
                 return (
                   <>
                     {cfg.showNameOnClick !== false && (
@@ -602,7 +809,6 @@ const SlotContent = ({
                         </div>
                       </div>
                     )}
-
                     {cfg.showPriceOnClick !== false && displayPrice && (
                       <div style={getStyle(cfg.pricePosition || 'bottom-left')}>
                         <div className="font-bold" style={{
@@ -615,7 +821,6 @@ const SlotContent = ({
                         </div>
                       </div>
                     )}
-
                     {cfg.showDescriptionOnClick && product?.description && (
                       <div style={getStyle(cfg.descriptionPosition || 'bottom-center')}>
                         <p className="text-xs line-clamp-2" style={{ color: '#FFFFFF' }}>
@@ -623,7 +828,6 @@ const SlotContent = ({
                         </p>
                       </div>
                     )}
-
                     {cfg.showAddToCart !== false && (
                       <div style={getStyle(cfg.buttonPosition || 'bottom-right')}>
                         <button className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors shadow-md whitespace-nowrap">
@@ -641,7 +845,7 @@ const SlotContent = ({
     );
   }
 
-  // ⭐⭐ BLOC TRADITIONNEL AVEC CARROUSEL - AVEC PRIORITÉ À LA CONFIGURATION DU SLOT ⭐⭐
+  // BLOC TRADITIONNEL AVEC CARROUSEL
   if (slot.displayMode === 'traditional' && isCarousel && product) {
     const tradConfig = slot.customConfig?.traditionalConfig || {};
     
@@ -654,13 +858,19 @@ const SlotContent = ({
             frameConfig={frameConfig} 
             carouselConfig={carCfg} 
             autoPlay 
-            onImageChange={(i) => onUpdateSlotConfig?.(slot.id, { carouselConfig: { ...carCfg, currentImageIndex: i } })}
+            onImageChange={(i) => {
+              onUpdateSlotConfig?.(slot.id, { 
+                carouselConfig: { ...carCfg, currentImageIndex: i } 
+              });
+            }}
             imageCrops={imageCropsMap}
+            slideCustomizations={slideCustomizationsMap}
+            slotId={slot.id}
           />
           <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur-sm flex gap-1 z-20">
             <span>📦</span><span>{frameConfig.icon}</span><span>🎠</span>
           </div>
-          {productCustom && renderCustomBadgeUtil(productCustom, frameConfig)}
+          {effectiveCustom && renderCustomBadgeUtil(effectiveCustom, frameConfig)}
         </OuterWrapper>
         <div className="mt-2 text-center">
           <h3 className="font-semibold text-sm line-clamp-2" style={{
@@ -687,24 +897,48 @@ const SlotContent = ({
     );
   }
 
-  // ⭐⭐ BLOC TRADITIONNEL PAR DÉFAUT - AVEC PRIORITÉ À LA CONFIGURATION DU SLOT ⭐⭐
+  // BLOC TRADITIONNEL PAR DÉFAUT
   const tradConfig = slot.customConfig?.traditionalConfig || {};
   
+  const currentImageIdx = slot.imageIndex ?? 0;
+  const currentImageCustom = getSlideCustomization(productCustom, currentImageIdx);
+  const effectiveForDisplay = currentImageCustom || productCustom;
+
+  const displayImgStyles = getImageStylesUtil(effectiveForDisplay);
+  const displayFrameStyles = getCustomFrameStylesUtil(effectiveForDisplay);
+  const displayBgStyles = getBackgroundStylesOnly(effectiveForDisplay);
+  const displayHoverClass = getHoverEffectClass(effectiveForDisplay);
+  const displayHoverVars = getHoverEffectVarsUtil(effectiveForDisplay);
+  const displayBadge = effectiveForDisplay && renderCustomBadgeUtil(effectiveForDisplay, frameConfig);
+
   return (
     <div className="relative group w-full" style={{ height: 'auto' }}>
-      <OuterWrapper showActions={true}>
-        <div style={imgStyles} className="w-full h-full">
-          {displayImage
-            ? <Image src={displayImage} alt={displayName} fill className="object-cover" unoptimized style={{ backgroundColor: 'transparent', ...imageCropsMap[slot.imageIndex ?? 0] }} />
-            : <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50/50"><div className="text-3xl mb-1">{frameConfig.icon}</div><span className="text-xs text-gray-500">Aucune image</span></div>
-          }
+      <div className={`relative w-full ${displayHoverClass}`} style={{ borderRadius: frameConfig.borderRadius, ...displayHoverVars }}>
+        <div className="relative overflow-hidden" style={{ position: 'relative', borderRadius: frameConfig.borderRadius, width: '100%', ...slotBoxStyle, transition: 'background 0.3s ease', ...displayFrameStyles, ...displayBgStyles }}>
+          <div style={displayImgStyles} className="w-full h-full">
+            {displayImage
+              ? <Image 
+                  src={displayImage} 
+                  alt={displayName} 
+                  fill 
+                  className="object-cover" 
+                  unoptimized 
+                  style={{ backgroundColor: 'transparent', ...imageCropsMap[slot.imageIndex ?? 0] }} 
+                />
+              : <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50/50">
+                  <div className="text-3xl mb-1">{frameConfig.icon}</div>
+                  <span className="text-xs text-gray-500">Aucune image</span>
+                </div>
+            }
+          </div>
+          <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur-sm flex gap-1 z-20">
+            <span>{getModeIcon(slot.displayMode)}</span><span>{frameConfig.icon}</span>
+            {slot.imageIndex != null && <span className="ml-1">📷{slot.imageIndex + 1}</span>}
+          </div>
+          {displayBadge}
         </div>
-        <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur-sm flex gap-1 z-20">
-          <span>{getModeIcon(slot.displayMode)}</span><span>{frameConfig.icon}</span>
-          {slot.imageIndex != null && <span className="ml-1">📷{slot.imageIndex + 1}</span>}
-        </div>
-        {productCustom && renderCustomBadgeUtil(productCustom, frameConfig)}
-      </OuterWrapper>
+        {isSelected && <ActionButtons />}
+      </div>
       <div className={`mt-2 text-center ${entranceClass}`} style={entranceStyle}>
         <h3 className="font-semibold text-sm line-clamp-2" style={{
           fontFamily: tradConfig.nameFont || props.productNameFont || 'Inter',
@@ -728,47 +962,7 @@ const SlotContent = ({
           : !product && <p className="text-xs text-gray-400 mt-1">Cliquez pour ajouter un produit</p>
         }
       </div>
-      {isSelected && <ActionButtons />}
     </div>
-  );
-};
-
-const InteractiveOverlay = ({ product, slot, onClose }: { product: StudioProduct; slot: ProductGridSlot; onClose: () => void }) => {
-  const cfg = slot.customConfig?.interactiveConfig;
-  useEffect(() => {
-    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', fn);
-    return () => document.removeEventListener('keydown', fn);
-  }, [onClose]);
-
-  const styles: Record<string, React.CSSProperties> = {
-    modal:   { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '90%', maxWidth: '450px', zIndex: 1000, borderRadius: '12px', overflow: 'hidden' },
-    tooltip: { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '280px', zIndex: 1000, borderRadius: '8px' },
-    slide:   { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1000, borderRadius: '12px 12px 0 0' },
-    fade:    { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '90%', maxWidth: '400px', zIndex: 1000, borderRadius: '12px' },
-  };
-
-  const st = cfg?.overlayStyle || 'modal';
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/50 z-[999]" onClick={onClose} style={{ backdropFilter: `blur(${cfg?.overlayBlur || 4}px)` }} />
-      <div style={{ ...styles[st], backgroundColor: cfg?.overlayBackground || '#ffffff', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', animation: `${st === 'slide' ? 'slideUp' : 'fadeIn'} ${cfg?.animationDuration || 300}ms ease` }}>
-        <button onClick={onClose} className="absolute top-3 right-3 z-10 p-1.5 bg-white/90 rounded-full hover:bg-white shadow-md"><FiX size={18} /></button>
-        <div className="relative h-48 bg-gray-100">
-          <Image src={product.imageUrl || product.imageUrl1 || '/images/placeholder.svg'} alt={product.name} fill className="object-cover" unoptimized />
-        </div>
-        <div className="p-4">
-          <h3 className="font-bold text-lg mb-2">{product.name}</h3>
-          {cfg?.showPriceOnClick !== false && <div className="text-2xl font-bold text-primary mb-2">{product.price} €</div>}
-          {cfg?.showDescriptionOnClick && product.description && <p className="text-gray-600 text-sm mb-3">{product.description}</p>}
-          {cfg?.showAddToCart !== false && <button className="w-full py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90">Ajouter au panier</button>}
-        </div>
-      </div>
-      <style jsx global>{`
-        @keyframes fadeIn { from{opacity:0;transform:translate(-50%,-48%)} to{opacity:1;transform:translate(-50%,-50%)} }
-        @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-      `}</style>
-    </>
   );
 };
 
@@ -831,7 +1025,8 @@ const repositionSlotsCorrectly = (
   });
 };
 
-export function GridProductsBlock({
+// ⭐⭐⭐ COMPOSANT PRINCIPAL ⭐⭐⭐
+function GridProductsBlock({
   shop, block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing = false,
   onOpenAssetPicker, gridConfig: externalGridConfig, onUpdateGridConfig,
   productsList: externalProductsList = [], onLinkProduct, onUpdateProductCustomization,
@@ -859,6 +1054,21 @@ export function GridProductsBlock({
   const [resizingSlotId, setResizingSlotId] = useState<string | null>(null);
   const resizeRef = useRef<any>(null);
 
+  // ⭐⭐⭐ ÉTATS POUR LE MENU CONTEXTUEL ET LE POPUP D'ÉDITION ⭐⭐⭐
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    product: any;
+    slotId: string;
+  } | null>(null);
+  
+  // ⭐ État pour le popup central
+  const [editingProductData, setEditingProductData] = useState<{
+    product: StudioProduct;
+    slot: ProductGridSlot;
+  } | null>(null);
+
   const productCustomizations = externalProductCustomizations || localProductCustomizations;
   const gridConfig = externalGridConfig || localGridConfig;
   const allProducts = externalProductsList;
@@ -878,9 +1088,258 @@ export function GridProductsBlock({
   const [customImageUrl, setCustomImageUrl] = useState('');
   const [activeTab, setActiveTab] = useState<'product' | 'custom'>('product');
 
-  const refresh = useCallback(() => forceUpdate(p => p + 1), []);
+  const refresh = useCallback(() => {
+    forceUpdate(p => p + 1);
+  }, []);
   const onUpdateGridConfigRef = useRef(onUpdateGridConfig);
   useEffect(() => { onUpdateGridConfigRef.current = onUpdateGridConfig; }, [onUpdateGridConfig]);
+
+  // ⭐⭐⭐ FONCTIONS POUR L'AFFICHAGE DES IMAGES ⭐⭐⭐
+
+  const getSlotProduct = useCallback((slot: ProductGridSlot) => {
+    if (slot.linkedProduct) return slot.linkedProduct;
+    if (slot.productId) return allProducts.find(p => p.id === slot.productId);
+    return null;
+  }, [allProducts]);
+
+  const getAllProductImages = useCallback((product: StudioProduct | null | undefined): string[] => {
+    if (!product) return [];
+    const images = [];
+    if (product.imageUrl1) images.push(product.imageUrl1);
+    if (product.imageUrl2) images.push(product.imageUrl2);
+    if (product.imageUrl3) images.push(product.imageUrl3);
+    return images;
+  }, []);
+
+  const getDisplayImageForSlot = useCallback((slot: ProductGridSlot) => {
+    const product = getSlotProduct(slot);
+    const cc = slot.customConfig as any;
+    if (!product) return cc?.customImage || null;
+    const imageIndex = slot.imageIndex;
+    if (imageIndex === 0 && product.imageUrl1) return product.imageUrl1;
+    if (imageIndex === 1 && product.imageUrl2) return product.imageUrl2;
+    if (imageIndex === 2 && product.imageUrl3) return product.imageUrl3;
+    return product.imageUrl1 || product.imageUrl2 || product.imageUrl3 || null;
+  }, [getSlotProduct]);
+
+  const getProductCustomization = useCallback((productId: number): ProductCustomization => {
+    return productCustomizations.get(productId) || { ...DEFAULT_CUSTOMIZATION };
+  }, [productCustomizations]);
+
+  // ⭐⭐ GESTION DU MENU CONTEXTUEL (CLIC DROIT) ⭐⭐
+  const handleProductContextMenu = useCallback((e: React.MouseEvent, product: any, slotId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    const menuWidth = 170;
+    const menuHeight = 50;
+    const padding = 10;
+    
+    let finalX = x;
+    let finalY = y;
+    
+    if (x + menuWidth > window.innerWidth - padding) {
+      finalX = x - menuWidth;
+    }
+    if (finalX < padding) {
+      finalX = padding;
+    }
+    
+    if (y + menuHeight > window.innerHeight - padding) {
+      finalY = y - menuHeight;
+    }
+    if (finalY < padding) {
+      finalY = padding;
+    }
+    
+    setContextMenu({
+      visible: true,
+      x: finalX,
+      y: finalY,
+      product,
+      slotId
+    });
+  }, []);
+
+  // Fermer le menu contextuel au clic ailleurs
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener('click', closeMenu);
+    return () => window.removeEventListener('click', closeMenu);
+  }, []);
+
+  // ⭐⭐ OUVERTURE DU POPUP D'ÉDITION ⭐⭐
+  const openProductEditor = useCallback((product: any, slotId: string) => {
+    const slot = slots.find(s => s.id === slotId);
+    if (slot && product) {
+      setEditingProductData({ product, slot });
+    }
+    setContextMenu(null);
+  }, [slots]);
+
+  // Fermer le popup
+  const closeProductEditor = useCallback(() => {
+    setEditingProductData(null);
+  }, []);
+
+  // ⭐⭐⭐ FONCTION CORRIGÉE - Mise à jour produit avec synchronisation complète ⭐⭐⭐
+  const handleUpdateProduct = useCallback(async (productId: number, updates: Partial<StudioProduct>) => {
+    try {
+      const currentProduct = allProducts.find(p => p.id === productId);
+      if (!currentProduct) {
+        console.error('❌ Impossible de trouver le produit actuel dans allProducts');
+        return;
+      }
+      
+      const updateData: any = {
+        name: updates.name !== undefined ? updates.name : currentProduct.name,
+        price: updates.price !== undefined ? updates.price : currentProduct.price,
+        category: updates.category !== undefined ? updates.category : (currentProduct.category || 'Non catégorisé'),
+        description: updates.description !== undefined ? updates.description : (currentProduct.description || ''),
+        stock: updates.stock !== undefined ? updates.stock : (currentProduct.stock || 0),
+      };
+      
+      if (updates.sizes !== undefined) {
+        updateData.sizes = Array.isArray(updates.sizes) ? updates.sizes : [];
+      } else if (currentProduct.sizes && currentProduct.sizes.length > 0) {
+        updateData.sizes = currentProduct.sizes;
+      }
+      
+      if (updates.colors !== undefined) {
+        if (Array.isArray(updates.colors)) {
+          if (updates.colors.length > 0 && typeof updates.colors[0] === 'object' && 'value' in updates.colors[0]) {
+            updateData.colors = updates.colors.map((c: any) => c.value);
+          } else {
+            updateData.colors = updates.colors;
+          }
+        } else {
+          updateData.colors = [];
+        }
+      } else if (currentProduct.colors && currentProduct.colors.length > 0) {
+        updateData.colors = currentProduct.colors;
+      }
+      
+      if (updates.imageUrl1 !== undefined) updateData.imageUrl1 = updates.imageUrl1;
+      if (updates.imageUrl2 !== undefined) updateData.imageUrl2 = updates.imageUrl2;
+      if (updates.imageUrl3 !== undefined) updateData.imageUrl3 = updates.imageUrl3;
+      
+      const { productService } = await import('@/services/api/products');
+      const updatedProduct = await productService.updateProduct(productId, updateData);
+      
+      const updatedProductData = { ...currentProduct, ...updates, sizes: updateData.sizes || currentProduct.sizes, colors: updateData.colors || currentProduct.colors };
+      
+      setEditingProductData(prev => {
+        if (!prev) return prev;
+        return { ...prev, product: updatedProductData };
+      });
+      
+      const updatedSlots = slots.map(slot => {
+        if (slot.linkedProduct?.id === productId) {
+          return { ...slot, linkedProduct: updatedProductData };
+        }
+        return slot;
+      });
+      
+      if (onUpdateGridConfig && gridConfig) {
+        onUpdateGridConfig({ ...gridConfig, slots: updatedSlots });
+      }
+      
+      window.dispatchEvent(new CustomEvent('productUpdated', { 
+        detail: { productId, updates: updatedProductData, timestamp: Date.now() }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('productDataChanged', { 
+        detail: { productId, updates: updatedProductData }
+      }));
+
+      window.dispatchEvent(new CustomEvent('productsListChanged', { 
+        detail: { productId, updates: updatedProductData, timestamp: Date.now() }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('refreshProducts'));
+      
+      refresh();
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de la mise à jour du produit:', error);
+    }
+  }, [slots, gridConfig, onUpdateGridConfig, refresh, allProducts]);
+
+  // ⭐⭐⭐ Écouter les changements de produits pour mettre à jour les slots ⭐⭐⭐
+  useEffect(() => {
+    const handleProductDataChanged = (event: CustomEvent) => {
+      const { productId, updates } = event.detail;
+      
+      let hasChanges = false;
+      const updatedSlots = slots.map(slot => {
+        if (slot.linkedProduct && slot.linkedProduct.id === productId) {
+          hasChanges = true;
+          return {
+            ...slot,
+            linkedProduct: { ...slot.linkedProduct, ...updates }
+          };
+        }
+        return slot;
+      });
+      
+      if (hasChanges && onUpdateGridConfig && gridConfig) {
+        onUpdateGridConfig({ ...gridConfig, slots: updatedSlots });
+        refresh();
+      }
+    };
+    
+    window.addEventListener('productDataChanged', handleProductDataChanged as EventListener);
+    return () => window.removeEventListener('productDataChanged', handleProductDataChanged as EventListener);
+  }, [slots, gridConfig, onUpdateGridConfig, refresh]);
+
+  // ⭐⭐⭐ FIX: ResizeObserver optimisé avec throttling et report uniquement après resize ⭐⭐⭐
+  useEffect(() => {
+    if (!containerRef.current || !onUpdate) return;
+
+    let rafId: number | null = null;
+    let pendingHeight: number | null = null;
+    let lastReportedHeight: number | null = null;
+
+    const flush = () => {
+      rafId = null;
+      if (pendingHeight == null) return;
+      const h = pendingHeight;
+      pendingHeight = null;
+
+      // Pendant un resize manuel du bloc, on n'envoie rien : la valeur finale
+      // partira une seule fois au relâchement (voir l'effet juste en dessous).
+      if (isResizingRef.current) return;
+
+      if (lastReportedHeight == null || Math.abs(h - lastReportedHeight) > 2) {
+        lastReportedHeight = h;
+        onUpdate({ _blockHeight: h });
+      }
+    };
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        pendingHeight = entry.contentRect.height;
+        if (rafId == null) rafId = requestAnimationFrame(flush);
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => {
+      observer.disconnect();
+      if (rafId != null) cancelAnimationFrame(rafId);
+    };
+  }, [onUpdate, gridConfig?.slots, gridConfig?.columns]);
+
+  // Une fois le resize manuel terminé, on remonte la hauteur finale une seule fois
+  useEffect(() => {
+    if (!isResizing && containerRef.current && onUpdate) {
+      const h = containerRef.current.getBoundingClientRect().height;
+      onUpdate({ _blockHeight: h });
+    }
+  }, [isResizing, onUpdate]);
 
   useEffect(() => {
     if (!gridConfig?.slots || gridConfig.slots.length === 0) return;
@@ -981,16 +1440,37 @@ export function GridProductsBlock({
     }
   }, []);
 
+  // ⭐⭐⭐ FIX FLUIDITÉ #1 ⭐⭐⭐
+  // Avant : seuil de 8px avant de répercuter la nouvelle largeur -> la grille "sautait"
+  // par paliers pendant le redimensionnement au lieu de suivre la souris en continu.
+  // Maintenant : on répercute (quasi) chaque changement de largeur, synchronisé avec
+  // requestAnimationFrame pour rester fluide sans spammer le state React.
   useEffect(() => {
     if (!containerRef.current) return;
+    let rafId: number | null = null;
+    let pendingWidth: number | null = null;
+
+    const applyWidth = () => {
+      rafId = null;
+      if (pendingWidth == null) return;
+      if (Math.abs(pendingWidth - containerWidthRef.current) > 0.5) {
+        containerWidthRef.current = pendingWidth;
+        forceContainerUpdate(p => p + 1);
+      }
+      pendingWidth = null;
+    };
+
     const resizeObserver = new ResizeObserver(entries => {
       for (const entry of entries) {
-        const newWidth = entry.contentRect.width;
-        if (Math.abs(newWidth - containerWidthRef.current) > 8) { containerWidthRef.current = newWidth; forceContainerUpdate(p => p + 1); }
+        pendingWidth = entry.contentRect.width;
+        if (rafId == null) rafId = requestAnimationFrame(applyWidth);
       }
     });
     resizeObserver.observe(containerRef.current);
-    return () => resizeObserver.disconnect();
+    return () => {
+      resizeObserver.disconnect();
+      if (rafId != null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   useEffect(() => { return () => { if (reportTimer.current) clearTimeout(reportTimer.current); }; }, []);
@@ -1050,51 +1530,27 @@ export function GridProductsBlock({
     else if (onUpdate && block?.props) onUpdate({ ...block.props, gridSlots: resolvedSlots });
   }, [slots, columns, gridConfig, onUpdate, block]);
 
-  const handleLinkProduct = (slotId: string, product: StudioProduct) => {
+  const handleLinkProduct = useCallback((slotId: string, product: StudioProduct) => {
     if (onLinkProduct) onLinkProduct(slotId, product);
     else updateSlots(slots.map((s: ProductGridSlot) => s.id === slotId ? { ...s, productId: product.id, linkedProduct: product, customConfig: undefined, imageIndex: null } : s));
     setShowSlotEditor(false); setEditingSlot(null); setCustomTitle(''); setCustomImageUrl(''); setProductSearch('');
     refresh();
-  };
+  }, [slots, onLinkProduct, updateSlots, refresh]);
 
-  const clearSlot = (slotId: string) => {
+  const clearSlot = useCallback((slotId: string) => {
     if (onLinkProduct) onLinkProduct(slotId, {} as StudioProduct);
     else updateSlots(slots.map((s: ProductGridSlot) => s.id === slotId ? { ...s, productId: null, linkedProduct: undefined, customConfig: undefined, imageIndex: null } : s));
     refresh();
-  };
+  }, [slots, onLinkProduct, updateSlots, refresh]);
 
-  const addCustomToSlot = (slotId: string) => {
+  const addCustomToSlot = useCallback((slotId: string) => {
     if (!customTitle && !customImageUrl) return;
     updateSlots(slots.map((s: ProductGridSlot) => s.id === slotId ? { ...s, productId: null, linkedProduct: undefined, customConfig: { ...s.customConfig, customTitle: customTitle || undefined, customImage: customImageUrl || undefined }, imageIndex: null } : s));
     setShowSlotEditor(false); setEditingSlot(null); setCustomTitle(''); setCustomImageUrl('');
     refresh();
-  };
+  }, [slots, customTitle, customImageUrl, updateSlots, refresh]);
 
-  const getProductCustomization = (productId: number): ProductCustomization => productCustomizations.get(productId) || { ...DEFAULT_CUSTOMIZATION };
-
-  const getSlotProduct = (slot: ProductGridSlot) => {
-    if (slot.linkedProduct) return slot.linkedProduct;
-    if (slot.productId) return allProducts.find(p => p.id === slot.productId);
-    return null;
-  };
-
-  const getDisplayImageForSlot = (slot: ProductGridSlot) => {
-    const product = getSlotProduct(slot);
-    const cc = slot.customConfig as any;
-    if (!product) return cc?.customImage || null;
-    const i = slot.imageIndex;
-    if (i === 1 && product.imageUrl1) return product.imageUrl1;
-    if (i === 2 && product.imageUrl2) return product.imageUrl2;
-    if (i === 3 && product.imageUrl3) return product.imageUrl3;
-    return product.imageUrl || product.imageUrl1 || null;
-  };
-
-  const getAllProductImages = (product: StudioProduct | null | undefined): string[] => {
-    if (!product) return [];
-    return [product.imageUrl, product.imageUrl1, product.imageUrl2, product.imageUrl3].filter(Boolean) as string[];
-  };
-
-  const getSlotSizeStyle = (slot: ProductGridSlot): React.CSSProperties => {
+  const getSlotSizeStyle = useCallback((slot: ProductGridSlot): React.CSSProperties => {
     const customSize = slot.customSize;
     if (customSize) {
       const style: React.CSSProperties = {};
@@ -1104,7 +1560,7 @@ export function GridProductsBlock({
     }
     if (currentUniformSize.enabled) return { width: `${currentUniformSize.width}px`, height: `${currentUniformSize.height}px` };
     return { width: '100%', height: '100%' };
-  };
+  }, [currentUniformSize]);
 
   const SlotEditorModal = () => {
     if (!showSlotEditor) return null;
@@ -1130,7 +1586,10 @@ export function GridProductsBlock({
                     : filtered.map((p: StudioProduct) => (
                       <button key={p.id} onClick={() => editingSlot && handleLinkProduct(editingSlot, p)} className="w-full flex items-center gap-3 p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
                         <div className="relative w-12 h-12 rounded overflow-hidden bg-gray-700 flex-shrink-0">
-                          {p.imageUrl ? <Image src={p.imageUrl} alt={p.name} fill className="object-cover" unoptimized /> : <div className="w-full h-full flex items-center justify-center text-gray-500">📷</div>}
+                          {p.imageUrl1 ? 
+                            <Image src={p.imageUrl1} alt={p.name} fill className="object-cover" unoptimized /> : 
+                            <div className="w-full h-full flex items-center justify-center text-gray-500">📷</div>
+                          }
                         </div>
                         <div className="flex-1 text-left">
                           <div className="text-white text-sm">{p.name}</div>
@@ -1194,6 +1653,9 @@ export function GridProductsBlock({
     color: props.titleColor || '#1F2937',
   }), [props.titleFont, props.titleFontSize, props.titleFontWeight, props.titleColor, textOpacity]);
 
+  // ⭐⭐⭐ FIX TEMPS RÉEL : containerStyle dépend explicitement de props.backgroundColor.
+  // (le vrai bug de "couleur pas en temps réel" était dans le comparateur React.memo
+  // en bas de ce fichier, qui ignorait les changements de `block.props` — voir plus bas)
   const containerStyle = useMemo(() => ({
     background: props.backgroundColor || '#ffffff',
     width: '100%',
@@ -1216,12 +1678,10 @@ export function GridProductsBlock({
     return covered;
   }, [slots]);
 
-  const ghostCellHeight = useMemo(() => {
-    const currentWidth = containerWidthRef.current > 0 ? containerWidthRef.current : 1200;
-    const cellW = (currentWidth - gridPadding * 2 - gap * (columns - 1)) / columns;
-    const [ar1, ar2] = FRAME_STYLE_CONFIG.square.aspectRatio.split('/').map(Number);
-    return cellW * (ar2 / ar1);
-  }, [columns, gap, gridPadding, containerWidthRef.current]);
+  // ⭐ FIX FLUIDITÉ : les cellules "fantômes" (vides) utilisent désormais aussi
+  // aspect-ratio CSS au lieu d'un calcul JS dépendant de containerWidthRef, pour
+  // rester parfaitement synchronisées pendant le redimensionnement du bloc.
+  const GHOST_CELL_ASPECT_RATIO = FRAME_STYLE_CONFIG.square.aspectRatio;
 
   useEffect(() => {
     setEmptyHoveredCell(null);
@@ -1229,11 +1689,47 @@ export function GridProductsBlock({
     activeDragRef.current = null;
   }, [columns, rows]);
 
+  const POPUP_SLOT_WIDTH = 260;
+
+  const getPopupSlotStyles = useMemo(() => {
+    if (!editingProductData) return { width: POPUP_SLOT_WIDTH, height: POPUP_SLOT_WIDTH, borderRadius: '8px' };
+    const frameStyle = editingProductData.slot.frameStyle || 'square';
+    const frameConfig = FRAME_STYLE_CONFIG[frameStyle as keyof typeof FRAME_STYLE_CONFIG] || FRAME_STYLE_CONFIG.square;
+    const [ar1, ar2] = frameConfig.aspectRatio.split('/').map(Number);
+    const popupHeight = POPUP_SLOT_WIDTH * (ar2 / ar1);
+    return {
+      width: POPUP_SLOT_WIDTH,
+      height: popupHeight,
+      borderRadius: frameConfig.borderRadius,
+    };
+  }, [editingProductData]);
+
+  const normalizedPopupSlot = useMemo(() => {
+    if (!editingProductData) return null;
+    return {
+      ...editingProductData.slot,
+      gridPosition: {
+        ...editingProductData.slot.gridPosition,
+        rowSpan: 1,
+        colSpan: 1,
+      },
+      customSize: undefined,
+    };
+  }, [editingProductData]);
+
+  const getPopupFrameBorderRadius = useMemo(() => {
+    if (!editingProductData) return '8px';
+    const frameStyle = editingProductData.slot.frameStyle || 'square';
+    const frameConfig = FRAME_STYLE_CONFIG[frameStyle as keyof typeof FRAME_STYLE_CONFIG] || FRAME_STYLE_CONFIG.square;
+    return frameConfig.borderRadius;
+  }, [editingProductData]);
+
   return (
     <>
+      {/* ⭐ 3. Bonus défensif : suppression de transition-all sur le conteneur racine */}
       <div
         ref={containerRef}
-        className="relative cursor-pointer transition-all w-full"
+        className="relative cursor-pointer w-full"
         style={containerStyle}
         onClick={onSelect}
         onMouseDown={(e) => {
@@ -1266,50 +1762,57 @@ export function GridProductsBlock({
 
                   if (slotAtPosition) {
                     const isBeingDragged = draggedSlotId === slotAtPosition.id;
+                    const product = getSlotProduct(slotAtPosition);
+                    
                     return (
                       <div
                         key={`slot-node-${slotAtPosition.id}`}
+                        id={`product-slot-${slotAtPosition.id}`}
                         draggable
                         onMouseDown={(e) => e.stopPropagation()}
                         onDragStart={(e) => handleSlotDragStart(e, slotAtPosition.id)}
                         onDragOver={handleSlotDragOver}
                         onDrop={(e) => handleSlotDrop(e, slotAtPosition.id)}
                         onDragEnd={handleSlotDragEnd}
+                        onContextMenu={product ? (e) => handleProductContextMenu(e, product, slotAtPosition.id) : undefined}
                         className={`relative rounded-lg group select-none ${isBeingDragged ? 'opacity-40' : 'opacity-100'}`}
                         style={{
                           gridArea: `${slotAtPosition.gridPosition.row + 1} / ${slotAtPosition.gridPosition.col + 1} / span ${slotAtPosition.gridPosition.rowSpan || 1} / span ${slotAtPosition.gridPosition.colSpan || 1}`,
-                          transition: isBeingDragged ? 'none' : 'all 0.15s ease',
+                          // ⭐ FIX REBOND : 'all' → 'opacity' pour que seule l'opacité s'anime
+                          transition: isBeingDragged ? 'none' : 'opacity 0.15s ease',
                           cursor: activeDragRef.current ? 'grabbing' : 'grab',
                           overflow: 'visible',
                         }}
                       >
-                        <SlotContent
-                          slot={slotAtPosition}
-                          containerWidth={containerWidthRef.current}
-                          columns={columns}
-                          gap={gap}
-                          gridPadding={gridPadding}
-                          isSelected={isSelected}
-                          onSelect={() => { if (!activeDragRef.current) onSelect(); }}
-                          onOpenCustomization={onOpenCustomization}
-                          onUpdateSlotConfig={onUpdateSlotConfig}
-                          onLinkProduct={onLinkProduct}
-                          onOpenAssetPicker={onOpenAssetPicker}
-                          props={props}
-                          productCustomizations={productCustomizations}
-                          allProducts={allProducts}
-                          loadingProducts={loadingProducts}
-                          setEditingSlot={setEditingSlot}
-                          setShowSlotEditor={setShowSlotEditor}
-                          setCustomTitle={setCustomTitle}
-                          setCustomImageUrl={setCustomImageUrl}
-                          setActiveTab={setActiveTab}
-                          clearSlot={clearSlot}
-                          getProductCustomization={getProductCustomization}
-                          getSlotProduct={getSlotProduct}
-                          getDisplayImageForSlot={getDisplayImageForSlot}
-                          getAllProductImages={getAllProductImages}
-                        />
+                        <div>
+                          <SlotContent
+                            slot={slotAtPosition}
+                            containerWidth={containerWidthRef.current}
+                            columns={columns}
+                            gap={gap}
+                            gridPadding={gridPadding}
+                            isSelected={isSelected}
+                            onSelect={() => { if (!activeDragRef.current) onSelect(); }}
+                            onOpenCustomization={onOpenCustomization}
+                            onUpdateSlotConfig={onUpdateSlotConfig}
+                            onLinkProduct={onLinkProduct}
+                            onOpenAssetPicker={onOpenAssetPicker}
+                            props={props}
+                            productCustomizations={productCustomizations}
+                            allProducts={allProducts}
+                            loadingProducts={loadingProducts}
+                            setEditingSlot={setEditingSlot}
+                            setShowSlotEditor={setShowSlotEditor}
+                            setCustomTitle={setCustomTitle}
+                            setCustomImageUrl={setCustomImageUrl}
+                            setActiveTab={setActiveTab}
+                            clearSlot={clearSlot}
+                            getProductCustomization={getProductCustomization}
+                            getSlotProduct={getSlotProduct}
+                            getDisplayImageForSlot={getDisplayImageForSlot}
+                            getAllProductImages={getAllProductImages}
+                          />
+                        </div>
                       </div>
                     );
                   }
@@ -1329,7 +1832,8 @@ export function GridProductsBlock({
                       style={{
                         gridColumn: `${colIndex + 1}`,
                         gridRow: `${rowIndex + 1}`,
-                        height: `${ghostCellHeight}px`,
+                        aspectRatio: GHOST_CELL_ASPECT_RATIO,
+                        height: 'auto',
                         borderRadius: '8px',
                         border: isEmptyOver ? '2px dashed #8B5CF6' : '1.5px dashed rgba(156,163,175,0.25)',
                         background: isEmptyOver ? 'rgba(139, 92, 246, 0.08)' : 'rgba(156,163,175,0.02)',
@@ -1337,7 +1841,8 @@ export function GridProductsBlock({
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: activeDragRef.current ? 'move' : 'default',
-                        transition: 'all 0.15s ease',
+                        // ⭐ FIX REBOND : 'all' → 'border-color, background-color' (seulement ce qui change pendant le hover drag)
+                        transition: 'border-color 0.15s ease, background-color 0.15s ease',
                       }}
                       onClick={addSlot}
                     >
@@ -1366,9 +1871,217 @@ export function GridProductsBlock({
         )}
       </div>
 
+      {/* ⭐⭐ MENU CONTEXTUEL (CLIC DROIT) - AVEC PORTAL ⭐⭐ */}
+      {contextMenu && contextMenu.visible && createPortal(
+        <div
+          className="fixed z-[9999] bg-[#161722]/95 backdrop-blur-md border border-[#2d303f] rounded-lg shadow-2xl py-1.5 min-w-[170px] animate-in fade-in zoom-in-95 duration-100"
+          style={{ 
+            top: contextMenu.y, 
+            left: contextMenu.x,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            onClick={() => openProductEditor(contextMenu.product, contextMenu.slotId)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs font-semibold text-gray-200 hover:bg-[#4c249f] hover:text-white transition-colors group"
+          >
+            <FiEdit2 size={13} className="text-purple-400 group-hover:text-white transition-colors" />
+            Modifier le produit
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* ⭐⭐ POPUP CENTRAL AVEC LE SLOT AGRANDI ET LA BARRE EN DESSOUS ⭐⭐ */}
+      {editingProductData && onUpdateGlobalProductCustomization && typeof window !== 'undefined' && (
+        createPortal(
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={closeProductEditor}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                zIndex: 99998,
+                background: 'rgba(0,0,0,0.7)',
+                backdropFilter: 'blur(4px)',
+              }}
+            />
+            {/* Contenu centré */}
+            <div
+              style={{
+                position: 'fixed',
+                zIndex: 99999,
+                top: '38%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0px',
+                maxHeight: '95vh',
+              }}
+              className="animate-in zoom-in-95 fade-in duration-200"
+            >
+              <div
+                className="shadow-2xl overflow-hidden"
+                style={{
+                  ...getPopupSlotStyles,
+                  border: '2px solid #7c3aed',
+                  borderBottom: 'none',
+                  borderRadius: `${getPopupFrameBorderRadius} ${getPopupFrameBorderRadius} 0 0`,
+                  background: '#0a0a0f',
+                  flexShrink: 0,
+                }}
+              >
+                {normalizedPopupSlot && (
+                  <SlotContent
+                    slot={normalizedPopupSlot}
+                    containerWidth={POPUP_SLOT_WIDTH}
+                    columns={1}
+                    gap={0}
+                    gridPadding={0}
+                    isSelected={false}
+                    onSelect={() => {}}
+                    onOpenCustomization={onOpenCustomization}
+                    onUpdateSlotConfig={onUpdateSlotConfig}
+                    onLinkProduct={onLinkProduct}
+                    onOpenAssetPicker={onOpenAssetPicker}
+                    props={props}
+                    productCustomizations={productCustomizations}
+                    allProducts={allProducts}
+                    loadingProducts={loadingProducts}
+                    setEditingSlot={setEditingSlot}
+                    setShowSlotEditor={setShowSlotEditor}
+                    setCustomTitle={setCustomTitle}
+                    setCustomImageUrl={setCustomImageUrl}
+                    setActiveTab={setActiveTab}
+                    clearSlot={clearSlot}
+                    getProductCustomization={getProductCustomization}
+                    getSlotProduct={getSlotProduct}
+                    getDisplayImageForSlot={getDisplayImageForSlot}
+                    getAllProductImages={getAllProductImages}
+                  />
+                )}
+              </div>
+
+              {/* Flèche de connexion */}
+              <div style={{
+                width: 0,
+                height: 0,
+                borderLeft: '12px solid transparent',
+                borderRight: '12px solid transparent',
+                borderTop: '10px solid #7c3aed',
+                flexShrink: 0,
+              }} />
+
+              {/* Barre de détails collée juste en dessous */}
+              <div style={{ width: `${Math.max(getPopupSlotStyles.width || 260, 580)}px` }}>
+                <ProductDetailBar
+                  product={editingProductData.product}
+                  customization={productCustomizations.get(editingProductData.product.id)}
+                  onUpdateCustomization={(updates: Partial<ProductCustomization>) => {
+                    onUpdateGlobalProductCustomization(editingProductData.product.id, updates);
+                  }}
+                  onUpdateProduct={(productId, updates) => {
+                    handleUpdateProduct(productId, updates);
+                  }}
+                  onSave={() => {
+                    closeProductEditor();
+                  }}
+                  onCancel={() => {
+                    closeProductEditor();
+                  }}
+                />
+              </div>
+            </div>
+          </>,
+          document.documentElement
+        )
+      )}
+
       <SlotEditorModal />
     </>
   );
 }
 
-export default React.memo(GridProductsBlock);
+// ⭐⭐⭐ EXPORT AVEC MEMO CORRIGÉ POUR LES PERSONNALISATIONS ⭐⭐⭐
+const MemoizedGridProductsBlock = React.memo(GridProductsBlock, (prevProps, nextProps) => {
+  // ⭐ Vérifier les customisations de manière robuste
+  const prevCustoms = prevProps.globalProductCustomizations;
+  const nextCustoms = nextProps.globalProductCustomizations;
+  
+  let customizationsChanged = false;
+  if (prevCustoms !== nextCustoms) {
+    if (prevCustoms && nextCustoms) {
+      if (prevCustoms.size !== nextCustoms.size) {
+        customizationsChanged = true;
+      } else {
+        for (const [key, value] of prevCustoms) {
+          const nextValue = nextCustoms.get(key);
+          if (JSON.stringify(value) !== JSON.stringify(nextValue)) {
+            customizationsChanged = true;
+            break;
+          }
+        }
+      }
+    } else if (prevCustoms || nextCustoms) {
+      customizationsChanged = true;
+    }
+  }
+  
+  // ⭐⭐⭐ FIX FLUIDITÉ #2 ⭐⭐⭐
+  // Avant : JSON.stringify(gridConfig) / JSON.stringify(productsList) tournaient à
+  // CHAQUE frame de redimensionnement (même pour redimensionner un bloc différent,
+  // puisque tout changement ailleurs dans le canvas re-render StudioCanvas et donc
+  // recrée l'élément <GridProductsBlock>). Avec beaucoup de slots/produits, cette
+  // sérialisation répétée ~60x/seconde provoquait des saccades.
+  // On ajoute un court-circuit par égalité de référence : si l'objet n'a pas changé
+  // de référence, on ne sérialise même pas.
+  const gridConfigChanged =
+    prevProps.gridConfig !== nextProps.gridConfig &&
+    JSON.stringify(prevProps.gridConfig) !== JSON.stringify(nextProps.gridConfig);
+
+  const productsListChanged =
+    prevProps.productsList !== nextProps.productsList &&
+    JSON.stringify(prevProps.productsList) !== JSON.stringify(nextProps.productsList);
+
+  // ⭐ Vérifier les slots (inclus dans gridConfigChanged, gardé pour compat/clarté)
+  const slotsChanged =
+    prevProps.gridConfig?.slots !== nextProps.gridConfig?.slots &&
+    JSON.stringify(prevProps.gridConfig?.slots) !== JSON.stringify(nextProps.gridConfig?.slots);
+
+  // ⭐⭐⭐ FIX TEMPS RÉEL (bug principal) ⭐⭐⭐
+  // Avant, on ne comparait que `block.id` (qui ne change jamais), donc TOUT changement
+  // dans `block.props` (couleur de fond, titre, police, etc.) était silencieusement
+  // ignoré par ce memo et le composant ne se re-rendait jamais en conséquence.
+  // On compare maintenant le contenu réel de `block.props` pour que chaque changement
+  // (couleur incluse) se répercute immédiatement. La vérification de référence en
+  // premier fait aussi que ça ne coûte rien pendant un simple redimensionnement
+  // (où seul `block.position` change, pas `block.props`).
+  const blockPropsChanged =
+    prevProps.block?.props !== nextProps.block?.props &&
+    JSON.stringify(prevProps.block?.props) !== JSON.stringify(nextProps.block?.props);
+  
+  // ⭐ Vérifier les autres props
+  const otherPropsChanged = 
+    prevProps.shop?.id !== nextProps.shop?.id ||
+    prevProps.block?.id !== nextProps.block?.id ||
+    blockPropsChanged ||
+    prevProps.isSelected !== nextProps.isSelected ||
+    prevProps.textOpacity !== nextProps.textOpacity ||
+    prevProps.isResizing !== nextProps.isResizing ||
+    gridConfigChanged ||
+    productsListChanged;
+  
+  const shouldReRender = customizationsChanged || slotsChanged || otherPropsChanged;
+  
+  // ⭐ Retourne true si les props sont égales (pas de re-rendu)
+  // ⭐ Retourne false si les props sont différentes (re-rendu)
+  return !shouldReRender;
+});
+
+// Export nommé et par défaut
+export { MemoizedGridProductsBlock as GridProductsBlock };
+export default MemoizedGridProductsBlock;

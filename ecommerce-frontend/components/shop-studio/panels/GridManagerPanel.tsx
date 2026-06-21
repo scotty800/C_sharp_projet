@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   FiPlus, FiTrash2, FiGrid, FiColumns, FiLayout,
   FiMove, FiCopy, FiEye, FiShoppingCart, FiTag,
@@ -397,6 +397,10 @@ export default function GridManagerPanel({
   assets = [],
   onUploadAsset,
 }: Props) {
+  // ⭐⭐⭐ LOGS DE DEBUG ⭐⭐⭐
+  console.log('🔴🔴🔴 GridManagerPanel RENDU - produits reçus:', products.length);
+  console.log('🔴 Détail des produits reçus:', products.map(p => ({ id: p.id, name: p.name, sizes: p.sizes, colors: p.colors })));
+
   const [activeTab, setActiveTab] = useState<'layout' | 'slots' | 'slot-config'>('layout');
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [showCreateProduct, setShowCreateProduct] = useState(false);
@@ -411,15 +415,109 @@ export default function GridManagerPanel({
   const [gridDimEnabled, setGridDimEnabled] = useState(false);
   const [slotDimEnabled, setSlotDimEnabled] = useState(false);
   
-  // ⭐ État pour l'éditeur de recadrage (crop)
   const [cropEditorOpenForSlot, setCropEditorOpenForSlot] = useState<string | null>(null);
 
+  // ⭐⭐⭐ Version des produits pour forcer le re-render ⭐⭐⭐
+  const [productsVersion, setProductsVersion] = useState(0);
+
+  // ⭐ État newProduct avec imageUrl1 comme image principale
   const [newProduct, setNewProduct] = useState({
     name: '', description: '', price: 0, stock: 0, category: '',
     sizes: [] as string[],
     colors: [] as { name: string; value: string }[],
-    imageUrl: '', imageUrl1: '', imageUrl2: '', imageUrl3: '', isInStock: true,
+    imageUrl1: '',
+    imageUrl2: '',
+    imageUrl3: '',
+    isInStock: true,
   });
+
+  // ⭐⭐⭐ FORCER LA RÉHYDRATATION DES SLOTS QUAND products CHANGE ⭐⭐⭐
+  useEffect(() => {
+    if (products.length === 0) return;
+    
+    console.log('🔄 GridManagerPanel: Vérification réhydratation des slots...');
+    let needsUpdate = false;
+    const slotsWithMissingProduct: string[] = [];
+    
+    gridConfig.slots.forEach(slot => {
+      if (slot.productId != null && slot.linkedProduct == null) {
+        needsUpdate = true;
+        slotsWithMissingProduct.push(slot.id);
+        console.log(`⚠️ Slot ${slot.id} a productId ${slot.productId} mais pas linkedProduct`);
+      }
+    });
+    
+    if (!needsUpdate) {
+      console.log('✅ Tous les slots sont déjà réhydratés');
+      return;
+    }
+    
+    console.log(`🔄 Réhydratation des slots ${slotsWithMissingProduct.join(', ')}...`);
+    
+    const updatedSlots = gridConfig.slots.map(slot => {
+      if (slot.productId != null && slot.linkedProduct == null) {
+        const product = products.find(p => p.id === slot.productId);
+        if (product) {
+          console.log(`✅ Slot ${slot.id} réhydraté avec ${product.name}`);
+          return { ...slot, linkedProduct: product };
+        } else {
+          console.warn(`⚠️ Produit ${slot.productId} non trouvé pour le slot ${slot.id}`);
+          return { ...slot, linkedProduct: undefined };
+        }
+      }
+      return slot;
+    });
+    
+    const newGridConfig = { ...gridConfig, slots: updatedSlots };
+    onUpdateGrid(newGridConfig);
+    
+    // Forcer le re-render
+    setProductsVersion(prev => prev + 1);
+    
+    console.log('✅ Réhydratation terminée');
+  }, [products, gridConfig.slots]);
+
+  // ⭐⭐⭐ ÉCOUTEUR D'ÉVÉNEMENT POUR FORCER LA MISE À JOUR ⭐⭐⭐
+  useEffect(() => {
+    const handleProductsUpdated = () => {
+      console.log('🟡 Événement reçu dans GridManagerPanel - productsVersion incrémenté');
+      setProductsVersion(prev => prev + 1);
+    };
+    
+    console.log('🟢 GridManagerPanel - Installation des écouteurs d\'événements');
+    window.addEventListener('productUpdated', handleProductsUpdated);
+    window.addEventListener('productsChanged', handleProductsUpdated);
+    window.addEventListener('refreshProducts', handleProductsUpdated);
+    
+    return () => {
+      console.log('🔴 GridManagerPanel - Nettoyage des écouteurs');
+      window.removeEventListener('productUpdated', handleProductsUpdated);
+      window.removeEventListener('productsChanged', handleProductsUpdated);
+      window.removeEventListener('refreshProducts', handleProductsUpdated);
+    };
+  }, []);
+
+  // ⭐⭐⭐ Écouter les changements de produits ⭐⭐⭐
+  useEffect(() => {
+    const handleProductsListChanged = (event: CustomEvent) => {
+      const { productId, updates } = event.detail;
+      console.log('🔄 Mise à jour de la liste des produits dans GridManagerPanel:', productId, updates);
+      
+      // Forcer le re-render
+      setProductsVersion(prev => prev + 1);
+    };
+    
+    window.addEventListener('productsListChanged', handleProductsListChanged as EventListener);
+    return () => window.removeEventListener('productsListChanged', handleProductsListChanged as EventListener);
+  }, []);
+
+  // ⭐⭐⭐ LOG pour suivre les changements de products ⭐⭐⭐
+  useEffect(() => {
+    console.log('🟢🟢🟢 products PROP A CHANGÉ dans GridManagerPanel !');
+    console.log('   - Nouveau nombre de produits:', products.length);
+    console.log('   - Produits détaillés:', products.map(p => ({ id: p.id, name: p.name, sizes: p.sizes, colors: p.colors })));
+    setProductsVersion(prev => prev + 1);
+  }, [products]);
 
   const selectedSlot = gridConfig.slots.find(s => s.id === selectedSlotId);
   const currentDimension = gridConfig.dimension || scaleToGridDim(1);
@@ -469,8 +567,16 @@ export default function GridManagerPanel({
   };
 
   const removeSlot = (slotId: string) => {
+    const slotToRemove = gridConfig.slots.find(s => s.id === slotId);
+    const hadProduct = !!slotToRemove?.linkedProduct;
+    
     const updated = gridConfig.slots.filter(s => s.id !== slotId).map((s, i) => ({ ...s, order: i }));
     updateGrid({ slots: updated });
+    
+    if (hadProduct) {
+      console.log('🗑️ Slot avec produit supprimé - déclenchement productsChanged');
+      window.dispatchEvent(new CustomEvent('productsChanged'));
+    }
   };
 
   const duplicateSlot = (slot: ProductGridSlot) => {
@@ -534,8 +640,13 @@ export default function GridManagerPanel({
   };
 
   const removeImage = (idx: number) => {
-    const field = ['imageUrl', 'imageUrl1', 'imageUrl2', 'imageUrl3'][idx];
-    setNewProduct(p => ({ ...p, [field]: '' }));
+    if (idx === 0) {
+      setNewProduct(p => ({ ...p, imageUrl1: '' }));
+    } else if (idx === 1) {
+      setNewProduct(p => ({ ...p, imageUrl2: '' }));
+    } else if (idx === 2) {
+      setNewProduct(p => ({ ...p, imageUrl3: '' }));
+    }
   };
 
   const triggerFileUpload = (idx: number) => {
@@ -550,15 +661,25 @@ export default function GridManagerPanel({
     setUploadingImageIndex(currentImageIndex);
     try {
       const url = onUploadAsset ? (await onUploadAsset(file)).url : URL.createObjectURL(file);
-      const field = ['imageUrl', 'imageUrl1', 'imageUrl2', 'imageUrl3'][currentImageIndex];
-      setNewProduct(p => ({ ...p, [field]: url }));
+      if (currentImageIndex === 0) {
+        setNewProduct(p => ({ ...p, imageUrl1: url }));
+      } else if (currentImageIndex === 1) {
+        setNewProduct(p => ({ ...p, imageUrl2: url }));
+      } else if (currentImageIndex === 2) {
+        setNewProduct(p => ({ ...p, imageUrl3: url }));
+      }
     } catch { alert("Erreur lors de l'upload"); }
     finally { setUploadingImageIndex(null); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
   const selectFromLibrary = (url: string) => {
-    const field = ['imageUrl', 'imageUrl1', 'imageUrl2', 'imageUrl3'][currentImageIndex];
-    setNewProduct(p => ({ ...p, [field]: url }));
+    if (currentImageIndex === 0) {
+      setNewProduct(p => ({ ...p, imageUrl1: url }));
+    } else if (currentImageIndex === 1) {
+      setNewProduct(p => ({ ...p, imageUrl2: url }));
+    } else if (currentImageIndex === 2) {
+      setNewProduct(p => ({ ...p, imageUrl3: url }));
+    }
     setShowImageSelector(false);
   };
 
@@ -579,16 +700,33 @@ export default function GridManagerPanel({
     if (!newProduct.name || newProduct.price <= 0) { alert("Nom et prix requis"); return; }
     setIsCreating(true);
     try {
+      const mainImage = newProduct.imageUrl1 || '';
+      const secondaryImages = [
+        newProduct.imageUrl2,
+        newProduct.imageUrl3
+      ].filter(img => img && img.trim() !== '' && img !== mainImage);
+      
       const toCreate: CreateStudioProduct = {
-        name: newProduct.name, description: newProduct.description || '',
-        price: newProduct.price, stock: newProduct.stock || 0,
+        name: newProduct.name,
+        description: newProduct.description || '',
+        price: newProduct.price,
+        stock: newProduct.stock || 0,
         category: newProduct.category || '',
         sizes: newProduct.sizes.filter(Boolean),
         colors: newProduct.colors.map(c => c.name).filter(Boolean),
-        imageUrl: newProduct.imageUrl || '', imageUrl1: newProduct.imageUrl1 || '',
-        imageUrl2: newProduct.imageUrl2 || '', imageUrl3: newProduct.imageUrl3 || '',
+        imageUrl: mainImage,
+        imageUrl1: mainImage,
+        imageUrl2: secondaryImages[0] || '',
+        imageUrl3: secondaryImages[1] || '',
         isInStock: newProduct.stock > 0,
       };
+      
+      console.log('📦 Création produit - Images:', {
+        imageUrl1: toCreate.imageUrl1,
+        imageUrl2: toCreate.imageUrl2,
+        imageUrl3: toCreate.imageUrl3,
+      });
+      
       const created: StudioProduct = onCreateProduct ? await onCreateProduct(toCreate) : {
         id: Date.now(), name: toCreate.name, description: toCreate.description || '',
         price: toCreate.price, stock: toCreate.stock || 0, category: toCreate.category || '',
@@ -611,14 +749,46 @@ export default function GridManagerPanel({
         onLinkProduct(currentSlotId, created);
       }
       
-      setNewProduct({ name: '', description: '', price: 0, stock: 0, category: '', sizes: [], colors: [], imageUrl: '', imageUrl1: '', imageUrl2: '', imageUrl3: '', isInStock: true });
-      setShowCreateProduct(false); setCurrentSlotId(null);
-    } catch { alert('Erreur lors de la création'); }
-    finally { setIsCreating(false); }
+      setNewProduct({ 
+        name: '', description: '', price: 0, stock: 0, category: '', 
+        sizes: [], colors: [], 
+        imageUrl1: '', imageUrl2: '', imageUrl3: '', 
+        isInStock: true 
+      });
+      setShowCreateProduct(false); 
+      setCurrentSlotId(null);
+      
+      console.log('✅ Produit créé - déclenchement productsChanged');
+      window.dispatchEvent(new CustomEvent('productsChanged'));
+      
+    } catch { 
+      alert('Erreur lors de la création'); 
+    } finally { 
+      setIsCreating(false); 
+    }
+  };
+
+  const getMainProductImage = (product: StudioProduct): string => {
+    return product.imageUrl1 || product.imageUrl || '/images/placeholder.svg';
+  };
+
+  const getAllProductImages = (product: StudioProduct): string[] => {
+    const images = [];
+    if (product.imageUrl1) images.push(product.imageUrl1);
+    if (product.imageUrl2) images.push(product.imageUrl2);
+    if (product.imageUrl3) images.push(product.imageUrl3);
+    return images;
   };
 
   return (
     <div className="space-y-4">
+      {/* ⭐⭐⭐ AFFICHAGE DES LOGS DE DEBUG POUR products ⭐⭐⭐ */}
+      <div className="text-[10px] text-gray-500 bg-gray-800/50 p-2 rounded mb-2 hidden">
+        <div>🟢 Produits disponibles: {products.length}</div>
+        <div>🟢 productsVersion: {productsVersion}</div>
+        <div>🟢 Dernier produit: {products[products.length-1]?.name || 'aucun'}</div>
+      </div>
+
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
 
       <div className="flex gap-1 border-b border-gray-700">
@@ -734,11 +904,14 @@ export default function GridManagerPanel({
               const cc = slot.customConfig as any;
               const hasContent = product || cc?.customTitle;
               const imageCount = product
-                ? [product.imageUrl, product.imageUrl1, product.imageUrl2, product.imageUrl3].filter(Boolean).length
+                ? getAllProductImages(product).length
                 : 0;
 
+              // ⭐⭐⭐ CLÉ DYNAMIQUE AVEC productsVersion POUR FORCER LE RE-RENDER ⭐⭐⭐
+              const key = `${slot.id}-${productsVersion}-${slot.productId}-${slot.linkedProduct?.name || 'null'}`;
+
               return (
-                <div key={slot.id}
+                <div key={key}
                   className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${selectedSlotId === slot.id ? 'border-primary bg-primary/10' : 'border-gray-700 bg-gray-800/50 hover:border-gray-500'}`}
                   onClick={() => onSelectSlot(slot.id)}>
                   <div className="flex items-center gap-3">
@@ -761,13 +934,19 @@ export default function GridManagerPanel({
                       {hasContent ? (
                         <div className="flex items-center gap-2 mt-1">
                           <div className="w-6 h-6 bg-gray-700 rounded overflow-hidden">
-                            <img src={cc?.customImage || product?.imageUrl} alt="" className="w-full h-full object-cover" />
+                            <img src={cc?.customImage || (product ? getMainProductImage(product) : '')} alt="" className="w-full h-full object-cover" />
                           </div>
                           <span className="text-xs text-gray-400 truncate">
                             {cc?.customTitle || product?.name || 'Sans titre'}
                           </span>
                           {product?.price && <span className="text-xs text-primary">{product.price}€</span>}
                           {imageCount > 1 && <span className="text-xs text-gray-500 ml-auto">📷 {imageCount}</span>}
+                          {/* ⭐⭐⭐ AFFICHAGE DES INFOS DEBUG ⭐⭐⭐ */}
+                          {product && (
+                            <span className="text-[9px] text-gray-600 ml-2">
+                              🏷️{product.sizes?.length || 0} | 🎨{product.colors?.length || 0}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <div className="text-xs text-gray-500 mt-1">Slot vide</div>
@@ -924,18 +1103,16 @@ export default function GridManagerPanel({
             </div>
           </div>
 
-          {/* ⭐ Sélecteur d'image + éditeur de recadrage avec imageCrops (par image) */}
+          {/* Sélecteur d'image + éditeur de recadrage */}
           {selectedSlot.linkedProduct && (
             <div className="bg-gray-800/50 rounded-lg p-3 space-y-3">
               <label className="text-sm text-gray-400 block">Image affichée</label>
 
-              {/* Sélecteur de l'image source */}
               <div className="flex gap-2 flex-wrap">
                 {[
-                  { url: selectedSlot.linkedProduct.imageUrl,  idx: null, label: 'Principal' },
-                  { url: selectedSlot.linkedProduct.imageUrl1, idx: 1,    label: 'Image 2'   },
-                  { url: selectedSlot.linkedProduct.imageUrl2, idx: 2,    label: 'Image 3'   },
-                  { url: selectedSlot.linkedProduct.imageUrl3, idx: 3,    label: 'Image 4'   },
+                  { url: selectedSlot.linkedProduct.imageUrl1, idx: 0, label: 'Principale' },
+                  { url: selectedSlot.linkedProduct.imageUrl2, idx: 1, label: 'Image 2'   },
+                  { url: selectedSlot.linkedProduct.imageUrl3, idx: 2, label: 'Image 3'   },
                 ].filter(x => x.url).map(({ url, idx, label }) => {
                   const isActive = selectedSlot.imageIndex === idx;
                   const cropKey = `${selectedSlot.id}-${idx ?? 'null'}`;
@@ -975,19 +1152,16 @@ export default function GridManagerPanel({
                 })}
               </div>
 
-              {/* Éditeur de recadrage / zoom — visible seulement si une image est ouverte */}
               {(() => {
                 const cropKey = `${selectedSlot.id}-${selectedSlot.imageIndex ?? 'null'}`;
                 if (cropEditorOpenForSlot !== cropKey) return null;
 
-                // ⭐ Récupère les crops pour chaque image individuellement
                 const cropImageKey = selectedSlot.imageIndex ?? 0;
                 const currentCrops = (selectedSlot.customConfig as any)?.imageCrops || {};
                 const imgCrop = currentCrops[cropImageKey] || {
                   zoom: 100, posX: 50, posY: 50, fit: 'cover',
                 };
 
-                // ⭐ Mise à jour du crop pour l'image active
                 const updateCrop = (key: string, value: any) => {
                   onUpdateSlotConfig(selectedSlot.id, {
                     customConfig: {
@@ -1000,7 +1174,6 @@ export default function GridManagerPanel({
                   });
                 };
 
-                // ⭐ Réinitialisation du crop pour l'image active
                 const resetCrop = () => {
                   onUpdateSlotConfig(selectedSlot.id, {
                     customConfig: {
@@ -1013,7 +1186,6 @@ export default function GridManagerPanel({
                   });
                 };
 
-                // ⭐ Mise à jour des raccourcis de position
                 const updatePosition = (posX: number, posY: number) => {
                   onUpdateSlotConfig(selectedSlot.id, {
                     customConfig: {
@@ -1029,10 +1201,10 @@ export default function GridManagerPanel({
                 const displayImage = (() => {
                   const p = selectedSlot.linkedProduct!;
                   const i = selectedSlot.imageIndex;
-                  if (i === 1 && p.imageUrl1) return p.imageUrl1;
-                  if (i === 2 && p.imageUrl2) return p.imageUrl2;
-                  if (i === 3 && p.imageUrl3) return p.imageUrl3;
-                  return p.imageUrl || p.imageUrl1 || null;
+                  if (i === 0 && p.imageUrl1) return p.imageUrl1;
+                  if (i === 1 && p.imageUrl2) return p.imageUrl2;
+                  if (i === 2 && p.imageUrl3) return p.imageUrl3;
+                  return p.imageUrl1 || p.imageUrl2 || p.imageUrl3 || null;
                 })();
 
                 const frameStyle = selectedSlot.frameStyle || 'square';
@@ -1059,7 +1231,6 @@ export default function GridManagerPanel({
                       </button>
                     </div>
 
-                    {/* Prévisualisation interactive */}
                     <div className="flex justify-center">
                       <div
                         className="relative overflow-hidden bg-gray-700"
@@ -1285,7 +1456,7 @@ export default function GridManagerPanel({
             )}
           </div>
 
-          {/* ⭐⭐ Éléments — mode traditionnel (AVEC TYPOGRAPHIE) ⭐⭐ */}
+          {/* Éléments — mode traditionnel */}
           {selectedSlot.displayMode === 'traditional' && (
             <div className="bg-gray-800/50 rounded-lg p-3 space-y-4">
               <label className="text-sm text-gray-400 block">Éléments à afficher</label>
@@ -1305,7 +1476,7 @@ export default function GridManagerPanel({
                 </label>
               ))}
 
-              {/* ⭐⭐ TYPOGRAPHIE pour mode traditionnel ⭐⭐ */}
+              {/* Typographie pour mode traditionnel */}
               <div className="border-t border-gray-700 pt-3 space-y-3">
                 <label className="text-sm text-gray-400 block">Typographie</label>
 
@@ -1412,7 +1583,7 @@ export default function GridManagerPanel({
             </div>
           )}
 
-          {/* ⭐⭐ Éléments — mode interactif (AVEC TYPOGRAPHIE) ⭐⭐ */}
+          {/* Éléments — mode interactif */}
           {selectedSlot.displayMode === 'interactive' && (
             <div className="bg-gray-800/50 rounded-lg p-3 space-y-4">
               
@@ -1449,7 +1620,7 @@ export default function GridManagerPanel({
                 ))}
               </div>
 
-              {/* ⭐⭐ TYPOGRAPHIE pour mode interactif ⭐⭐ */}
+              {/* Typographie pour mode interactif */}
               <div className="border-t border-gray-700 pt-3 space-y-3">
                 <label className="text-sm text-gray-400 block">Typographie</label>
 
@@ -1622,11 +1793,15 @@ export default function GridManagerPanel({
             {selectedSlot.linkedProduct ? (
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gray-700 rounded-lg overflow-hidden flex-shrink-0">
-                  <img src={selectedSlot.linkedProduct.imageUrl || '/images/placeholder.svg'} alt="" className="w-full h-full object-cover" />
+                  <img src={getMainProductImage(selectedSlot.linkedProduct)} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-white text-sm font-medium truncate">{selectedSlot.linkedProduct.name}</div>
                   <div className="text-primary text-sm">{selectedSlot.linkedProduct.price} €</div>
+                  <div className="text-[9px] text-gray-500 mt-0.5">
+                    🏷️ Tailles: {selectedSlot.linkedProduct.sizes?.length || 0} | 
+                    🎨 Couleurs: {selectedSlot.linkedProduct.colors?.length || 0}
+                  </div>
                 </div>
                 <button onClick={() => onUnlinkProduct(selectedSlot.id)}
                   className="p-1.5 bg-red-500/20 rounded-md text-red-400 hover:bg-red-500/30 transition-colors">
@@ -1681,32 +1856,40 @@ export default function GridManagerPanel({
             <div className="flex-1 overflow-auto px-4 pb-4 space-y-2">
               {products
                 .filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()))
-                .map((p) => (
-                  <button key={p.id}
-                    onClick={() => { 
-                      const currentSlot = gridConfig.slots.find(s => s.id === currentSlotId);
-                      if (currentSlot && !currentSlot.customConfig?.traditionalConfig) {
-                        onUpdateSlotConfig(currentSlotId!, {
-                          customConfig: {
-                            ...currentSlot.customConfig,
-                            traditionalConfig: DEFAULT_TRADITIONAL_CONFIG,
-                          }
-                        });
-                      }
-                      onLinkProduct(currentSlotId!, p); 
-                      setShowProductSelector(false); 
-                      setProductSearch(''); 
-                    }}
-                    className="w-full flex gap-3 p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
-                    <div className="w-12 h-12 bg-gray-700 rounded overflow-hidden flex-shrink-0">
-                      <img src={p.imageUrl || '/placeholder.svg'} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="text-left">
-                      <div className="text-white text-sm">{p.name}</div>
-                      <div className="text-primary text-sm">{p.price}€</div>
-                    </div>
-                  </button>
-                ))}
+                .map((p) => {
+                  // ⭐ Clé unique avec productsVersion
+                  const key = `product-${p.id}-${productsVersion}`;
+                  return (
+                    <button key={key}
+                      onClick={() => { 
+                        console.log('🔗 Lien produit sélectionné:', { id: p.id, name: p.name, sizes: p.sizes, colors: p.colors });
+                        const currentSlot = gridConfig.slots.find(s => s.id === currentSlotId);
+                        if (currentSlot && !currentSlot.customConfig?.traditionalConfig) {
+                          onUpdateSlotConfig(currentSlotId!, {
+                            customConfig: {
+                              ...currentSlot.customConfig,
+                              traditionalConfig: DEFAULT_TRADITIONAL_CONFIG,
+                            }
+                          });
+                        }
+                        onLinkProduct(currentSlotId!, p); 
+                        setShowProductSelector(false); 
+                        setProductSearch(''); 
+                      }}
+                      className="w-full flex gap-3 p-2 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
+                      <div className="w-12 h-12 bg-gray-700 rounded overflow-hidden flex-shrink-0">
+                        <img src={getMainProductImage(p)} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="text-left">
+                        <div className="text-white text-sm">{p.name}</div>
+                        <div className="text-primary text-sm">{p.price}€</div>
+                        <div className="text-[9px] text-gray-500">
+                          🏷️{p.sizes?.length || 0} | 🎨{p.colors?.length || 0}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
             </div>
           </div>
         </div>
@@ -1756,13 +1939,14 @@ export default function GridManagerPanel({
 
               {/* Images */}
               <div>
-                <label className="text-white text-sm block mb-2">Images (max 4)</label>
+                <label className="text-white text-sm block mb-2">Images</label>
                 <div className="grid grid-cols-2 gap-3">
-                  {[0, 1, 2, 3].map((idx) => {
-                    const imageUrl = [newProduct.imageUrl, newProduct.imageUrl1, newProduct.imageUrl2, newProduct.imageUrl3][idx];
+                  {[0, 1, 2].map((idx) => {
+                    const imageUrl = idx === 0 ? newProduct.imageUrl1 : idx === 1 ? newProduct.imageUrl2 : newProduct.imageUrl3;
+                    const label = idx === 0 ? 'Principale *' : idx === 1 ? 'Image 2' : 'Image 3';
                     return (
                       <div key={idx} className="border border-gray-700 rounded-lg p-2">
-                        <label className="text-gray-400 text-xs">{idx === 0 ? 'Principale *' : `Image ${idx + 1}`}</label>
+                        <label className="text-gray-400 text-xs">{label}</label>
                         <div className="relative w-full aspect-square bg-gray-800 rounded-lg overflow-hidden mt-1">
                           {imageUrl ? (
                             <>
@@ -1791,6 +1975,7 @@ export default function GridManagerPanel({
                     );
                   })}
                 </div>
+                <p className="text-xs text-gray-500 mt-2">⚠️ L'image principale sera utilisée comme image principale du produit</p>
               </div>
 
               {/* Tailles */}
