@@ -206,6 +206,7 @@ export interface BlockPosition {
   y: number;
   width: number;
   height: number;
+  rotation?: number;
   zIndex: number;
   positionType?: 'absolute' | 'relative' | 'fixed';
   alignment?: 'top-left' | 'top-center' | 'center' | 'bottom-left' | 'bottom-right';
@@ -226,15 +227,17 @@ export interface Block {
 // ⭐ Interface BlockUI (pour le frontend - transformation)
 export interface BlockUI {
   id: string;
-  type: 'banner' | 'logo' | 'title' | 'products' | 'section' | 'text' | 'image' | 'button' | 'spacer' | 'products-grid' | 'product-slot';
+  type: 'banner' | 'screen-banner' | 'carousel-banner' | 'carousel-slide' | 'logo' | 'title' | 'products' | 'section' | 'text' | 'image' | 'button' | 'spacer' | 'products-grid' | 'product-slot' | 'shape' | 'custom' | 'group';
   props: any;
   order: number;
-  position?: { x: number; y: number; width?: number; height?: number; zIndex?: number };
   isVisible?: boolean;
   parentId?: string | null;
   isLocked?: boolean;
+  position?: BlockPosition;
   children?: BlockUI[];
   gridConfig?: ProductGridConfig;
+  pageId?: string;
+  groupId?: string | null;
 }
 
 // Interface principale SHOP CUSTOMIZATION (mise à jour avec blocks)
@@ -791,6 +794,18 @@ export interface ProductBadge {
   fontSize?: number;
   borderRadius?: number;
   animation?: 'pulse' | 'bounce' | 'none';
+}
+
+export interface StudioPage {
+  id: string;
+  name: string;
+  order: number;
+  backgroundColor?: string;
+  backgroundType?: 'solid' | 'gradient';
+  backgroundValue?: string | null;
+  backgroundOpacity?: number;
+  canvasX?: number;
+  canvasY?: number;
 }
 
 // ⭐ Type pour la configuration d'une slide (tous les champs sont optionnels car une slide peut hériter du global)

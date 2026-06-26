@@ -1,4 +1,3 @@
-// app/layout.tsx
 'use client';
 
 import { usePathname } from 'next/navigation';
@@ -22,6 +21,9 @@ export default function RootLayout({
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith('/auth/');
   const isHomePage = pathname === '/';
+  const isStudioPage = pathname?.includes('/studio');
+  // ⭐ AJOUT : détection des pages boutique (shop/[slug])
+  const isShopPage = pathname?.startsWith('/shop/');
 
   return (
     <html lang="fr">
@@ -30,16 +32,16 @@ export default function RootLayout({
           <NotificationProvider>
             <AuthProvider>
               <CartProvider>
-                {/* Header caché sur les pages d'authentification, présent sur home */}
-                {!isAuthPage && <Header />}
+                {/* ⭐ Header caché sur les pages d'authentification, studio ET boutique */}
+                {!isAuthPage && !isStudioPage && !isShopPage && <Header />}
                 
-                {/* Padding top seulement si le header est présent */}
-                <main className={`flex-grow ${!isAuthPage ? 'pt-16' : ''}`}>
+                {/* ⭐ Padding top seulement si le header est présent */}
+                <main className={`flex-grow ${!isAuthPage && !isStudioPage && !isShopPage ? 'pt-16' : ''}`}>
                   {children}
                 </main>
                 
-                {/* Footer caché sur la page d'accueil ET sur les pages d'authentification */}
-                {!isHomePage && !isAuthPage && <Footer />}
+                {/* ⭐ Footer caché sur la page d'accueil, authentification, studio ET boutique */}
+                {!isHomePage && !isAuthPage && !isStudioPage && !isShopPage && <Footer />}
                 
                 <Toaster 
                   position="top-right"

@@ -713,7 +713,7 @@ export default function GridManagerPanel({
         stock: newProduct.stock || 0,
         category: newProduct.category || '',
         sizes: newProduct.sizes.filter(Boolean),
-        colors: newProduct.colors.map(c => c.name).filter(Boolean),
+        colors: newProduct.colors.map(c => c.value).filter(Boolean),
         imageUrl: mainImage,
         imageUrl1: mainImage,
         imageUrl2: secondaryImages[0] || '',

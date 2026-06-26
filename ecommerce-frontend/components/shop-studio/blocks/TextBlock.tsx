@@ -11,65 +11,83 @@ interface Props {
   onUpdate: (updates: any) => void;
   textOpacity?: number;
   isResizing?: boolean;
+  ratio?: number;
 }
 
-export function TextBlock({ block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing }: Props) {
+export function TextBlock({ block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing, ratio = 1 }: Props) {
   const { props, position } = block;
   const textRef = useRef<HTMLDivElement>(null);
   const [localContent, setLocalContent] = useState(props?.content || 'Saisissez votre texte ici...');
   const [fontSize, setFontSize] = useState(props?.fontSize || 16);
 
-  // ⭐ Redimensionner le texte quand la taille du bloc change
   useEffect(() => {
+    const rawSize = props.fontSize || 16;
+
     if (props.fontSize) {
-      setFontSize(Math.min(props.fontSize, position?.height * 0.8));
+      setFontSize(rawSize * ratio);
       return;
     }
-    
-    const blockHeight = position?.height || 100;
-    
-    let newSize = Math.min(blockHeight * 0.4, 24);
-    newSize = Math.max(12, Math.min(24, newSize));
-    
-    setFontSize(newSize);
-  }, [position?.height, props.fontSize]);
 
-  // ⭐ Style du conteneur
+    const blockHeight = (position?.height || 100) * ratio;
+    let newSize = Math.min(blockHeight * 0.4, 24 * ratio);
+    newSize = Math.max(12, Math.min(24 * ratio, newSize));
+    setFontSize(newSize);
+  }, [position?.height, props.fontSize, ratio]);
+
+  // ⭐ Resynchronise le texte affiché si props.content change depuis l'extérieur
+  // (régénération de page produit, changement de produit) tant qu'on n'est pas
+  // en train d'éditer ce bloc précis.
+  useEffect(() => {
+    if (document.activeElement !== textRef.current) {
+      setLocalContent(props?.content || 'Saisissez votre texte ici...');
+    }
+  }, [props?.content]);
+
+  // ⭐⭐ FIX PRINCIPAL : mode "pastille" (badge).
+  // Avant : tout texte avait un padding fixe de 8px/12px quelle que soit la
+  // hauteur du bloc → les petits labels (badges, "Couleurs disponibles"...)
+  // débordaient de leur boîte. borderRadius/paddingX/paddingY étaient en plus
+  // totalement ignorés, donc les badges "PRODUIT", "En stock" etc. ne
+  // ressemblaient jamais à des pastilles.
+  // Maintenant : si le bloc a un borderRadius OU un paddingX/paddingY, il
+  // devient une pastille qui s'ajuste à son contenu (comme un vrai badge).
+  // Sinon, c'est du texte normal, avec un padding minimal qui ne déborde
+  // plus des petites hauteurs de bloc.
+  const isPill = props?.borderRadius !== undefined || props?.paddingX !== undefined || props?.paddingY !== undefined;
+
+  // ⭐ Étape 1 — Ajout des constantes de padding de base
+  const BASE_PADDING_Y = 1;
+  const BASE_PADDING_X = 3;
+
+  // ⭐ Étape 2 — containerStyle avec padding adaptatif
   const containerStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
     display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: props?.textAlign === 'left' ? 'flex-start' : props?.textAlign === 'right' ? 'flex-end' : 'center',
-    padding: '8px 12px',
+    alignItems: 'center',
+    justifyContent: props?.textAlign === 'left' ? 'flex-start' : props?.textAlign === 'right' ? 'flex-end' : (isPill ? 'flex-start' : 'center'),
+    // ⭐ Remplacé : padding adaptatif avec ratio
+    padding: isPill ? '0' : `${Math.max(1, BASE_PADDING_Y * ratio)}px ${Math.max(2, BASE_PADDING_X * ratio)}px`,
     boxSizing: 'border-box',
-    overflow: 'hidden', // ⭐ Empêche le débordement
+    overflow: 'hidden',
   };
 
-  // ⭐ Style du texte
+  const isGradient = props?.textGradient && props?.textGradient !== '';
+
+  // ⭐ Étape 3 — textStyle avec lineHeight ajusté
   let textStyle: React.CSSProperties = {
     fontSize: `${fontSize}px`,
     fontWeight: props?.fontWeight || '400',
     textAlign: props?.textAlign || 'left',
     fontFamily: props?.fontFamily || 'Inter',
-    lineHeight: 1.5,
+    // ⭐ Remplacé : lineHeight 1.5 → 1.3
+    lineHeight: props?.lineHeight || 1.3,
+    letterSpacing: props?.letterSpacing !== undefined ? `${props.letterSpacing}px` : undefined,
     opacity: textOpacity,
     margin: 0,
     padding: 0,
-    wordBreak: 'break-word',
-    overflowWrap: 'break-word',
-    width: '100%',
-    color: props?.textColor || '#000000',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    display: '-webkit-box',
-    WebkitLineClamp: 6, // ⭐ Limite à 6 lignes maximum
-    WebkitBoxOrient: 'vertical',
   };
 
-  // Gestion du dégradé
-  const isGradient = props?.textGradient && props?.textGradient !== '';
-  
   if (isGradient) {
     textStyle.backgroundImage = props.textGradient;
     textStyle.backgroundClip = 'text';
@@ -77,26 +95,43 @@ export function TextBlock({ block, customization, isSelected, onSelect, onUpdate
     textStyle.color = 'transparent';
   } else {
     textStyle.color = props?.textColor || '#000000';
-    textStyle.backgroundColor = props?.backgroundColor || 'transparent';
   }
 
-  // ⭐⭐ NOUVEAU : handleInput pour marquer isDirty pendant la frappe
+  if (isPill) {
+    Object.assign(textStyle, {
+      display: 'inline-block',
+      width: 'fit-content',
+      whiteSpace: 'nowrap',
+      backgroundColor: props?.backgroundColor || 'transparent',
+      borderRadius: `${props?.borderRadius ?? 999}px`,
+      padding: `${props?.paddingY ?? 4}px ${props?.paddingX ?? 10}px`,
+      boxSizing: 'border-box',
+    });
+  } else {
+    Object.assign(textStyle, {
+      width: '100%',
+      backgroundColor: props?.backgroundColor || 'transparent',
+      wordBreak: 'break-word',
+      overflowWrap: 'break-word',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      display: '-webkit-box',
+      WebkitLineClamp: 6,
+      WebkitBoxOrient: 'vertical',
+    });
+  }
+
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
     const newContent = e.currentTarget.innerText;
-    console.log('📝 [TextBlock] handleInput - nouveau contenu:', newContent);
     setLocalContent(newContent);
     onUpdate({ content: newContent });
   };
 
-  // ⭐⭐ MODIFICATION : handleBlur avec forceSave APRÈS la mise à jour du state
   const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
     const newContent = e.currentTarget.innerText;
-    console.log('📝 [TextBlock] handleBlur - nouveau contenu:', newContent);
     setLocalContent(newContent);
     onUpdate({ content: newContent });
-    // ⭐ Force la sauvegarde APRÈS que le state soit mis à jour
     setTimeout(() => {
-      console.log('🔥 [TextBlock] Dispatch forceSave (delay)');
       window.dispatchEvent(new CustomEvent('forceSave'));
     }, 100);
   };
@@ -113,16 +148,14 @@ export function TextBlock({ block, customization, isSelected, onSelect, onUpdate
           ref={textRef}
           style={textStyle}
           contentEditable={isSelected}
-          onInput={handleInput}   // ⭐ AJOUTÉ : marque isDirty pendant la frappe
+          onInput={handleInput}
           onBlur={handleBlur}
           suppressContentEditableWarning
-          className="outline-none w-full"
+          className="outline-none"
         >
           {localContent}
         </div>
       </div>
-
-      {/* ⭐ TAG SUPPRIMÉ - Plus aucun badge flottant */}
     </div>
   );
 }

@@ -7,16 +7,26 @@ import { FiPlus, FiTrash2, FiEdit2, FiGrid, FiX, FiImage, FiStar, FiAward, FiZap
 import { ProductGridConfig, StudioProduct, ProductGridSlot, ProductCustomization } from '@/types/studio';
 import ProductDetailBar from '../ProductDetailBar';
 
-// ⭐⭐ DÉCLARATION GLOBALE POUR SAUVEGARDER L'ÉTAT DES CARROUSELS
-declare global {
-  interface Window {
-    __carouselStates?: Record<string, {
-      currentIndex: number;
-      isTransitioning: boolean;
-      lastUpdate: number;
-    }>;
-  }
-}
+// ⭐ IMPORTS DEPUIS LE FICHIER SHARED
+import {
+  animationStyles,
+  useInjectGridStyles,
+  DEFAULT_CUSTOMIZATION,
+  FRAME_STYLE_CONFIG,
+  getModeIcon,
+  getSlideCustomization,
+  getHoverEffectClass,
+  getCustomFrameStylesUtil,
+  getImageStylesUtil,
+  getHoverEffectVarsUtil,
+  getEntranceAnimationClassUtil,
+  getEntranceAnimationStyleUtil,
+  renderCustomBadgeUtil,
+  getBackgroundStylesOnly,
+  getImageCropStyle,
+  computeSlotGeometry,
+  ProductCarousel,
+} from './productGrid/shared';
 
 interface Props {
   shop: any;
@@ -37,424 +47,12 @@ interface Props {
   globalProductCustomizations?: Map<number, ProductCustomization>;
   onUpdateGlobalProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
   onUpdateSlotConfig?: (slotId: string, config: Partial<ProductGridSlot>) => void;
+  // ⭐ NOUVELLE PROP
+  onHeightChange?: (height: number) => void;
 }
-
-const animationStyles = `
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideDown { from { opacity: 0; transform: translateY(-30px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes slideLeft { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes slideRight { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-@keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
-@keyframes badgePulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-@keyframes badgeBounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-
-.animate-fadeIn { animation: fadeIn var(--duration, 0.5s) var(--easing, ease) forwards; }
-.animate-slideUp { animation: slideUp var(--duration, 0.5s) var(--easing, ease-out) forwards; }
-.animate-slideDown { animation: slideDown var(--duration, 0.5s) var(--easing, ease-out) forwards; }
-.animate-slideLeft { animation: slideLeft var(--duration, 0.5s) var(--easing, ease-out) forwards; }
-.animate-slideRight { animation: slideRight var(--duration, 0.5s) var(--easing, ease-out) forwards; }
-.animate-zoomIn { animation: zoomIn var(--duration, 0.4s) var(--easing, ease-out) forwards; }
-.animate-bounce { animation: bounce var(--duration, 0.8s) var(--easing, cubic-bezier(0.68, -0.55, 0.265, 1.55)) forwards; }
-
-.hover-zoom { transition: transform 0.3s ease; display: block; }
-.hover-zoom:hover { transform: scale(var(--hover-scale, 1.05)); }
-.hover-glow-wrapper { transition: box-shadow 0.3s ease; display: block; }
-.hover-glow-wrapper:hover { box-shadow: 0 0 var(--glow-intensity, 20px) var(--glow-color, #3B82F6); }
-.hover-slide-up { transition: transform 0.3s ease; display: block; }
-.hover-slide-up:hover { transform: translateY(calc(-1 * var(--slide-distance, 10px))); }
-.hover-slide-down { transition: transform 0.3s ease; display: block; }
-.hover-slide-down:hover { transform: translateY(var(--slide-distance, 10px)); }
-.hover-slide-left { transition: transform 0.3s ease; display: block; }
-.hover-slide-left:hover { transform: translateX(calc(-1 * var(--slide-distance, 10px))); }
-.hover-slide-right { transition: transform 0.3s ease; display: block; }
-.hover-slide-right:hover { transform: translateX(var(--slide-distance, 10px)); }
-.hover-rotate { transition: transform 0.3s ease; display: block; }
-.hover-rotate:hover { transform: rotate(var(--rotate-deg, 5deg)); }
-
-.carousel-container { pointer-events: auto; }
-.frame-polaroid { padding: 12px 12px 32px 12px; background: white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-.frame-polaroid img { margin-bottom: 8px; }
-.bg-3d-paper { background: repeating-linear-gradient(45deg, #f5f5f5 0px, #f5f5f5 2px, #e8e8e8 2px, #e8e8e8 8px); }
-.bg-3d-metal { background: linear-gradient(135deg, #e0e0e0 0%, #b0b0b0 50%, #e0e0e0 100%); }
-.bg-3d-glass { background: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%); backdrop-filter: blur(10px); }
-.bg-3d-wood { background: repeating-linear-gradient(90deg, #8B6914 0px, #8B6914 2px, #A0782C 2px, #A0782C 6px); }
-.badge-pulse { animation: badgePulse 1s ease-in-out infinite; }
-.badge-bounce { animation: badgeBounce 0.8s ease-in-out infinite; }
-
-@keyframes interactiveSlotIn {
-  from { opacity: 0; transform: translate(-50%, -48%) scale(0.92); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-`;
-
-const DEFAULT_CUSTOMIZATION: ProductCustomization = {
-  backgroundType: 'solid',
-  backgroundColor: '#FFFFFF',
-  backgroundOpacity: 100,
-  backgroundBlur: 0,
-  frameColor: '#E5E7EB',
-  frameWidth: 2,
-  frameShadow: true,
-  frameShadowColor: 'rgba(0,0,0,0.12)',
-  hoverEffect: 'zoom',
-  hoverScale: 1.05,
-  hoverGlowColor: '#3B82F6',
-  hoverGlowIntensity: 20,
-  hoverSlideDirection: 'up',
-  hoverSlideDistance: 10,
-  hoverRotate: 5,
-  isFeatured: false,
-  featuredOrder: 0,
-  entranceAnimation: 'fade',
-  animationDuration: 500,
-  animationDelay: 0,
-  animationEasing: 'ease',
-};
-
-const FRAME_STYLE_CONFIG = {
-  square:     { aspectRatio: '1/1',  borderRadius: '8px',  icon: '⬛', name: 'Carré',      background: 'transparent' },
-  horizontal: { aspectRatio: '4/3',  borderRadius: '8px',  icon: '📐', name: 'Horizontal', background: 'transparent' },
-  vertical:   { aspectRatio: '3/4',  borderRadius: '8px',  icon: '📏', name: 'Vertical',   background: 'transparent' },
-  circle:     { aspectRatio: '1/1',  borderRadius: '50%',  icon: '⚪', name: 'Cercle',     background: 'transparent' },
-  rounded:    { aspectRatio: '1/1',  borderRadius: '24px', icon: '🟩', name: 'Arrondi',    background: 'transparent' },
-};
-
-const getModeIcon = (mode: 'traditional' | 'interactive') => mode === 'traditional' ? '📦' : '✨';
 
 const DEFAULT_DIMENSION = { width: 800, height: 400, widthUnit: 'px' as const, heightUnit: 'px' as const };
 const DEFAULT_UNIFORM_SIZE = { enabled: false, width: 200, height: 200 };
-
-const getSlideCustomization = (
-  base: ProductCustomization | null,
-  slideIndex: number
-): ProductCustomization | null => {
-  if (!base) return null;
-  const override = base.slidesConfig?.[slideIndex];
-  if (!override || Object.keys(override).length === 0) return base;
-  return { ...base, ...override };
-};
-
-const getHoverEffectClass = (customization: ProductCustomization | null): string => {
-  if (!customization) return '';
-  switch (customization.hoverEffect) {
-    case 'zoom':   return 'hover-zoom';
-    case 'glow':   return 'hover-glow-wrapper';
-    case 'slide':  return `hover-slide-${customization.hoverSlideDirection || 'up'}`;
-    case 'rotate': return 'hover-rotate';
-    default:       return '';
-  }
-};
-
-const getCustomFrameStylesUtil = (c: ProductCustomization | null): React.CSSProperties => {
-  if (!c) return {};
-  const s: React.CSSProperties = {};
-  if (c.frameColor && c.frameWidth) s.border = `${c.frameWidth}px solid ${c.frameColor}`;
-  if (c.frameShadow && c.frameShadowColor) s.boxShadow = `0 4px 12px ${c.frameShadowColor}`;
-  return s;
-};
-
-const getImageStylesUtil = (c: ProductCustomization | null): React.CSSProperties => {
-  if (!c) return { backgroundColor: 'transparent' };
-  return { backgroundColor: 'transparent', opacity: c.backgroundOpacity ? c.backgroundOpacity / 100 : 1, filter: c.backgroundBlur ? `blur(${c.backgroundBlur}px)` : 'none' };
-};
-
-const getHoverEffectVarsUtil = (c: ProductCustomization | null): React.CSSProperties => {
-  if (!c) return {};
-  const s: any = {};
-  if (c.hoverEffect === 'zoom')   s['--hover-scale']    = c.hoverScale || 1.05;
-  if (c.hoverEffect === 'glow')   { s['--glow-color'] = c.hoverGlowColor || '#3B82F6'; s['--glow-intensity'] = `${c.hoverGlowIntensity || 20}px`; }
-  if (c.hoverEffect === 'slide')  s['--slide-distance'] = `${c.hoverSlideDistance || 10}px`;
-  if (c.hoverEffect === 'rotate') s['--rotate-deg']     = `${c.hoverRotate || 5}deg`;
-  return s;
-};
-
-const getEntranceAnimationClassUtil = (c: ProductCustomization | null): string => {
-  if (!c || !c.entranceAnimation || c.entranceAnimation === 'none') return '';
-  return `animate-${c.entranceAnimation}`;
-};
-
-const getEntranceAnimationStyleUtil = (c: ProductCustomization | null): React.CSSProperties => {
-  if (!c) return {};
-  const s: any = { animationDelay: `${c.animationDelay || 0}ms` };
-  s['--duration'] = `${c.animationDuration || 500}ms`;
-  s['--easing']   = c.animationEasing || 'ease';
-  return s;
-};
-
-const renderCustomBadgeUtil = (c: ProductCustomization, frameConfig: any) => {
-  const getPositionStyle = (position: string): React.CSSProperties => {
-    const isCircle = frameConfig.borderRadius === '50%';
-    const isRounded = frameConfig.borderRadius === '24px';
-    const offset = isCircle ? '12%' : isRounded ? '6px' : '4px';
-    switch (position) {
-      case 'top-left':     return { top: offset, left: offset };
-      case 'bottom-left':  return { bottom: offset, left: offset };
-      case 'bottom-right': return { bottom: offset, right: offset };
-      default:             return { top: offset, right: offset };
-    }
-  };
-  const badgeBorderRadius = frameConfig.borderRadius === '50%' ? '999px' : undefined;
-  if (c.isFeatured && c.featuredBadge) {
-    const pos = getPositionStyle('top-right');
-    return (
-      <div className="absolute z-10 px-2 py-1 text-xs font-medium" style={{ ...pos, backgroundColor: c.featuredBadgeColor || '#F59E0B', color: '#FFFFFF', borderRadius: badgeBorderRadius || c.badge?.borderRadius || 4, fontSize: c.badge?.fontSize || 12 }}>
-        {c.featuredBadge}
-      </div>
-    );
-  }
-  if (c.badge) {
-    const anim = c.badge.animation === 'pulse' ? 'badge-pulse' : c.badge.animation === 'bounce' ? 'badge-bounce' : '';
-    const pos  = getPositionStyle(c.badge.position || 'top-right');
-    return (
-      <div className={`absolute z-10 px-2 py-1 text-xs font-medium ${anim}`} style={{ ...pos, backgroundColor: c.badge.backgroundColor, color: c.badge.textColor, borderRadius: badgeBorderRadius || c.badge.borderRadius || 4, fontSize: c.badge.fontSize || 12 }}>
-        {c.badge.text}
-      </div>
-    );
-  }
-  return null;
-};
-
-const getBackgroundStylesOnly = (custom: ProductCustomization | null): React.CSSProperties => {
-  if (!custom) return {};
-  const s: React.CSSProperties = {};
-  const bgType = custom.backgroundType || 'solid';
-  
-  switch (bgType) {
-    case 'gradient':
-      if (custom.backgroundGradient) {
-        s.background = custom.backgroundGradient;
-      } else if (custom.backgroundColor) {
-        s.backgroundColor = custom.backgroundColor;
-      }
-      break;
-    case 'image':
-      if (custom.backgroundImage) {
-        s.backgroundImage = `url(${custom.backgroundImage})`;
-        s.backgroundSize = 'cover';
-        s.backgroundPosition = 'center';
-        s.backgroundRepeat = 'no-repeat';
-      } else if (custom.backgroundColor) {
-        s.backgroundColor = custom.backgroundColor;
-      }
-      break;
-    case '3d':
-      if (custom.backgroundValue === 'paper') {
-        s.background = 'repeating-linear-gradient(45deg, #f5f5f5 0px, #f5f5f5 2px, #e8e8e8 2px, #e8e8e8 8px)';
-      } else if (custom.backgroundValue === 'metal') {
-        s.background = 'linear-gradient(135deg, #e0e0e0 0%, #b0b0b0 50%, #e0e0e0 100%)';
-      } else if (custom.backgroundValue === 'glass') {
-        s.background = 'linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 100%)';
-        s.backdropFilter = 'blur(10px)';
-      } else if (custom.backgroundValue === 'wood') {
-        s.background = 'repeating-linear-gradient(90deg, #8B6914 0px, #8B6914 2px, #A0782C 2px, #A0782C 6px)';
-      } else {
-        s.backgroundColor = '#e5e7eb';
-      }
-      break;
-    case 'transparent':
-      s.backgroundColor = 'transparent';
-      break;
-    default:
-      if (custom.backgroundColor) {
-        s.backgroundColor = custom.backgroundColor;
-      }
-      break;
-  }
-  return s;
-};
-
-// ⭐ ProductCarousel - Version avec sauvegarde d'état et synchronisation
-const ProductCarousel = ({
-  images, productName, frameConfig, onImageChange, carouselConfig: config, autoPlay = true,
-  imageCrops,
-  slideCustomizations,
-  slotId,
-}: {
-  images: string[]; productName: string; frameConfig: any; onImageChange?: (index: number) => void;
-  carouselConfig?: ProductGridSlot['carouselConfig']; autoPlay?: boolean;
-  imageCrops?: Record<number, React.CSSProperties>;
-  slideCustomizations?: Record<number, ProductCustomization | null>;
-  slotId: string;
-}) => {
-  // ⭐ Récupérer l'état sauvegardé ou utiliser la valeur par défaut
-  const getSavedIndex = useCallback(() => {
-    if (typeof window !== 'undefined' && window.__carouselStates?.[slotId]) {
-      const saved = window.__carouselStates[slotId];
-      return saved.currentIndex;
-    }
-    return config?.currentImageIndex || 0;
-  }, [slotId, config?.currentImageIndex]);
-
-  const [currentIndex, setCurrentIndex] = useState(() => {
-    return getSavedIndex();
-  });
-  
-  const [isHovered, setIsHovered] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const validImages = images.filter(Boolean);
-  const imageCount = validImages.length;
-  const isInitialMount = useRef(true);
-
-  // ⭐ Sauvegarder l'état globalement ET synchroniser avec le parent
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (!window.__carouselStates) {
-        window.__carouselStates = {};
-      }
-      window.__carouselStates[slotId] = {
-        currentIndex,
-        isTransitioning,
-        lastUpdate: Date.now()
-      };
-      
-      // ⭐ Synchroniser avec le parent si ce n'est pas le montage initial
-      if (!isInitialMount.current && onImageChange) {
-        onImageChange(currentIndex);
-      }
-    }
-  }, [currentIndex, isTransitioning, slotId, onImageChange]);
-
-  // ⭐ Restaurer l'état au montage si nécessaire
-  useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      const saved = getSavedIndex();
-      if (saved !== currentIndex) {
-        setCurrentIndex(saved);
-        
-        // ⭐ Mettre à jour le carouselConfig du slot
-        if (onImageChange) {
-          onImageChange(saved);
-        }
-      }
-    }
-  }, [getSavedIndex, currentIndex, slotId, onImageChange]);
-
-  const nextImage = useCallback(() => {
-    if (isTransitioning || imageCount <= 1) return;
-    setIsTransitioning(true);
-    setCurrentIndex(prev => { 
-      const next = (prev + 1) % imageCount; 
-      return next; 
-    });
-    setTimeout(() => setIsTransitioning(false), 500);
-  }, [imageCount, isTransitioning]);
-
-  const prevImage = useCallback(() => {
-    if (isTransitioning || imageCount <= 1) return;
-    setIsTransitioning(true);
-    setCurrentIndex(prev => { 
-      const next = (prev - 1 + imageCount) % imageCount; 
-      return next; 
-    });
-    setTimeout(() => setIsTransitioning(false), 500);
-  }, [imageCount, isTransitioning]);
-
-  // Timer du carrousel
-  useEffect(() => {
-    if (!autoPlay || !config?.enabled || imageCount <= 1) return;
-    if (config.stopOnHover && isHovered) return;
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(nextImage, config.interval || 3000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [config?.enabled, config?.interval, config?.stopOnHover, isHovered, imageCount, nextImage, autoPlay]);
-
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
-
-  if (imageCount === 0) return null;
-  const isFade = config?.animation === 'fade';
-
-  const getImageStyle = (idx: number): React.CSSProperties => {
-    const sc = slideCustomizations?.[idx];
-    return {
-      backgroundColor: 'transparent',
-      opacity: sc?.backgroundOpacity != null ? sc.backgroundOpacity / 100 : 1,
-      filter: sc?.backgroundBlur ? `blur(${sc.backgroundBlur}px)` : 'none',
-      ...(imageCrops?.[idx] || {}),
-    };
-  };
-
-  const getCurrentSlideBackgroundStyle = (): React.CSSProperties => {
-    const sc = slideCustomizations?.[currentIndex];
-    if (!sc) return {};
-    return getBackgroundStylesOnly(sc);
-  };
-
-  return (
-    <div
-      className="relative w-full h-full overflow-hidden carousel-container"
-      style={{
-        borderRadius: frameConfig.borderRadius,
-        transition: 'background 0.3s ease',
-        ...getCurrentSlideBackgroundStyle(),
-      }}
-      onMouseEnter={() => config?.stopOnHover && setIsHovered(true)}
-      onMouseLeave={() => config?.stopOnHover && setIsHovered(false)}
-    >
-      {isFade && (
-        <div className="relative w-full h-full">
-          {validImages.map((img, idx) => (
-            <div key={idx} className="absolute inset-0 transition-opacity duration-500 ease-in-out" style={{ opacity: idx === currentIndex ? 1 : 0 }}>
-              <Image src={img} alt={`${productName} - ${idx + 1}`} fill className="object-cover" unoptimized style={getImageStyle(idx)} />
-            </div>
-          ))}
-        </div>
-      )}
-      {!isFade && (
-        <div className="relative w-full h-full overflow-hidden">
-          <div className="flex h-full transition-transform duration-500 ease-out" style={{ transform: `translateX(-${currentIndex * 100}%)`, width: `${imageCount * 100}%` }}>
-            {validImages.map((img, idx) => (
-              <div key={idx} className="relative h-full flex-shrink-0" style={{ width: `${100 / imageCount}%` }}>
-                <Image src={img} alt={`${productName} - ${idx + 1}`} fill className="object-cover" unoptimized style={getImageStyle(idx)} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {config?.showDots && imageCount > 1 && (
-        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5 z-10">
-          {validImages.map((_, idx) => (
-            <button key={idx}
-              onClick={() => { if (isTransitioning) return; setIsTransitioning(true); setCurrentIndex(idx); onImageChange?.(idx); setTimeout(() => setIsTransitioning(false), 500); }}
-              className={`h-1.5 rounded-full transition-all ${idx === currentIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`}
-            />
-          ))}
-        </div>
-      )}
-      {config?.showArrows && imageCount > 1 && (
-        <>
-          <button onClick={prevImage} disabled={isTransitioning} className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity z-10 hover:bg-black/70 disabled:opacity-30">◀</button>
-          <button onClick={nextImage} disabled={isTransitioning} className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity z-10 hover:bg-black/70 disabled:opacity-30">▶</button>
-        </>
-      )}
-      {config?.enabled && imageCount > 1 && (
-        <div className="absolute top-2 right-2 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded-full backdrop-blur-sm z-10">
-          🎠 {currentIndex + 1}/{imageCount}
-        </div>
-      )}
-      {isTransitioning && <div className="absolute inset-0 bg-black/10 pointer-events-none z-5" />}
-    </div>
-  );
-};
-
-const getImageCropStyle = (slot: ProductGridSlot, imageIndex?: number): React.CSSProperties => {
-  const imageCrops = (slot.customConfig as any)?.imageCrops;
-  const legacyCrop = (slot.customConfig as any)?.imageCrop;
-  
-  const key = imageIndex ?? slot.imageIndex ?? 0;
-  const crop = imageCrops?.[key] || legacyCrop || null;
-  
-  if (!crop) return { objectFit: 'cover', objectPosition: 'center center' };
-  return {
-    objectFit: (crop.fit || 'cover') as any,
-    objectPosition: `${crop.posX ?? 50}% ${crop.posY ?? 50}%`,
-    transform: crop.zoom && crop.zoom !== 100 ? `scale(${crop.zoom / 100})` : 'none',
-    transformOrigin: `${crop.posX ?? 50}% ${crop.posY ?? 50}%`,
-  };
-};
 
 const SlotContent = ({
   slot, containerWidth, columns, gap, gridPadding, isSelected, onSelect, onOpenCustomization,
@@ -491,38 +89,19 @@ const SlotContent = ({
   const entranceClass = getEntranceAnimationClassUtil(effectiveCustom);
   const entranceStyle = getEntranceAnimationStyleUtil(effectiveCustom);
 
-  // ⭐ FIX HAUTEUR SLOT : prendre en compte à la fois rowSpan ET colSpan
+  // ⭐ UTILISATION DE computeSlotGeometry À LA PLACE DU CALCUL LOCAL
   const rowSpan = slot.gridPosition.rowSpan || 1;
   const colSpan = slot.gridPosition.colSpan || 1;
   
-  // ⭐ FIX FLUIDITÉ : on garde le calcul en pixels (nécessaire pour le rowSpan / gap),
-  // mais containerWidth est maintenant mis à jour en continu (voir ResizeObserver dans le parent),
-  // donc cellWidth/slotHeight suivent le redimensionnement sans à-coups.
-  const cellWidth = containerWidth > 0 ? (containerWidth - gridPadding * 2 - gap * (columns - 1)) / columns : 200;
-  const [ar1, ar2] = frameConfig.aspectRatio.split('/').map(Number);
-  const cellHeight = cellWidth * (ar2 / ar1);
-  const slotHeight = cellHeight * rowSpan + gap * (rowSpan - 1);
-
-  // ⭐⭐⭐ FIX FLUIDITÉ #3 (le vrai correctif pour les slots) ⭐⭐⭐
-  // Avant : la hauteur de chaque slot était un `height: Npx` calculé en JS à partir de
-  // containerWidth (une valeur React qui transite par un ResizeObserver + RAF + state).
-  // Même avec ce calcul "rapide", il y a toujours un aller-retour JS -> setState ->
-  // re-render avant que la hauteur visuelle ne suive la largeur du conteneur pendant
-  // le drag -> léger décalage visible ("effet élastique") sur chaque slot.
-  // Le fix : pour les slots simples (rowSpan = 1, l'immense majorité des cas), on
-  // laisse le NAVIGATEUR calculer la hauteur directement via la propriété CSS native
-  // `aspect-ratio` (qui prend exactement la même valeur que frameConfig.aspectRatio,
-  // ex: '1/1', '4/3'). La largeur vient déjà du CSS Grid (colonnes en `fr`), donc avec
-  // aspect-ratio la hauteur est dérivée de la largeur AU MÊME MOMENT par le moteur de
-  // layout du navigateur, sans repasser par React. Résultat : latence nulle, peu
-  // importe la vitesse du drag de redimensionnement du bloc.
-  // Pour les slots qui couvrent plusieurs lignes (rowSpan > 1) OU plusieurs colonnes (colSpan > 1),
-  // on garde le calcul en pixels car aspect-ratio seul ne sait pas répartir une hauteur
-  // sur plusieurs lignes de grille + gap, et pour colSpan > 1 on ne veut pas que la hauteur
-  // change quand seule la largeur est modifiée.
-  const slotBoxStyle: React.CSSProperties = (rowSpan > 1 || colSpan > 1)
-    ? { height: `${slotHeight}px` }
-    : { aspectRatio: frameConfig.aspectRatio, height: 'auto' };
+  const { slotBoxStyle, cellWidth, ar1, ar2 } = computeSlotGeometry(
+    containerWidth,
+    columns,
+    gap,
+    gridPadding,
+    frameConfig,
+    rowSpan,
+    colSpan
+  );
   
   const imageCropsMap = useMemo((): Record<number, React.CSSProperties> => {
     const map: Record<number, React.CSSProperties> = {};
@@ -588,7 +167,6 @@ const SlotContent = ({
 
   if (isEmpty) {
     return (
-      // ⭐ FIX REBOND : transition-all → transition-transform (pour le hover)
       <div className="relative cursor-pointer group transition-transform hover:scale-[1.02] duration-200 w-full"
         style={{ ...slotBoxStyle, borderRadius: frameConfig.borderRadius, backgroundColor: 'transparent', border: '2px dashed rgba(156,163,175,0.5)' }}
       >
@@ -639,7 +217,6 @@ const SlotContent = ({
           onMouseEnter={() => triggerType === 'hover' && setLocalOverlay(true)}
           onMouseLeave={() => triggerType === 'hover' && setLocalOverlay(false)}
         >
-          {/* ⭐ FIX REBOND : transition-all → transition-colors (seule la couleur s'anime) */}
           <div 
             className="relative w-full h-full overflow-hidden transition-colors duration-300" 
             style={{ 
@@ -1032,7 +609,11 @@ function GridProductsBlock({
   productsList: externalProductsList = [], onLinkProduct, onUpdateProductCustomization,
   onOpenCustomization, globalProductCustomizations: externalProductCustomizations,
   onUpdateGlobalProductCustomization, onUpdateSlotConfig,
+  onHeightChange, // ⭐ NOUVELLE PROP
 }: Props) {
+  // ⭐ INJECTION DES STYLES AVEC useInjectGridStyles
+  useInjectGridStyles();
+
   const { props } = block;
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -1295,33 +876,41 @@ function GridProductsBlock({
     return () => window.removeEventListener('productDataChanged', handleProductDataChanged as EventListener);
   }, [slots, gridConfig, onUpdateGridConfig, refresh]);
 
-  // ⭐⭐⭐ FIX: ResizeObserver optimisé avec throttling et report uniquement après resize ⭐⭐⭐
-  useEffect(() => {
-    if (!containerRef.current || !onUpdate) return;
+  // ⭐⭐⭐ FIX: Refs stables pour ne jamais redéclencher le ResizeObserver inutilement ⭐⭐⭐
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => { onUpdateRef.current = onUpdate; }, [onUpdate]);
 
+  const onHeightChangeRef = useRef(onHeightChange);
+  useEffect(() => { onHeightChangeRef.current = onHeightChange; }, [onHeightChange]);
+
+  // Dernière hauteur de LAYOUT mesurée (contentRect, jamais affectée par le zoom CSS)
+  const lastContentRectHeightRef = useRef<number | null>(null);
+
+  const reportHeight = useCallback((h: number) => {
+    if (lastReportedHeightRef.current != null && Math.abs(h - lastReportedHeightRef.current) <= 2) return;
+    lastReportedHeightRef.current = h;
+    if (onHeightChangeRef.current) onHeightChangeRef.current(h);
+    else onUpdateRef.current?.({ _blockHeight: h });
+  }, []);
+
+  // ⭐⭐⭐ Un seul ResizeObserver, monté une seule fois pour la durée de vie du bloc.
+  // Pas besoin de le recréer quand slots/columns changent : le ResizeObserver
+  // détecte tout changement de taille du conteneur, quelle qu'en soit la cause.
+  useEffect(() => {
+    if (!containerRef.current) return;
     let rafId: number | null = null;
-    let pendingHeight: number | null = null;
-    let lastReportedHeight: number | null = null;
 
     const flush = () => {
       rafId = null;
-      if (pendingHeight == null) return;
-      const h = pendingHeight;
-      pendingHeight = null;
-
-      // Pendant un resize manuel du bloc, on n'envoie rien : la valeur finale
-      // partira une seule fois au relâchement (voir l'effet juste en dessous).
-      if (isResizingRef.current) return;
-
-      if (lastReportedHeight == null || Math.abs(h - lastReportedHeight) > 2) {
-        lastReportedHeight = h;
-        onUpdate({ _blockHeight: h });
-      }
+      const h = lastContentRectHeightRef.current;
+      if (h == null || isResizingRef.current) return;
+      reportHeight(h);
     };
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        pendingHeight = entry.contentRect.height;
+        // contentRect = taille de LAYOUT, insensible au transform:scale() du zoom Studio
+        lastContentRectHeightRef.current = entry.contentRect.height;
         if (rafId == null) rafId = requestAnimationFrame(flush);
       }
     });
@@ -1331,15 +920,19 @@ function GridProductsBlock({
       observer.disconnect();
       if (rafId != null) cancelAnimationFrame(rafId);
     };
-  }, [onUpdate, gridConfig?.slots, gridConfig?.columns]);
+  }, [reportHeight]);
 
-  // Une fois le resize manuel terminé, on remonte la hauteur finale une seule fois
+  // Une fois le resize manuel terminé : on republie la DERNIÈRE valeur connue
+  // du ResizeObserver (jamais getBoundingClientRect, faussé par le zoom).
+  const prevIsResizingRef = useRef(isResizing);
   useEffect(() => {
-    if (!isResizing && containerRef.current && onUpdate) {
-      const h = containerRef.current.getBoundingClientRect().height;
-      onUpdate({ _blockHeight: h });
+    const wasResizing = prevIsResizingRef.current;
+    prevIsResizingRef.current = isResizing;
+    if (wasResizing && !isResizing && lastContentRectHeightRef.current != null) {
+      lastReportedHeightRef.current = null; // force la republication même si valeur identique
+      reportHeight(lastContentRectHeightRef.current);
     }
-  }, [isResizing, onUpdate]);
+  }, [isResizing, reportHeight]);
 
   useEffect(() => {
     if (!gridConfig?.slots || gridConfig.slots.length === 0) return;
@@ -1441,10 +1034,6 @@ function GridProductsBlock({
   }, []);
 
   // ⭐⭐⭐ FIX FLUIDITÉ #1 ⭐⭐⭐
-  // Avant : seuil de 8px avant de répercuter la nouvelle largeur -> la grille "sautait"
-  // par paliers pendant le redimensionnement au lieu de suivre la souris en continu.
-  // Maintenant : on répercute (quasi) chaque changement de largeur, synchronisé avec
-  // requestAnimationFrame pour rester fluide sans spammer le state React.
   useEffect(() => {
     if (!containerRef.current) return;
     let rafId: number | null = null;
@@ -1474,12 +1063,6 @@ function GridProductsBlock({
   }, []);
 
   useEffect(() => { return () => { if (reportTimer.current) clearTimeout(reportTimer.current); }; }, []);
-
-  useEffect(() => {
-    let el = document.getElementById('grid-products-styles') as HTMLStyleElement | null;
-    if (!el) { el = document.createElement('style'); el.id = 'grid-products-styles'; document.head.appendChild(el); }
-    el.textContent = animationStyles;
-  }, []);
 
   useEffect(() => {
     if (isInitialMount.current) { isInitialMount.current = false; return; }
@@ -1653,9 +1236,6 @@ function GridProductsBlock({
     color: props.titleColor || '#1F2937',
   }), [props.titleFont, props.titleFontSize, props.titleFontWeight, props.titleColor, textOpacity]);
 
-  // ⭐⭐⭐ FIX TEMPS RÉEL : containerStyle dépend explicitement de props.backgroundColor.
-  // (le vrai bug de "couleur pas en temps réel" était dans le comparateur React.memo
-  // en bas de ce fichier, qui ignorait les changements de `block.props` — voir plus bas)
   const containerStyle = useMemo(() => ({
     background: props.backgroundColor || '#ffffff',
     width: '100%',
@@ -1678,9 +1258,6 @@ function GridProductsBlock({
     return covered;
   }, [slots]);
 
-  // ⭐ FIX FLUIDITÉ : les cellules "fantômes" (vides) utilisent désormais aussi
-  // aspect-ratio CSS au lieu d'un calcul JS dépendant de containerWidthRef, pour
-  // rester parfaitement synchronisées pendant le redimensionnement du bloc.
   const GHOST_CELL_ASPECT_RATIO = FRAME_STYLE_CONFIG.square.aspectRatio;
 
   useEffect(() => {
@@ -1726,7 +1303,6 @@ function GridProductsBlock({
 
   return (
     <>
-      {/* ⭐ 3. Bonus défensif : suppression de transition-all sur le conteneur racine */}
       <div
         ref={containerRef}
         className="relative cursor-pointer w-full"
@@ -1778,7 +1354,6 @@ function GridProductsBlock({
                         className={`relative rounded-lg group select-none ${isBeingDragged ? 'opacity-40' : 'opacity-100'}`}
                         style={{
                           gridArea: `${slotAtPosition.gridPosition.row + 1} / ${slotAtPosition.gridPosition.col + 1} / span ${slotAtPosition.gridPosition.rowSpan || 1} / span ${slotAtPosition.gridPosition.colSpan || 1}`,
-                          // ⭐ FIX REBOND : 'all' → 'opacity' pour que seule l'opacité s'anime
                           transition: isBeingDragged ? 'none' : 'opacity 0.15s ease',
                           cursor: activeDragRef.current ? 'grabbing' : 'grab',
                           overflow: 'visible',
@@ -1841,7 +1416,6 @@ function GridProductsBlock({
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: activeDragRef.current ? 'move' : 'default',
-                        // ⭐ FIX REBOND : 'all' → 'border-color, background-color' (seulement ce qui change pendant le hover drag)
                         transition: 'border-color 0.15s ease, background-color 0.15s ease',
                       }}
                       onClick={addSlot}
@@ -1897,7 +1471,6 @@ function GridProductsBlock({
       {editingProductData && onUpdateGlobalProductCustomization && typeof window !== 'undefined' && (
         createPortal(
           <>
-            {/* Backdrop */}
             <div
               onClick={closeProductEditor}
               style={{
@@ -1908,7 +1481,6 @@ function GridProductsBlock({
                 backdropFilter: 'blur(4px)',
               }}
             />
-            {/* Contenu centré */}
             <div
               style={{
                 position: 'fixed',
@@ -1966,7 +1538,6 @@ function GridProductsBlock({
                 )}
               </div>
 
-              {/* Flèche de connexion */}
               <div style={{
                 width: 0,
                 height: 0,
@@ -1976,7 +1547,6 @@ function GridProductsBlock({
                 flexShrink: 0,
               }} />
 
-              {/* Barre de détails collée juste en dessous */}
               <div style={{ width: `${Math.max(getPopupSlotStyles.width || 260, 580)}px` }}>
                 <ProductDetailBar
                   product={editingProductData.product}
@@ -2008,7 +1578,6 @@ function GridProductsBlock({
 
 // ⭐⭐⭐ EXPORT AVEC MEMO CORRIGÉ POUR LES PERSONNALISATIONS ⭐⭐⭐
 const MemoizedGridProductsBlock = React.memo(GridProductsBlock, (prevProps, nextProps) => {
-  // ⭐ Vérifier les customisations de manière robuste
   const prevCustoms = prevProps.globalProductCustomizations;
   const nextCustoms = nextProps.globalProductCustomizations;
   
@@ -2031,14 +1600,6 @@ const MemoizedGridProductsBlock = React.memo(GridProductsBlock, (prevProps, next
     }
   }
   
-  // ⭐⭐⭐ FIX FLUIDITÉ #2 ⭐⭐⭐
-  // Avant : JSON.stringify(gridConfig) / JSON.stringify(productsList) tournaient à
-  // CHAQUE frame de redimensionnement (même pour redimensionner un bloc différent,
-  // puisque tout changement ailleurs dans le canvas re-render StudioCanvas et donc
-  // recrée l'élément <GridProductsBlock>). Avec beaucoup de slots/produits, cette
-  // sérialisation répétée ~60x/seconde provoquait des saccades.
-  // On ajoute un court-circuit par égalité de référence : si l'objet n'a pas changé
-  // de référence, on ne sérialise même pas.
   const gridConfigChanged =
     prevProps.gridConfig !== nextProps.gridConfig &&
     JSON.stringify(prevProps.gridConfig) !== JSON.stringify(nextProps.gridConfig);
@@ -2047,24 +1608,14 @@ const MemoizedGridProductsBlock = React.memo(GridProductsBlock, (prevProps, next
     prevProps.productsList !== nextProps.productsList &&
     JSON.stringify(prevProps.productsList) !== JSON.stringify(nextProps.productsList);
 
-  // ⭐ Vérifier les slots (inclus dans gridConfigChanged, gardé pour compat/clarté)
   const slotsChanged =
     prevProps.gridConfig?.slots !== nextProps.gridConfig?.slots &&
     JSON.stringify(prevProps.gridConfig?.slots) !== JSON.stringify(nextProps.gridConfig?.slots);
 
-  // ⭐⭐⭐ FIX TEMPS RÉEL (bug principal) ⭐⭐⭐
-  // Avant, on ne comparait que `block.id` (qui ne change jamais), donc TOUT changement
-  // dans `block.props` (couleur de fond, titre, police, etc.) était silencieusement
-  // ignoré par ce memo et le composant ne se re-rendait jamais en conséquence.
-  // On compare maintenant le contenu réel de `block.props` pour que chaque changement
-  // (couleur incluse) se répercute immédiatement. La vérification de référence en
-  // premier fait aussi que ça ne coûte rien pendant un simple redimensionnement
-  // (où seul `block.position` change, pas `block.props`).
   const blockPropsChanged =
     prevProps.block?.props !== nextProps.block?.props &&
     JSON.stringify(prevProps.block?.props) !== JSON.stringify(nextProps.block?.props);
   
-  // ⭐ Vérifier les autres props
   const otherPropsChanged = 
     prevProps.shop?.id !== nextProps.shop?.id ||
     prevProps.block?.id !== nextProps.block?.id ||
@@ -2077,11 +1628,8 @@ const MemoizedGridProductsBlock = React.memo(GridProductsBlock, (prevProps, next
   
   const shouldReRender = customizationsChanged || slotsChanged || otherPropsChanged;
   
-  // ⭐ Retourne true si les props sont égales (pas de re-rendu)
-  // ⭐ Retourne false si les props sont différentes (re-rendu)
   return !shouldReRender;
 });
 
-// Export nommé et par défaut
 export { MemoizedGridProductsBlock as GridProductsBlock };
 export default MemoizedGridProductsBlock;

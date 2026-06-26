@@ -12,9 +12,10 @@ interface Props {
   onUpdate: (updates: any) => void;
   textOpacity?: number;
   isResizing?: boolean;
+  ratio?: number;   // ← AJOUT
 }
 
-export function BannerBlock({ shop, block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing = false }: Props) {
+export function BannerBlock({ shop, block, customization, isSelected, onSelect, onUpdate, textOpacity = 1, isResizing = false, ratio = 1 }: Props) {
   const { props } = block;
   const [isHovered, setIsHovered] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -189,6 +190,10 @@ export function BannerBlock({ shop, block, customization, isSelected, onSelect, 
   } else {
     defaultBackgroundStyle = { backgroundColor: customization?.primaryColor || '#2563EB' };
   }
+
+  // ⭐ MODIFICATION : Scaling des tailles de police avec le ratio
+  const titleSize = (props.titleFontSize || 32) * (ratio ?? 1);
+  const subtitleSize = (props.subtitleFontSize || 18) * (ratio ?? 1);
 
   // ⭐ RENDER IMAGE - LOGIQUE SPÉCIFIQUE POUR LE CARROUSEL
   const renderImage = () => {

@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { shopService } from '@/services/api/shops';
 import { shopCustomizationService } from '@/services/api/shopCustomization';
 import { filterService } from '@/services/api/filters';
+import { productService } from '@/services/api/products';
 import StudioToolbar from './StudioToolbar';
 import StudioCanvas from './StudioCanvas';
 import StudioSidebar from './StudioSidebar';
@@ -17,7 +18,12 @@ import { GoogleFontsLoader } from './GoogleFontsLoader';
 import { useGroupManager } from '@/hooks/useGroupManager';
 import { createDefaultSlideProps } from './blocks/CarouselSlideBlock';
 import { ProductGridConfig, ProductGridSlot, StudioProduct, ProductCustomization, CreateStudioProduct } from '@/types/studio';
-import { productService } from '@/services/api/products';
+import { normalizeStudioProducts } from '@/components/shop-studio/lib/normalizeProduct';
+
+// ⭐ A) IMPORTS À AJOUTER EN HAUT DU FICHIER
+import ProductPageSidebar from './panels/Productpagesidebar';
+import { useProductPageBuilder } from '@/hooks/Useproductpagebuilder';
+import { ProductPageConfig } from '../../types/Productpage';
 
 export interface BlockPosition {
   x: number;
@@ -99,7 +105,6 @@ const PAGES_META_BLOCK_TYPE = '__pages_meta__';
 const PAGES_META_BLOCK_ID = '__pages_meta__';
 const generatePageId = () => `page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-// ⭐ 1.1 - Helper pour générer des IDs de slots uniques
 const generateSlotId = () => `slot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const cloneFreshGridConfig = (): ProductGridConfig => ({
@@ -294,8 +299,6 @@ export default function StudioLayout() {
     currentPageId: DEFAULT_PAGE_ID,
   });
 
-  // ⭐ FIX MULTI-PAGE : chaque bloc "products" garde SA propre config (block.gridConfig).
-  // On suit juste l'id du bloc en cours d'édition dans la sidebar.
   const [activeProductsBlockId, setActiveProductsBlockId] = useState<string | null>(null);
   const activeProductsBlockIdRef = useRef<string | null>(null);
   useEffect(() => { activeProductsBlockIdRef.current = activeProductsBlockId; }, [activeProductsBlockId]);
@@ -306,7 +309,6 @@ export default function StudioLayout() {
   );
   const gridConfig = activeProductsBlock?.gridConfig || DEFAULT_GRID_CONFIG;
 
-  // Nettoie la référence si le bloc actif a été supprimé (page supprimée, calque supprimé, etc.)
   useEffect(() => {
     if (activeProductsBlockId && !state.blocks.some(b => b.id === activeProductsBlockId)) {
       setActiveProductsBlockId(null);
@@ -339,10 +341,12 @@ export default function StudioLayout() {
   const [showFloatingLayers, setShowFloatingLayers] = useState(false);
   const [addToParentData, setAddToParentData] = useState<{ parentId: string; parentType: string; parentName: string } | null>(null);
 
+  // ⭐ B) ÉTAT À AJOUTER
+  const [showProductPageSidebar, setShowProductPageSidebar] = useState(false);
+
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const canvasScrollRef = useRef<HTMLDivElement>(null);
 
-  // ⭐ 1. Mesure réelle de la hauteur de contenu de chaque page (pour le scroll "page infinie")
   const [pageContentHeights, setPageContentHeights] = useState<Record<string, number>>({});
   const pageFrameElsRef = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -390,17 +394,14 @@ export default function StudioLayout() {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
 
-  // Refs pour le zoom "live" (DOM direct)
   const zoomTransformRef = useRef<HTMLDivElement>(null);
   const liveZoomRef = useRef(state.zoom);
   const zoomAnimationRef = useRef<number | null>(null);
   
   const zoomSliderRef = useRef<HTMLInputElement>(null);
 
-  // Ref pour l'ancrage du drag du slider
   const sliderDragAnchorRef = useRef<{ contentX: number; contentY: number; viewportX: number; viewportY: number } | null>(null);
 
-  // Easing quintique (courbe plus douce)
   const easeInOutQuint = (t: number) => t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
 
   const refreshCanvas = useCallback(() => {
@@ -433,7 +434,6 @@ export default function StudioLayout() {
     [state.pages]
   );
 
-  // ⭐ 2. workspaceBounds avec mesure réelle de la hauteur
   const workspaceBounds = useMemo(() => {
     const FRAME_WIDTH = state.previewMode === 'desktop' ? 1200 : state.previewMode === 'tablet' ? 768 : 375;
     const FRAME_HEIGHT_FALLBACK = typeof window !== 'undefined' ? window.innerHeight : 800;
@@ -460,7 +460,6 @@ export default function StudioLayout() {
     };
   }, [state.pages, state.previewMode, pageContentHeights]);
 
-  // Ref miroir pour workspaceBounds
   const workspaceBoundsRef = useRef(workspaceBounds);
   useEffect(() => { workspaceBoundsRef.current = workspaceBounds; }, [workspaceBounds]);
 
@@ -476,7 +475,7 @@ export default function StudioLayout() {
     refreshCanvas,
   });
 
-  // Fonction getViewportCenterAnchor
+  // ⭐ DÉCLARATION DE animateZoomAndCenterOnPage AVANT useProductPageBuilder
   const getViewportCenterAnchor = useCallback(() => {
     const scrollEl = canvasScrollRef.current;
     if (!scrollEl) return null;
@@ -491,7 +490,6 @@ export default function StudioLayout() {
     return { contentX, contentY, viewportX, viewportY };
   }, []);
 
-  // applyZoomToDOM avec support de l'ancrage
   const applyZoomToDOM = useCallback((
     zoomPercent: number,
     anchor?: { contentX: number; contentY: number; viewportX: number; viewportY: number } | null,
@@ -530,7 +528,6 @@ export default function StudioLayout() {
     liveZoomRef.current = zoomPercent;
   }, []);
 
-  // animateZoomAndCenterOnPage - recentre sur une page
   const animateZoomAndCenterOnPage = useCallback((pageId: string, targetZoom: number, durationMs: number = 700) => {
     if (zoomAnimationRef.current) {
       cancelAnimationFrame(zoomAnimationRef.current);
@@ -559,7 +556,6 @@ export default function StudioLayout() {
     zoomAnimationRef.current = requestAnimationFrame(step);
   }, [applyZoomToDOM]);
 
-  // animateZoomInPlace - zoom sur place avec ancrage
   const animateZoomInPlace = useCallback((targetZoom: number, durationMs: number = 700) => {
     if (zoomAnimationRef.current) {
       cancelAnimationFrame(zoomAnimationRef.current);
@@ -589,7 +585,22 @@ export default function StudioLayout() {
     zoomAnimationRef.current = requestAnimationFrame(step);
   }, [applyZoomToDOM, getViewportCenterAnchor]);
 
-  // selectPage avec animateZoomAndCenterOnPage
+  // ⭐ C) CONNECTER useProductPageBuilder (APRÈS la déclaration de animateZoomAndCenterOnPage)
+  const { buildProductPage, isGenerating: isGeneratingProductPage } = useProductPageBuilder({
+    pages: state.pages,
+    blocks: state.blocks,
+    setPages: (updater) => setState(prev => ({ ...prev, pages: updater(prev.pages), isDirty: true })),
+    setBlocks: (updater) => setState(prev => ({ ...prev, blocks: updater(prev.blocks), isDirty: true })),
+    setCurrentPageId: (id) => setState(prev => ({ ...prev, currentPageId: id })),
+    animateZoomAndCenterOnPage,
+  });
+
+  // ⭐ D) HANDLER POUR GÉNÉRER LA PAGE
+  const handleGenerateProductPage = useCallback((config: ProductPageConfig) => {
+    buildProductPage(config);
+    setShowProductPageSidebar(false);
+  }, [buildProductPage]);
+
   const selectPage = useCallback((pageId: string) => {
     setState(prev => prev.currentPageId === pageId ? prev : { ...prev, currentPageId: pageId });
     animateZoomAndCenterOnPage(pageId, stateRef.current.zoom, 850);
@@ -728,7 +739,6 @@ export default function StudioLayout() {
     };
   }, []);
 
-  // Handlers pour le slider de zoom (onInput / onChange)
   const [displayZoom, setDisplayZoom] = useState(Math.round(state.zoom));
   
   useEffect(() => {
@@ -741,7 +751,6 @@ export default function StudioLayout() {
     }
   }, [state.zoom]);
 
-  // handleZoomSliderInput avec ancrage figé au début du drag
   const handleZoomSliderInput = useCallback((newZoom: number) => {
     if (zoomAnimationRef.current) {
       cancelAnimationFrame(zoomAnimationRef.current);
@@ -754,7 +763,6 @@ export default function StudioLayout() {
     applyZoomToDOM(newZoom, sliderDragAnchorRef.current);
   }, [applyZoomToDOM, getViewportCenterAnchor]);
 
-  // handleZoomSliderCommit simplifié (plus de seuil)
   const handleZoomSliderCommit = useCallback((newZoom: number) => {
     const anchor = sliderDragAnchorRef.current ?? getViewportCenterAnchor();
     sliderDragAnchorRef.current = null;
@@ -784,7 +792,6 @@ export default function StudioLayout() {
     zoomAnimationRef.current = requestAnimationFrame(step);
   }, [applyZoomToDOM, getViewportCenterAnchor]);
 
-  // handleZoomIn et handleZoomOut simplifiés
   const handleZoomIn = useCallback(() => {
     const newZoom = Math.min(stateRef.current.zoom + 10, 200);
     animateZoomInPlace(newZoom);
@@ -795,7 +802,6 @@ export default function StudioLayout() {
     animateZoomInPlace(newZoom);
   }, [animateZoomInPlace]);
 
-  // handleZoomReset recentre sur la page sélectionnée
   const handleZoomReset = useCallback(() => {
     animateZoomAndCenterOnPage(stateRef.current.currentPageId, 70, 700);
   }, [animateZoomAndCenterOnPage]);
@@ -859,7 +865,6 @@ export default function StudioLayout() {
     updateGlobalProductCustomization(productId, updates);
   }, [updateGlobalProductCustomization]);
 
-  // ⭐ 1.2 - linkProductToSlot scopée par bloc
   const linkProductToSlot = useCallback((blockId: string, slotId: string, product: StudioProduct) => {
     setState(prev => ({
       ...prev,
@@ -879,7 +884,6 @@ export default function StudioLayout() {
     linkProductToSlot(activeProductsBlockIdRef.current, slotId, product);
   }, [linkProductToSlot]);
 
-  // ⭐ 1.2 - unlinkProductFromSlot scopée par bloc
   const unlinkProductFromSlot = useCallback((blockId: string, slotId: string) => {
     setState(prev => ({
       ...prev,
@@ -899,7 +903,6 @@ export default function StudioLayout() {
     unlinkProductFromSlot(activeProductsBlockIdRef.current, slotId);
   }, [unlinkProductFromSlot]);
 
-  // ⭐ 1.2 - updateSlotConfig scopée par bloc
   const updateSlotConfig = useCallback((blockId: string, slotId: string, config: Partial<ProductGridSlot>) => {
     setState(prev => ({
       ...prev,
@@ -935,7 +938,6 @@ export default function StudioLayout() {
     updateSlotConfig(activeProductsBlockIdRef.current, slotId, config);
   }, [updateSlotConfig]);
 
-  // ⭐ 1.3 - updateBlockGridConfig et stableHandleUpdateGrid
   const updateBlockGridConfig = useCallback((blockId: string, config: ProductGridConfig) => {
     setState(prev => ({
       ...prev,
@@ -951,7 +953,6 @@ export default function StudioLayout() {
     updateBlockGridConfig(activeProductsBlockIdRef.current, config);
   }, [updateBlockGridConfig]);
 
-  // ⭐ 1.6 - rehydrateAllProductBlocks
   const rehydrateAllProductBlocks = useCallback((products: StudioProduct[]) => {
     setState(prev => {
       let anyChange = false;
@@ -1042,7 +1043,6 @@ export default function StudioLayout() {
       setProductsList(normalizedProducts);
       setProductsVersion(prev => prev + 1);
       
-      // ⭐ 1.6 - Utiliser rehydrateAllProductBlocks au lieu de setGridConfig
       rehydrateAllProductBlocks(normalizedProducts);
       
     } catch (error) {
@@ -1103,7 +1103,6 @@ export default function StudioLayout() {
         setProductsList(normalizedFallback);
         setProductsVersion(prev => prev + 1);
         
-        // ⭐ 1.6 - Utiliser rehydrateAllProductBlocks au lieu de setGridConfig
         rehydrateAllProductBlocks(normalizedFallback);
         
       } catch (fallbackError) {
@@ -1265,32 +1264,17 @@ export default function StudioLayout() {
     return () => window.removeEventListener('productsListChanged', handleProductsListChanged as EventListener);
   }, []);
 
-  // ⭐ 1.6 - useEffect réagit à productsList avec rehydrateAllProductBlocks
   useEffect(() => {
     if (productsList.length === 0) return;
     rehydrateAllProductBlocks(productsList);
   }, [productsList, rehydrateAllProductBlocks]);
 
   const stableHandleCreateProduct = useCallback(async (product: CreateStudioProduct) => {
-    const dto = {
-      name: product.name,
-      description: product.description || '',
-      price: product.price,
-      stock: product.stock || 0,
-      category: product.category || '',
-      size: product.sizes?.join(',') || undefined,
-      color: product.colors?.join(',') || undefined,
-      imageUrl1: product.imageUrl1 || undefined,
-      imageUrl2: product.imageUrl2 || undefined,
-      imageUrl3: product.imageUrl3 || undefined,
-      shopId: Number(id),
-    };
+    const response = await productService.createProductForShop(Number(id), product);
 
-    const response = await productService.createProductForShop(Number(id), dto);
-    
     await loadAllProducts();
     window.dispatchEvent(new CustomEvent('productsChanged'));
-    
+
     return response as unknown as StudioProduct;
   }, [id, loadAllProducts]);
 
@@ -1370,13 +1354,36 @@ export default function StudioLayout() {
             positionType: 'absolute',
           };
         } else {
-          const defaultWidth = Math.min(blockToMove.position?.width ?? 80, 80);
-          const defaultHeight = Math.min(blockToMove.position?.height ?? 60, 60);
+          // ⭐ CORRECTIF : pour les blocs de type texte (text, title, button)
+          // on met height: 0 → auto pour qu'ils s'ajustent à leur contenu
+          const isTextLikeBlock = ['text', 'title', 'button'].includes(blockToMove.type);
+          
+          // ⭐ Convertit la largeur héritée en px en un vrai pourcentage
+          // du nouveau parent, au lieu de réutiliser la valeur px comme
+          // si c'était déjà un %.
+          const getAbsoluteWidth = (b: BlockUI): number => {
+            if (!b.parentId) return b.position?.width ?? 1200;
+            const p = prev.blocks.find(bl => bl.id === b.parentId);
+            if (!p) return b.position?.width ?? 1200;
+            return ((b.position?.width ?? 100) / 100) * getAbsoluteWidth(p);
+          };
+          const newParentAbsWidth = getAbsoluteWidth(newParent);
+          const rawWidthPx = blockToMove.position?.width ?? 200;
+          const convertedWidthPercent = newParentAbsWidth > 0
+            ? (rawWidthPx / newParentAbsWidth) * 100
+            : 40;
+
+          const defaultWidth = isTextLikeBlock
+            ? Math.max(10, Math.min(60, convertedWidthPercent))
+            : Math.min(blockToMove.position?.width ?? 80, 80);
+
           newPosition = {
             x: Math.max(0, Math.min(100 - defaultWidth, 50 - defaultWidth / 2)),
             y: 20,
             width: Math.max(10, Math.min(90, defaultWidth)),
-            height: Math.max(10, Math.min(90, defaultHeight)),
+            height: isTextLikeBlock
+              ? 0
+              : Math.max(10, Math.min(90, Math.min(blockToMove.position?.height ?? 60, 60))),
             zIndex: blockToMove.position?.zIndex ?? 10,
             rotation: blockToMove.position?.rotation ?? 0,
             positionType: 'relative',
@@ -1582,7 +1589,6 @@ export default function StudioLayout() {
     refreshCanvas();
   }, [refreshCanvas]);
 
-  // ⭐ 1.4 - addBlock avec cloneFreshGridConfig et setActiveProductsBlockId
   const addBlock = useCallback((type: string, props: any, parentId: string | null = null) => {
     const newBlockId = `${type}-${Date.now()}-${Math.random()}`;
     setState(prev => {
@@ -1653,7 +1659,7 @@ export default function StudioLayout() {
     return [...new Set(fonts.filter(f => f && f !== 'Inter'))];
   }, [state.customization, state.blocks]);
 
-  // ⭐ 1.7 - loadData avec normalizeGridConfig et rehydrateAllProductBlocks
+  // ⭐ loadData avec Promise.all incluant rawProducts
   useEffect(() => {
     const loadData = async () => {
       if (!user) {
@@ -1662,13 +1668,14 @@ export default function StudioLayout() {
       }
       try {
         setLoading(true);
-        const [shop, customization, filters, blocksFromApi, canvasFilters, background] = await Promise.all([
+        const [shop, customization, filters, blocksFromApi, canvasFilters, background, rawProducts] = await Promise.all([
           shopService.getShopById(Number(id)),
           shopCustomizationService.getByShopId(Number(id)).catch(() => null),
           filterService.getShopFilter(Number(id)).catch(() => null),
           shopCustomizationService.getBlocks(Number(id)).catch(() => []),
           shopCustomizationService.getCanvasFilters(Number(id)).catch(() => ({ globalCssFilter: 'none', globalBrightness: 1, globalContrast: 1, globalSaturation: 1, globalBlur: 0 })),
           shopCustomizationService.getBackground(Number(id)).catch(() => ({ backgroundColor: '#FFFFFF', backgroundType: 'solid', backgroundValue: null, backgroundOpacity: 100 })),
+          productService.getProductsByShopAll(Number(id)).catch(() => []),
         ]);
         if (shop.ownerId !== user.id) {
           router.push('/');
@@ -1715,7 +1722,6 @@ export default function StudioLayout() {
 
         console.log('📄 Pages chargées:', loadedPages);
 
-        // ⭐ 1.7 - normalizeGridConfig
         const normalizeGridConfig = (raw: any): ProductGridConfig => ({
           layoutType: raw?.layoutType || 'grid',
           columns: raw?.columns || { desktop: 4, tablet: 2, mobile: 1 },
@@ -1741,7 +1747,6 @@ export default function StudioLayout() {
             : DEFAULT_GRID_CONFIG.slots),
         });
 
-        // ⭐ 1.7 - Fusionne les personnalisations produit de TOUS les blocs "products"
         const mergedCustomizations: Record<string, any> = {};
         (realBlocksFromApi as any[]).filter((b: any) => b.type === 'products').forEach((b: any) => {
           const c = b.settings?.productCustomizations ?? b.gridConfig?.productCustomizations;
@@ -1786,7 +1791,6 @@ export default function StudioLayout() {
               parentId: b.parentId ?? null,
               isLocked: b.isLocked ?? false,
               groupId: b.groupId ?? null,
-              // ⭐ 1.7 - Utiliser normalizeGridConfig
               gridConfig: b.type === 'products' ? normalizeGridConfig(blockGridConfig) : blockGridConfig,
               pageId: resolvedPageId,
             };
@@ -1795,10 +1799,26 @@ export default function StudioLayout() {
           console.log(`📐 ${savedBlocks.length} blocs restaurés`);
         }
 
+        // Normaliser et hydrater les produits dans les slots en une seule passe
+        const normalizedProducts: StudioProduct[] = normalizeStudioProducts(rawProducts as any[]);
+
+        const hydratedBlocks = savedBlocks.map(block => {
+          if (block.type !== 'products' || !block.gridConfig) return block;
+          const hydratedSlots = block.gridConfig.slots.map(slot => {
+            if (slot.productId == null) return slot;
+            const product = normalizedProducts.find(p => p.id === slot.productId);
+            return product ? { ...slot, linkedProduct: product } : slot;
+          });
+          return { ...block, gridConfig: { ...block.gridConfig, slots: hydratedSlots } };
+        });
+
+        setProductsList(normalizedProducts);
+        setProductsVersion(prev => prev + 1);
+
         setState(prev => ({
           ...prev,
           shop,
-          blocks: savedBlocks,
+          blocks: hydratedBlocks,
           pages: loadedPages,
           currentPageId: fallbackPageId,
           customization: {
@@ -1815,11 +1835,6 @@ export default function StudioLayout() {
           canvasFilters,
         }));
         
-        // ⭐ 1.7 - Utiliser rehydrateAllProductBlocks
-        if (productsList.length > 0) {
-          rehydrateAllProductBlocks(productsList);
-        }
-        
       } catch (error) {
         console.error('❌ Erreur:', error);
       } finally {
@@ -1827,7 +1842,7 @@ export default function StudioLayout() {
       }
     };
     if (id) loadData();
-  }, [id, user, router, rehydrateAllProductBlocks]);
+  }, [id, user, router]);
 
   useEffect(() => {
     const handleOpenAssetPickerForCarousel = (event: CustomEvent) => {
@@ -1853,7 +1868,6 @@ export default function StudioLayout() {
     return Number.isFinite(n) ? n : fallback;
   }, []);
 
-  // ⭐ 1.8 - saveChanges avec block.gridConfig (pas le ref partagé)
   const saveChanges = useCallback(async () => {
     if (!state.isDirty) return;
     setSaving(true);
@@ -1868,7 +1882,6 @@ export default function StudioLayout() {
         settings.pageId = block.pageId || DEFAULT_PAGE_ID;
         
         if (block.type === 'products') {
-          // ⭐ 1.8 - Utiliser block.gridConfig au lieu de gridConfigRef.current
           const currentGridConfig = block.gridConfig || DEFAULT_GRID_CONFIG;
           
           const cleanedGridConfig = {
@@ -2079,7 +2092,6 @@ export default function StudioLayout() {
     }));
   }, []);
 
-  // ⭐ 1.9 - duplicateBlock avec nouveaux IDs de slots
   const duplicateBlock = (blockId: string) => {
     const block = state.blocks.find(b => b.id === blockId);
     if (block) {
@@ -2155,7 +2167,6 @@ export default function StudioLayout() {
     setState(prev => ({ ...prev, selectedBlockId: null, selectedTarget: 'background', isBackgroundSelected: true }));
   };
 
-  // ⭐ 1.5 - selectBlock avec suivi du bloc actif
   const selectBlock = (blockId: string | null, target?: 'text' | 'background') => {
     if (isCropperOpen && blockId !== null) return;
     setState(prev => {
@@ -2305,10 +2316,10 @@ export default function StudioLayout() {
       <GoogleFontsLoader fonts={usedFonts} />
 
       <div className="fixed inset-0 flex flex-col bg-gray-900 overflow-hidden">
+        {/* ⭐ E) AJOUT DE onOpenProductPage DANS StudioToolbar */}
         <StudioToolbar
           shop={state.shop}
           saving={saving}
-          onAddBlock={() => !isCropperOpen && setState(prev => ({ ...prev, showAddPanel: true }))}
           onSave={saveChanges}
           previewMode={state.previewMode}
           onPreviewModeChange={handlePreviewModeChange}
@@ -2316,6 +2327,7 @@ export default function StudioLayout() {
           onZoomOut={handleZoomOut}
           onZoomReset={handleZoomReset}
           zoom={state.zoom}
+          onOpenProductPage={() => setShowProductPageSidebar(true)}
         />
 
         <div className="flex flex-1 overflow-hidden">
@@ -2440,7 +2452,6 @@ export default function StudioLayout() {
               </div>
             </div>
 
-            {/* Slider de zoom avec ref pour synchronisation */}
             <div className="fixed bottom-4 right-4 flex items-center gap-3 bg-gray-900 rounded-lg px-4 py-2 shadow-lg z-50">
               <input
                 ref={zoomSliderRef}
@@ -2504,6 +2515,18 @@ export default function StudioLayout() {
             getLayerIndexInParent={getLayerIndexInParent}
             onClose={() => setShowFloatingLayers(false)}
           />
+        )}
+
+        {/* ⭐ F) AFFICHAGE DE LA SIDEBAR PRODUCT PAGE (overlay) */}
+        {showProductPageSidebar && (
+          <div className="fixed inset-y-0 left-14 z-[200] flex">
+            <ProductPageSidebar
+              products={memoizedProductsList}
+              onClose={() => setShowProductPageSidebar(false)}
+              onGeneratePage={handleGenerateProductPage}
+              isGenerating={isGeneratingProductPage}
+            />
+          </div>
         )}
       </div>
     </>

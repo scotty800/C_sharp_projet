@@ -12,9 +12,10 @@ interface Props {
   onUpdate: (updates: any) => void;
   textOpacity?: number;
   isResizing?: boolean;
+  ratio?: number;   // ← AJOUT
 }
 
-export function ScreenBannerBlock({ shop, block, customization, isSelected, onSelect, onUpdate, isResizing = false }: Props) {
+export function ScreenBannerBlock({ shop, block, customization, isSelected, onSelect, onUpdate, isResizing = false, ratio = 1 }: Props) {
   const { props } = block;
   const [isHovered, setIsHovered] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -75,6 +76,10 @@ export function ScreenBannerBlock({ shop, block, customization, isSelected, onSe
   } else {
     defaultBackgroundStyle = { backgroundColor: customization?.primaryColor || '#2563EB' };
   }
+
+  // ⭐ MODIFICATION : Scaling des tailles de police avec le ratio
+  const titleSize = (props.titleFontSize || 32) * (ratio ?? 1);
+  const subtitleSize = (props.subtitleFontSize || 18) * (ratio ?? 1);
 
   // ⭐ Valeurs sauvegardées par image
   const [savedCrops, setSavedCrops] = useState<Record<number, { x: number; y: number; scale: number }>>(() => {

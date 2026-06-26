@@ -197,7 +197,7 @@ export default function ProductsPanel({
         stock: newProduct.stock || 0,
         category: newProduct.category || '',
         sizes: newProduct.sizes.filter(Boolean),
-        colors: newProduct.colors.map(c => c.name).filter(Boolean),
+        colors: newProduct.colors.map(c => c.value).filter(Boolean),
         // ⭐ L'image principale est imageUrl1 pour le backend
         imageUrl1: mainImage,               // ⭐ Image principale (backend)
         imageUrl2: secondaryImages[0] || '',

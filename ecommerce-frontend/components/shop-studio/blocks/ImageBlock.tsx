@@ -45,17 +45,13 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
     setShowCropper(false);
   };
 
-  // ⭐ STYLE DE FOND (couleur unie ou dégradé)
   let backgroundStyle: React.CSSProperties = {};
   
   if (props.backgroundType === 'gradient' && props.backgroundValue) {
-    // ⭐ Dégradé
     backgroundStyle = { background: props.backgroundValue };
   } else if (props.backgroundColor && props.backgroundColor !== 'transparent') {
-    // ⭐ Couleur unie
     backgroundStyle = { backgroundColor: props.backgroundColor };
   } else {
-    // ⭐ Transparent
     backgroundStyle = { backgroundColor: 'transparent' };
   }
 
@@ -84,6 +80,9 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
   const hasShadow = props.shadow !== false;
   const imageOpacity = props.opacity !== undefined ? props.opacity / 100 : 1;
 
+  // ⭐ NOUVEAU : la bordure (cadre) est maintenant rendue. props.border est une
+  // chaîne CSS complète (ex: "2px solid #ffffff"), calculée côté générateur
+  // de page produit ou définie manuellement sur un bloc image classique.
   const imageContainerStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
@@ -91,6 +90,8 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
     overflow: 'hidden',
     boxShadow: hasShadow ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' : 'none',
     opacity: imageOpacity,
+    border: props.border || 'none',
+    boxSizing: 'border-box', // ⭐ évite que la bordure agrandisse la boîte au-delà de 100%
   };
 
   const imageFilter = props.cssFilter || 'none';
@@ -106,7 +107,6 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
 
   const cleanImageUrl = getCleanImageUrl(props.url);
 
-  // ⭐ Pendant le cadrage, on désactive complètement l'image dans le canvas
   if (showCropper) {
     return (
       <>
@@ -135,7 +135,6 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
     );
   }
 
-  // Mode édition (sélectionné sans cropper)
   if (isSelected) {
     return (
       <div 
@@ -177,7 +176,6 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
           </div>
         )}
         
-        {/* UI de sélection avec options de fond */}
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full z-20 whitespace-nowrap flex gap-2 items-center">
           <span>🖼️ Image</span>
           <span className="text-white/50">|</span>
@@ -260,7 +258,6 @@ export function ImageBlock({ shop, block, customization, isSelected, onSelect, o
     );
   }
 
-  // Rendu normal (non sélectionné)
   return (
     <div 
       className="relative w-full h-full cursor-grab active:cursor-grabbing"

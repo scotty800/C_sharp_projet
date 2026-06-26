@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   FiDroplet, FiType, FiFilter, FiImage, FiLayout, 
-  FiPackage, FiSettings, FiCamera, FiPlusSquare, FiLayers
+  FiPackage, FiSettings, FiCamera, FiPlusSquare, FiLayers, FiX
 } from 'react-icons/fi';
 import ColorsPanel from './panels/ColorsPanel';
 import FontsPanel from './panels/FontsPanel';
@@ -68,72 +68,54 @@ interface Props {
 }
 
 const PANELS = [
-  { id: 'sections', label: 'Sections', icon: FiPlusSquare },
-  { id: 'textes', label: 'Textes', icon: FiType },
-  { id: 'colors', label: 'Couleurs', icon: FiDroplet },
-  { id: 'fonts', label: 'Polices', icon: FiType },
-  { id: 'filters', label: 'Filtres', icon: FiFilter },
-  { id: 'assets', label: 'Assets', icon: FiImage },
-  { id: 'templates', label: 'Templates', icon: FiLayout },
-  { id: 'products', label: 'Produits', icon: FiPackage },
-  { id: 'snapshots', label: 'Versions', icon: FiCamera },
-  { id: 'settings', label: 'Paramètres', icon: FiSettings },
-  { id: 'layers', label: 'Calques', icon: FiLayers },
+  { id: 'sections',   label: 'Sections',    icon: FiPlusSquare },
+  { id: 'textes',     label: 'Textes',      icon: FiType },
+  { id: 'colors',     label: 'Couleurs',    icon: FiDroplet },
+  { id: 'fonts',      label: 'Polices',     icon: FiType },
+  { id: 'filters',    label: 'Filtres',     icon: FiFilter },
+  { id: 'assets',     label: 'Assets',      icon: FiImage },
+  { id: 'templates',  label: 'Templates',   icon: FiLayout },
+  { id: 'products',   label: 'Produits',    icon: FiPackage },
+  { id: 'snapshots',  label: 'Versions',    icon: FiCamera },
+  { id: 'settings',   label: 'Paramètres',  icon: FiSettings },
+  { id: 'layers',     label: 'Calques',     icon: FiLayers },
 ];
 
 export default function StudioSidebar({ 
-  shop, 
-  blocks, 
-  selectedBlockId,
-  selectedTarget,
-  isBackgroundSelected,
-  customization, 
-  filters,
-  canvasFilters,
-  activePanel,
-  onAddBlock,
-  onUpdateBlock, 
-  onDeleteBlock,
-  onDuplicateBlock,
-  onUpdateCustomization,
-  onUpdateFilters,
-  onUpdateCanvasFilters,
-  onApplyToWholePage,
-  onSelectBackground,
-  shopId,
-  onAddSlide,
-  gridConfig,
-  onUpdateGrid,
-  onSelectSlot,
-  onLinkProductToSlot,
-  onUnlinkProductFromSlot,
-  onUpdateSlotConfig,
-  onSelectBlock,
-  onCreateProduct,
-  selectedProductForCustomization,
-  onUpdateProductCustomization,
-  onCloseProductCustomization,
+  shop, blocks, selectedBlockId, selectedTarget, isBackgroundSelected,
+  customization, filters, canvasFilters, activePanel,
+  onAddBlock, onUpdateBlock, onDeleteBlock, onDuplicateBlock,
+  onUpdateCustomization, onUpdateFilters, onUpdateCanvasFilters,
+  onApplyToWholePage, onSelectBackground, shopId, onAddSlide,
+  gridConfig, onUpdateGrid, onSelectSlot, onLinkProductToSlot,
+  onUnlinkProductFromSlot, onUpdateSlotConfig, onSelectBlock,
+  onCreateProduct, selectedProductForCustomization,
+  onUpdateProductCustomization, onCloseProductCustomization,
   productsList = [],
 }: Props) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  
-  // ⭐ Pas besoin de state, on cherche le bloc directement dans blocks
+
+  // Panel ouvert (null = panneau droit fermé)
+  const [openPanel, setOpenPanel] = useState<string | null>(null);
+
   const getSelectedBlock = () => {
     if (!selectedBlockId || isBackgroundSelected) return null;
     return blocks.find(b => b.id === selectedBlockId) || null;
   };
-
-  // ⭐ Le bloc sélectionné est calculé à chaque rendu
   const selectedBlock = getSelectedBlock();
 
-  // ⭐ Écouter les changements de productsList
+  // Sync avec activePanel venant de l'extérieur
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('productsListUpdated', { 
-      detail: { products: productsList }
-    }));
+    if (activePanel) setOpenPanel(activePanel);
+  }, [activePanel]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('productsListUpdated', { detail: { products: productsList } }));
   }, [productsList]);
 
-  const handlePanelChange = (panelId: string) => {
+  const handleIconClick = (panelId: string) => {
+    // Toggle : si déjà ouvert, fermer
+    setOpenPanel(prev => prev === panelId ? null : panelId);
+    // Sync avec le reste de l'app
     const event = new CustomEvent('changePanel', { detail: panelId });
     window.dispatchEvent(event);
   };
@@ -143,185 +125,215 @@ export default function StudioSidebar({
   };
 
   const handleSelectSlot = (slotId: string) => {
-    if (onSelectSlot) {
-      onSelectSlot(slotId);
-    }
-    if (onSelectBlock) {
-      onSelectBlock(slotId, 'background');
+    onSelectSlot?.(slotId);
+    onSelectBlock?.(slotId, 'background');
+  };
+
+  const renderPanelContent = () => {
+    switch (openPanel) {
+      case 'sections':
+        return <SectionsPanel onAddSection={onAddBlock} />;
+
+      case 'textes':
+        return (
+          <TextPanel onAddText={(textData) => {
+            onAddBlock(textData.type, { ...textData, position: { x: 200, y: 200, width: 300, height: 100, zIndex: 10 } });
+          }} />
+        );
+
+      case 'assets':
+        return (
+          <AssetsPanel
+            onSelectAsset={(asset) => onAddBlock(asset.type, asset.defaultProps)}
+            shopId={shopId}
+          />
+        );
+
+      case 'colors':
+        return (
+          <ColorsPanel
+            selectedBlock={selectedBlock}
+            selectedTarget={selectedTarget}
+            isBackgroundSelected={isBackgroundSelected}
+            customization={customization}
+            onUpdateBlock={handleUpdateBlock}
+            onUpdateCustomization={onUpdateCustomization}
+            shopId={shopId}
+            onAddSlide={onAddSlide}
+          />
+        );
+
+      case 'fonts':
+        return (
+          <FontsPanel
+            selectedBlock={selectedBlock}
+            selectedTarget={selectedTarget}
+            isBackgroundSelected={isBackgroundSelected}
+            customization={customization}
+            onUpdateBlock={handleUpdateBlock}
+            onUpdateCustomization={onUpdateCustomization}
+          />
+        );
+
+      case 'filters':
+        return (
+          <FiltersPanel
+            selectedBlock={selectedBlock}
+            isBackgroundSelected={isBackgroundSelected}
+            filters={filters}
+            canvasFilters={canvasFilters}
+            onUpdateBlock={handleUpdateBlock}
+            onUpdateFilters={onUpdateFilters}
+            onUpdateCanvasFilters={onUpdateCanvasFilters}
+            onApplyToWholePage={onApplyToWholePage}
+          />
+        );
+
+      case 'templates':
+        return (
+          <TemplatesPanel
+            onApplyTemplate={(template) => {
+              if (template.configuration) onUpdateCustomization(template.configuration);
+            }}
+          />
+        );
+
+      case 'products':
+        return gridConfig && onUpdateGrid ? (
+          <GridManagerPanel
+            gridConfig={gridConfig}
+            products={productsList}
+            selectedSlotId={selectedBlockId}
+            onUpdateGrid={onUpdateGrid}
+            onSelectSlot={handleSelectSlot}
+            onLinkProduct={onLinkProductToSlot || (() => {})}
+            onUnlinkProduct={onUnlinkProductFromSlot || (() => {})}
+            onUpdateSlotConfig={onUpdateSlotConfig || (() => {})}
+            onCreateProduct={onCreateProduct}
+          />
+        ) : (
+          <ProductsPanel
+            shopId={shopId}
+            featuredProducts={[]}
+            onUpdateFeatured={() => {}}
+            onCreateProduct={onCreateProduct}
+          />
+        );
+
+      case 'snapshots':
+        return <SnapshotsPanel shopId={shopId} onRestore={() => {}} />;
+
+      case 'settings':
+        return <SettingsPanel customization={customization} onUpdate={onUpdateCustomization} />;
+
+      case 'layers':
+        return (
+          <div className="p-4">
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('toggleFloatingLayers'));
+              }}
+              className="w-full py-2 bg-primary text-white rounded-lg flex items-center justify-center gap-2 text-sm hover:bg-primary/80 transition-colors"
+            >
+              <FiLayers size={16} />
+              Ouvrir le panneau des calques
+            </button>
+            <p className="text-xs text-gray-400 mt-3 text-center border-t border-gray-700 pt-3">
+              💡 <kbd className="px-1 py-0.5 bg-gray-800 rounded">Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-gray-800 rounded">Shift</kbd> + <kbd className="px-1 py-0.5 bg-gray-800 rounded">L</kbd>
+            </p>
+          </div>
+        );
+
+      default:
+        return null;
     }
   };
 
-  return (
-    <div className={`bg-gray-900 border-r border-gray-700 flex flex-col overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-80'}`}>
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute right-2 top-20 z-10 bg-gray-800 rounded-full p-1 text-gray-400 hover:text-white"
-      >
-        {isCollapsed ? '→' : '←'}
-      </button>
+  const isPanelOpen = openPanel !== null;
 
-      {!isCollapsed ? (
-        <>
-          <div className="p-3 border-b border-gray-700">
-            <div className="grid grid-cols-3 gap-1">
-              {PANELS.map(panel => (
-                <button
-                  key={panel.id}
-                  onClick={() => handlePanelChange(panel.id)}
-                  className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${
-                    activePanel === panel.id ? 'bg-primary text-white' : 'text-gray-400 hover:bg-gray-800'
-                  }`}
-                >
-                  <panel.icon size={18} />
-                  <span className="text-[10px]">{panel.label}</span>
-                </button>
-              ))}
+  return (
+    <>
+      <div className="flex flex-shrink-0 h-full">
+
+        {/* ── Colonne gauche : icônes ── */}
+        <div className="w-14 flex flex-col items-center py-3 gap-1 bg-[#0d0e14] border-r border-[#1b1c26] h-full overflow-y-auto">
+          {PANELS.map(panel => {
+            const isActive = openPanel === panel.id;
+            return (
+              <button
+                key={panel.id}
+                onClick={() => handleIconClick(panel.id)}
+                title={panel.label}
+                className={`
+                  relative w-10 h-10 flex flex-col items-center justify-center gap-0.5 rounded-xl
+                  transition-all duration-200 group
+                  ${isActive
+                    ? 'bg-primary/20 text-primary shadow-[0_0_12px_rgba(139,92,246,0.3)]'
+                    : 'text-gray-500 hover:bg-[#1b1c26] hover:text-gray-200'
+                  }
+                `}
+              >
+                {/* Barre active à gauche */}
+                {isActive && (
+                  <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r-full bg-primary" />
+                )}
+                <panel.icon size={18} />
+                <span className="text-[8px] font-medium leading-none">{panel.label.slice(0, 5)}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Colonne droite : contenu du panneau ── */}
+        {isPanelOpen && (
+          <div
+            className="w-72 flex flex-col bg-[#11121a] border-r border-[#1b1c26] h-full animate-in slide-in-from-left-2 duration-200"
+          >
+            {/* Header du panneau */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#1b1c26] flex-shrink-0">
+              <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
+                {PANELS.find(p => p.id === openPanel)?.label}
+              </span>
+              <button
+                onClick={() => setOpenPanel(null)}
+                className="text-gray-500 hover:text-white transition-colors p-1 rounded hover:bg-[#1b1c26]"
+              >
+                <FiX size={14} />
+              </button>
+            </div>
+
+            {/* Contenu scrollable */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {renderPanelContent()}
             </div>
           </div>
+        )}
+      </div>
 
-          <div className="flex-1 p-4 overflow-y-auto">
-            {activePanel === 'sections' && <SectionsPanel onAddSection={onAddBlock} />}
-            
-            {activePanel === 'textes' && (
-              <TextPanel onAddText={(textData) => {
-                const defaultPosition = { x: 200, y: 200, width: 300, height: 100, zIndex: 10 };
-                onAddBlock(textData.type, { ...textData, position: defaultPosition });
-              }} />
-            )}
-            
-            {activePanel === 'assets' && (
-              <AssetsPanel
-                onSelectAsset={(asset) => onAddBlock(asset.type, asset.defaultProps)}
-                shopId={shopId}
-              />
-            )}
-            
-            {activePanel === 'colors' && (
-              <ColorsPanel 
-                selectedBlock={selectedBlock} 
-                selectedTarget={selectedTarget} 
-                isBackgroundSelected={isBackgroundSelected} 
-                customization={customization} 
-                onUpdateBlock={handleUpdateBlock} 
-                onUpdateCustomization={onUpdateCustomization}
-                shopId={shopId}
-                onAddSlide={onAddSlide}
-              />
-            )}
-            
-            {activePanel === 'fonts' && (
-              <FontsPanel
-                selectedBlock={selectedBlock}
-                selectedTarget={selectedTarget}
-                isBackgroundSelected={isBackgroundSelected}
-                customization={customization}
-                onUpdateBlock={handleUpdateBlock}
-                onUpdateCustomization={onUpdateCustomization}
-              />
-            )}
-
-            {activePanel === 'filters' && (
-              <FiltersPanel 
-                selectedBlock={selectedBlock} 
-                isBackgroundSelected={isBackgroundSelected} 
-                filters={filters}
-                canvasFilters={canvasFilters} 
-                onUpdateBlock={handleUpdateBlock} 
-                onUpdateFilters={onUpdateFilters}
-                onUpdateCanvasFilters={onUpdateCanvasFilters} 
-                onApplyToWholePage={onApplyToWholePage} 
-              />
-            )}
-
-            {activePanel === 'templates' && (
-              <TemplatesPanel
-                onApplyTemplate={(template) => {
-                  if (template.configuration) onUpdateCustomization(template.configuration);
-                }}
-              />
-            )}
-
-            {activePanel === 'products' && gridConfig && onUpdateGrid && (
-              <GridManagerPanel
-                gridConfig={gridConfig}
-                products={productsList}
-                selectedSlotId={selectedBlockId}
-                onUpdateGrid={onUpdateGrid}
-                onSelectSlot={handleSelectSlot}
-                onLinkProduct={onLinkProductToSlot || (() => {})}
-                onUnlinkProduct={onUnlinkProductFromSlot || (() => {})}
-                onUpdateSlotConfig={onUpdateSlotConfig || (() => {})}
-                onCreateProduct={onCreateProduct}
-              />
-            )}
-
-            {activePanel === 'products' && !gridConfig && (
-              <ProductsPanel 
-                shopId={shopId} 
-                featuredProducts={[]} 
-                onUpdateFeatured={() => {}} 
-                onCreateProduct={onCreateProduct}
-              />
-            )}
-
-            {activePanel === 'snapshots' && (
-              <SnapshotsPanel shopId={shopId} onRestore={() => {}} />
-            )}
-
-            {activePanel === 'settings' && (
-              <SettingsPanel customization={customization} onUpdate={onUpdateCustomization} />
-            )}
-
-            {selectedProductForCustomization && (
-              <div className="border-t border-gray-700 mt-4 pt-4">
-                <ProductCustomizationSidebar
-                  productId={selectedProductForCustomization.id}
-                  productName={selectedProductForCustomization.name}
-                  customization={selectedProductForCustomization.customization}
-                  slideCount={selectedProductForCustomization.slideCount}
-                  onUpdate={(updates) => {
-                    onUpdateProductCustomization?.(selectedProductForCustomization.id, updates);
-                  }}
-                  onClose={onCloseProductCustomization || (() => {})}
-                />
-              </div>
-            )}
-
-            {activePanel === 'layers' && (
-              <div className="p-2">
-                <button
-                  onClick={() => {
-                    const event = new CustomEvent('toggleFloatingLayers');
-                    window.dispatchEvent(event);
-                  }}
-                  className="w-full py-2 bg-primary text-white rounded-lg flex items-center justify-center gap-2 text-sm hover:bg-primary/80 transition-colors"
-                >
-                  <FiLayers size={16} />
-                  Ouvrir le panneau des calques
-                </button>
-                <p className="text-xs text-gray-400 mt-3 text-center border-t border-gray-700 pt-3">
-                  💡 Raccourci : <kbd className="px-1 py-0.5 bg-gray-800 rounded">Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-gray-800 rounded">Shift</kbd> + <kbd className="px-1 py-0.5 bg-gray-800 rounded">L</kbd>
-                </p>
-              </div>
-            )}
+      {/* Panneau de personnalisation produit (overlay fixe) */}
+      {selectedProductForCustomization && (
+        <div className="fixed top-4 right-4 bottom-4 w-96 z-[100] flex flex-col rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl shadow-black/60 ring-1 ring-purple-500/20 overflow-hidden animate-in slide-in-from-right-8 fade-in duration-300">
+          <button
+            onClick={() => onCloseProductCustomization?.()}
+            title="Fermer"
+            className="absolute -top-3 -left-3 z-10 w-8 h-8 flex items-center justify-center bg-gray-800 hover:bg-red-500 border border-gray-600 hover:border-red-400 rounded-full text-gray-300 hover:text-white shadow-lg transition-colors"
+          >
+            <FiX size={15} />
+          </button>
+          <div className="flex-1 overflow-y-auto">
+            <ProductCustomizationSidebar
+              productId={selectedProductForCustomization.id}
+              productName={selectedProductForCustomization.name}
+              customization={selectedProductForCustomization.customization}
+              slideCount={selectedProductForCustomization.slideCount}
+              onUpdate={(updates) => {
+                onUpdateProductCustomization?.(selectedProductForCustomization.id, updates);
+              }}
+              onClose={onCloseProductCustomization || (() => {})}
+            />
           </div>
-        </>
-      ) : (
-        <div className="flex flex-col items-center gap-4 p-3">
-          {PANELS.map(panel => (
-            <button
-              key={panel.id}
-              onClick={() => handlePanelChange(panel.id)}
-              className={`p-2 rounded-lg transition-colors ${
-                activePanel === panel.id ? 'bg-primary text-white' : 'text-gray-400 hover:bg-gray-800'
-              }`}
-              title={panel.label}
-            >
-              <panel.icon size={20} />
-            </button>
-          ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

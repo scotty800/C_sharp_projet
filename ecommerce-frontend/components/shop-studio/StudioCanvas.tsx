@@ -14,6 +14,7 @@ import { ScreenBannerBlock } from './blocks/ScreenBannerBlock';
 import { CarouselBannerBlock } from './blocks/CarouselBannerBlock';
 import { GroupOverlay } from './GroupOverlay';
 import { ProductGridConfig, StudioProduct, ProductCustomization } from '@/types/studio';
+import { useCanvasHeight } from '@/hooks/useCanvasHeight';
 
 interface Props {
   shop: any;
@@ -38,7 +39,6 @@ interface Props {
   onResizeGroupStart?: (groupId: string) => void;
   onResizeGroupEnd?: () => void;
   onAddSlide?: (carouselBlockId: string) => void;
-  // ⭐ 2.1 - Supprimer gridConfig des props
   onUpdateGridConfig?: (blockId: string, config: ProductGridConfig) => void;
   productsList?: StudioProduct[];
   onLinkProduct?: (blockId: string, slotId: string, product: StudioProduct) => void;
@@ -75,7 +75,6 @@ export default function StudioCanvas({
   globalProductCustomizations,
   onUpdateGlobalProductCustomization,
 }: Props) {
-  // ⭐ Log pour vérifier que productsList est bien reçu
   console.log('🔵🔵🔵 StudioCanvas - productsList reçus:', productsList?.length);
 
   const [resizingBlock, setResizingBlock] = useState<string | null>(null);
@@ -86,13 +85,8 @@ export default function StudioCanvas({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [groupBounds, setGroupBounds] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   
-  // ⭐⭐ NOUVEAU : État pour la hauteur du canvas infini
-  const [canvasHeight, setCanvasHeight] = useState<number>(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerHeight || 800;
-    }
-    return 800;
-  });
+  // ⭐⭐ UTILISATION DU HOOK useCanvasHeight
+  const { canvasHeight, reportBlockHeight } = useCanvasHeight({ blocks });
 
   // Refs pour le drag
   const draggingBlockRef = useRef<string | null>(null);
@@ -117,11 +111,24 @@ export default function StudioCanvas({
   const resizeRafId = useRef<number | null>(null);
   const lastUpdateRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
-  // ⭐ Ref pour stocker les hauteurs mesurées des blocs products
-  const productBlockHeights = useRef<Map<string, number>>(new Map());
-
   // ⭐ Ref pour le callback stable du bloc products
   const productsOnUpdateRef = useRef<((updates: any) => void) | null>(null);
+  
+  // ⭐ Ref pour reportBlockHeight stabilisée
+  const reportBlockHeightRef = useRef(reportBlockHeight);
+  useEffect(() => { reportBlockHeightRef.current = reportBlockHeight; }, [reportBlockHeight]);
+
+  // ⭐ Une fonction stable par blockId : ne change jamais de référence,
+  // même si StudioCanvas re-render à chaque clic/sélection.
+  const heightChangeCallbacksRef = useRef<Map<string, (h: number) => void>>(new Map());
+  const getStableOnHeightChange = useCallback((blockId: string) => {
+    let cb = heightChangeCallbacksRef.current.get(blockId);
+    if (!cb) {
+      cb = (h: number) => reportBlockHeightRef.current(blockId, h);
+      heightChangeCallbacksRef.current.set(blockId, cb);
+    }
+    return cb;
+  }, []);
   
   // ⭐ Callback stable pour onUpdate du bloc products (ne change jamais de référence)
   const stableProductsOnUpdate = useCallback((updates: any) => {
@@ -190,7 +197,6 @@ export default function StudioCanvas({
         box-shadow: 0 1px 2px rgba(0,0,0,0.1);
       }
       
-      /* ⭐ Stabiliser le bloc products pendant les changements de couleur */
       .products-block-wrapper {
         transition: none !important;
         will-change: auto !important;
@@ -207,203 +213,6 @@ export default function StudioCanvas({
       if (document.head.contains(style)) document.head.removeChild(style);
     };
   }, []);
-
-  // ⭐⭐ NOUVEAU : Calculer la hauteur nécessaire du canvas (version complète)
-  const calculateCanvasHeight = useCallback(() => {
-    const minHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-    
-    if (!blocks.length) return minHeight;
-
-    let maxBottom = 0;
-
-    // Fonction pour obtenir la position absolue d'un bloc
-    const getAbsPos = (block: any): { x: number; y: number; width: number; height: number } => {
-      let absX = block.position?.x || 0;
-      let absY = block.position?.y || 0;
-      let absW = block.position?.width || 100;
-      let absH = block.position?.height || 100;
-      
-      let currentId = block.parentId;
-      while (currentId) {
-        const parent = blocks.find(b => b.id === currentId);
-        if (!parent) break;
-        
-        if (parent.position?.positionType === 'relative') {
-          absX += parent.position?.x || 0;
-          absY += parent.position?.y || 0;
-        } else {
-          absX = (parent.position?.x || 0) + (absX * (parent.position?.width || 100) / 100);
-          absY = (parent.position?.y || 0) + (absY * (parent.position?.height || 100) / 100);
-          absW = absW * (parent.position?.width || 100) / 100;
-          absH = absH * (parent.position?.height || 100) / 100;
-        }
-        
-        currentId = parent.parentId;
-      }
-      
-      return { x: absX, y: absY, width: absW, height: absH };
-    };
-
-    // Parcourir tous les blocs
-    blocks.forEach(block => {
-      if (block.type === 'group') return;
-      
-      const absPos = getAbsPos(block);
-      let bottom = absPos.y + absPos.height;
-      
-      // ⭐ Pour les blocs products, utiliser la hauteur de contenu stockée
-      if (block.type === 'products') {
-        const contentHeight = productBlockHeights.current.get(block.id);
-        if (contentHeight) {
-          bottom = absPos.y + contentHeight;
-        }
-      }
-      
-      if (bottom > maxBottom) maxBottom = bottom;
-      
-      // ⭐ Vérifier les enfants directs
-      const children = blocks.filter(b => b.parentId === block.id && b.type !== 'carousel-slide');
-      children.forEach(child => {
-        const childAbsPos = getAbsPos(child);
-        const childBottom = childAbsPos.y + childAbsPos.height;
-        if (childBottom > maxBottom) maxBottom = childBottom;
-      });
-    });
-
-    // ⭐ Padding de 200px pour avoir de l'espace en bas
-    const padding = 200;
-    const neededHeight = Math.max(minHeight, maxBottom + padding);
-    
-    // Arrondir pour éviter les micro-changements
-    return Math.ceil(neededHeight / 50) * 50;
-  }, [blocks]);
-
-  // ⭐⭐ NOUVEAU : Surveiller en continu les blocs qui dépassent
-  useEffect(() => {
-    let animationFrameId: number;
-    let lastHeight = canvasHeight;
-
-    const checkHeight = () => {
-      const minHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-      let maxBottom = 0;
-
-      // Fonction pour obtenir la position absolue
-      const getAbsPos = (block: any): { x: number; y: number; width: number; height: number } => {
-        let absX = block.position?.x || 0;
-        let absY = block.position?.y || 0;
-        let absW = block.position?.width || 100;
-        let absH = block.position?.height || 100;
-        
-        let currentId = block.parentId;
-        while (currentId) {
-          const parent = blocks.find(b => b.id === currentId);
-          if (!parent) break;
-          
-          if (parent.position?.positionType === 'relative') {
-            absX += parent.position?.x || 0;
-            absY += parent.position?.y || 0;
-          } else {
-            absX = (parent.position?.x || 0) + (absX * (parent.position?.width || 100) / 100);
-            absY = (parent.position?.y || 0) + (absY * (parent.position?.height || 100) / 100);
-            absW = absW * (parent.position?.width || 100) / 100;
-            absH = absH * (parent.position?.height || 100) / 100;
-          }
-          
-          currentId = parent.parentId;
-        }
-        
-        return { x: absX, y: absY, width: absW, height: absH };
-      };
-
-      blocks.forEach(block => {
-        if (block.type === 'group') return;
-        const absPos = getAbsPos(block);
-        let bottom = absPos.y + absPos.height;
-        
-        // ⭐ Pour les blocs products, utiliser la hauteur de contenu stockée
-        if (block.type === 'products') {
-          const contentHeight = productBlockHeights.current.get(block.id);
-          if (contentHeight) {
-            bottom = absPos.y + contentHeight;
-          }
-        }
-        
-        if (bottom > maxBottom) maxBottom = bottom;
-        
-        // Vérifier les enfants
-        const children = blocks.filter(b => b.parentId === block.id);
-        children.forEach(child => {
-          const childAbsPos = getAbsPos(child);
-          const childBottom = childAbsPos.y + childAbsPos.height;
-          if (childBottom > maxBottom) maxBottom = childBottom;
-        });
-      });
-
-      const padding = 200;
-      const neededHeight = Math.max(minHeight, maxBottom + padding);
-      const roundedHeight = Math.ceil(neededHeight / 50) * 50;
-
-      // Mettre à jour seulement si la hauteur a changé de manière significative
-      if (Math.abs(roundedHeight - lastHeight) > 10) {
-        lastHeight = roundedHeight;
-        if (roundedHeight > canvasHeight) {
-          setCanvasHeight(roundedHeight + 50);
-        } else if (canvasHeight - roundedHeight > 200) {
-          setCanvasHeight(roundedHeight);
-        }
-      }
-
-      animationFrameId = requestAnimationFrame(checkHeight);
-    };
-
-    animationFrameId = requestAnimationFrame(checkHeight);
-
-    return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [blocks, canvasHeight]);
-
-  // ⭐⭐ NOUVEAU : Mettre à jour la hauteur du canvas quand les blocs changent
-  useEffect(() => {
-    const newHeight = calculateCanvasHeight();
-    if (newHeight !== canvasHeight) {
-      setCanvasHeight(newHeight);
-    }
-  }, [blocks, calculateCanvasHeight]);
-
-  // ⭐⭐ NOUVEAU : Mettre à jour la hauteur quand la fenêtre est redimensionnée
-  useEffect(() => {
-    const handleResize = () => {
-      const newHeight = calculateCanvasHeight();
-      setCanvasHeight(newHeight);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [calculateCanvasHeight]);
-
-  // ⭐⭐ NOUVEAU : Écouter l'événement pour agrandir le canvas
-  useEffect(() => {
-    const handleExpandCanvas = (event: CustomEvent) => {
-      const height = event.detail?.height || 200;
-      setCanvasHeight(prev => prev + height);
-    };
-
-    const handleFitCanvasToContent = () => {
-      const newHeight = calculateCanvasHeight();
-      setCanvasHeight(newHeight);
-    };
-
-    window.addEventListener('expandCanvas', handleExpandCanvas as EventListener);
-    window.addEventListener('fitCanvasToContent', handleFitCanvasToContent);
-
-    return () => {
-      window.removeEventListener('expandCanvas', handleExpandCanvas as EventListener);
-      window.removeEventListener('fitCanvasToContent', handleFitCanvasToContent);
-    };
-  }, [calculateCanvasHeight]);
 
   const getChildren = useCallback((parentId: string) => {
     return blocks.filter(b => b.parentId === parentId);
@@ -431,36 +240,6 @@ export default function StudioCanvas({
     if (!parent) return null;
     return getAbsolutePosition(parent);
   }, [getAbsolutePosition]);
-
-  // ⭐⭐ NOUVEAU : Surveiller les changements de hauteur des produits
-  useEffect(() => {
-    const checkProductHeights = () => {
-      let maxBottom = 0;
-      const minHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-      
-      blocks.forEach(block => {
-        if (block.type === 'products') {
-          const height = productBlockHeights.current.get(block.id) || block.position?.height || 200;
-          const absPos = getAbsolutePosition(block);
-          const bottom = absPos.y + height;
-          if (bottom > maxBottom) maxBottom = bottom;
-        }
-      });
-      
-      if (maxBottom > 0) {
-        const padding = 200;
-        const neededHeight = Math.max(minHeight, maxBottom + padding);
-        const roundedHeight = Math.ceil(neededHeight / 50) * 50;
-        
-        if (roundedHeight > canvasHeight) {
-          setCanvasHeight(roundedHeight + 50);
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(checkProductHeights, 50);
-    return () => clearTimeout(timeoutId);
-  }, [blocks, canvasHeight]);
 
   // Version optimisée de updateGroupBounds
   const updateGroupBounds = useCallback(() => {
@@ -523,7 +302,6 @@ export default function StudioCanvas({
     onSelectBlock(blockId, target);
   }, [onSelectBlock]);
 
-  // ⭐⭐ MODIFICATION : handleMouseMove avec contrainte du canvas
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggingBlockRef.current || isCropperOpenRef.current) return;
     if (dragRafId.current) return;
@@ -585,7 +363,6 @@ export default function StudioCanvas({
         let newX = originalPositionRef.current.x + (e.clientX - dragStartRef.current.x);
         let newY = originalPositionRef.current.y + (e.clientY - dragStartRef.current.y);
 
-        // ⭐ Empêche de sortir du canevas (gauche/droite + haut)
         newX = Math.max(0, Math.min(canvasW - w, newX));
         newY = Math.max(0, newY);
 
@@ -601,7 +378,6 @@ export default function StudioCanvas({
     });
   }, []);
 
-  // ⭐⭐ MODIFICATION : handleResizeMove - gère le redimensionnement avec contraintes du canvas
   const handleResizeMove = useCallback((e: MouseEvent, blockId: string, startData: any) => {
     if (isCropperOpenRef.current || resizeRafId.current) return;
     resizeRafId.current = requestAnimationFrame(() => {
@@ -614,7 +390,7 @@ export default function StudioCanvas({
       const block = blocksRef.current.find(b => b.id === blockId);
       const isChild = block?.parentId != null;
 
-      // ⭐ Pour les blocs products, on bloque le redimensionnement vertical manuel
+      // Pour les blocs products, on bloque le redimensionnement vertical manuel
       const isProductsBlock = block?.type === 'products';
       if (isProductsBlock) {
         newHeight = startData.startHeight;
@@ -669,7 +445,6 @@ export default function StudioCanvas({
           case 'w':  newWidth = Math.max(MIN_PX, startData.startWidth - dx); newX = startData.startXpos + dx; break;
         }
 
-        // ⭐ Empêche le redimensionnement de sortir du canevas (gauche/droite + haut)
         const canvasEl = canvasContainerRef.current;
         const canvasW = canvasEl?.clientWidth ?? Infinity;
 
@@ -699,7 +474,6 @@ export default function StudioCanvas({
     });
   }, [getParentAbsolutePosition]);
 
-  // handleMouseUp avec refs
   const handleMouseUp = useCallback(() => {
     if (dragRafId.current) { cancelAnimationFrame(dragRafId.current); dragRafId.current = null; }
     if (resizeRafId.current) { cancelAnimationFrame(resizeRafId.current); resizeRafId.current = null; }
@@ -709,7 +483,6 @@ export default function StudioCanvas({
     setIsResizing(false);
   }, []);
 
-  // Listeners montés UNE SEULE FOIS
   useEffect(() => {
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -743,7 +516,6 @@ export default function StudioCanvas({
     onSelectBackground();
   };
 
-  // handleMouseDown avec refs
   const handleMouseDown = (e: React.MouseEvent, blockId: string, block: any) => {
     if (isCropperOpen) { e.stopPropagation(); return; }
     if (block.type === 'carousel-slide') return;
@@ -759,6 +531,7 @@ export default function StudioCanvas({
     };
   };
 
+  // ⭐ handleResizeStart avec correction pour la hauteur "auto"
   const handleResizeStart = (e: React.MouseEvent, blockId: string, block: any, direction: string) => {
     if (isCropperOpen) { e.stopPropagation(); return; }
     e.stopPropagation();
@@ -768,10 +541,31 @@ export default function StudioCanvas({
     setResizeDirection(direction);
     originalPositionRef.current = { ...block.position };
 
+    // ⭐ Si height = 0 (= 'auto'), on mesure la hauteur réellement
+    // rendue dans le DOM pour partir de la vraie taille du bloc,
+    // au lieu de partir de 0 (ce qui écrasait le bloc dès le clic).
+    let effectiveStartHeight = block.position.height;
+    if (effectiveStartHeight === 0) {
+      const domEl = canvasContainerRef.current?.querySelector(
+        `[data-block-id="${blockId}"]`
+      ) as HTMLElement | null;
+      const measuredPx = domEl?.getBoundingClientRect().height ?? 0;
+      if (block.parentId) {
+        const parentAbs = getParentAbsolutePosition(block.parentId);
+        effectiveStartHeight = parentAbs && parentAbs.height > 0
+          ? (measuredPx / parentAbs.height) * 100
+          : 10;
+      } else {
+        effectiveStartHeight = measuredPx || 30;
+      }
+    }
+
     const startData = {
       startX: e.clientX, startY: e.clientY,
-      startWidth: block.position.width, startHeight: block.position.height,
-      startXpos: block.position.x, startYpos: block.position.y,
+      startWidth: block.position.width,
+      startHeight: effectiveStartHeight,
+      startXpos: block.position.x,
+      startYpos: block.position.y,
       direction,
     };
     const onMove = (me: MouseEvent) => handleResizeMove(me, blockId, startData);
@@ -793,13 +587,11 @@ export default function StudioCanvas({
     handleSelectBlockWithGroup(blockId, 'text');
   };
 
-  // ⭐⭐ MODIFICATION AVEC setTimeout : handleTextBlur avec forceSave APRÈS la mise à jour du state
   const handleTextBlur = (blockId: string, newContent: string) => {
     console.log('📝 handleTextBlur appelé pour', blockId, 'nouveau contenu:', newContent);
     setEditingTextId(null);
     onUpdateBlock(blockId, { content: newContent });
     
-    // ⭐ Force la sauvegarde APRÈS que le state soit mis à jour
     setTimeout(() => {
       console.log('🔥 Dispatch forceSave depuis handleTextBlur (delay)');
       window.dispatchEvent(new CustomEvent('forceSave'));
@@ -815,11 +607,9 @@ export default function StudioCanvas({
     }
   };
 
-  // ⭐ Mémoriser les valeurs pour éviter les re-rendus du GridProductsBlock
   const memoizedProductsList = useMemo(() => productsList, [productsList]);
   const memoizedGlobalProductCustomizations = useMemo(() => globalProductCustomizations, [globalProductCustomizations]);
 
-  // ⭐ 2.2 - Callbacks stables avec blockId
   const stableOnUpdateGridConfig = useCallback((blockId: string, config: ProductGridConfig) => {
     onUpdateGridConfig?.(blockId, config);
   }, [onUpdateGridConfig]);
@@ -841,7 +631,6 @@ export default function StudioCanvas({
     window.dispatchEvent(event);
   }, []);
 
-  // ⭐ MODIFICATION 1: stableShop - ne dépend que des valeurs stables
   const stableShop = useMemo(() => ({
     id: shop?.id,
     name: shop?.name,
@@ -849,7 +638,6 @@ export default function StudioCanvas({
     ownerId: shop?.ownerId,
   }), [shop?.id, shop?.name, shop?.slug, shop?.ownerId]);
 
-  // ⭐ FIX CRITIQUE: stableCustomization pour les blocs non-products
   const stableCustomizationForOtherBlocks = useMemo(() => ({
     primaryColor: customization?.primaryColor,
     backgroundColor: customization?.backgroundColor,
@@ -860,7 +648,6 @@ export default function StudioCanvas({
     bodyFont: customization?.bodyFont,
   }), [customization?.primaryColor, customization?.backgroundColor, customization?.textColor, customization?.backgroundType, customization?.backgroundValue, customization?.headingFont, customization?.bodyFont]);
 
-  // ⭐ Callbacks stables
   const stableOnUpdateBlock = useCallback((id: string, updates: any) => {
     console.log('📝 stableOnUpdateBlock appelé pour', id, updates);
     onUpdateBlock(id, updates);
@@ -891,33 +678,20 @@ export default function StudioCanvas({
     const showSelectionRing = isSelected && !isCropperOpen;
     const showResizeHandles = isSelected && !isCropperOpen && block.type !== 'group';
     
-    // ⭐ Détecter si c'est un bloc products
     const isProductsBlock = block.type === 'products';
     
-    // ⭐ Pour le bloc products, mettre à jour la ref avec la vraie logique (accès aux closures fraîches)
+    // ⭐ Pour le bloc products, mettre à jour la ref avec la vraie logique
     if (isProductsBlock) {
       productsOnUpdateRef.current = (updates: any) => {
         if (updates._blockHeight) {
-          const currentBlock = blocksRef.current.find(b => b.id === block.id);
-          const newHeight = updates._blockHeight;
-          
-          // On stocke la hauteur réelle dans la ref
-          productBlockHeights.current.set(block.id, newHeight);
-          
-          // Si la hauteur a significativement changé, on met à jour la position du bloc
-          if (currentBlock && Math.abs(newHeight - (currentBlock.position?.height || 0)) > 5) {
-            stableOnUpdateBlockPosition(block.id, {
-              ...currentBlock.position,
-              height: newHeight
-            });
-          }
+          // ⭐ Déléguer au hook centralisé
+          reportBlockHeight(block.id, updates._blockHeight);
           return;
         }
         stableOnUpdateBlock(block.id, updates);
       };
     }
     
-    // ⭐ Props communes pour tous les blocs (shop et customization stables)
     const commonProps = {
       shop: stableShop,
       block,
@@ -1019,7 +793,8 @@ export default function StudioCanvas({
                       top: `${child.position.y}%`,
                       width: `${child.position.width}%`,
                       height: child.position.height === 0 ? 'auto' : `${child.position.height}%`,
-                      minHeight: '30px',
+                      // ⭐ Occurrence 1 : minHeight 30px → 16px
+                      minHeight: '16px',
                       pointerEvents: 'auto',
                       zIndex: child.position.zIndex,
                     }}
@@ -1051,7 +826,8 @@ export default function StudioCanvas({
                           top: `${child.position.y}%`,
                           width: `${child.position.width}%`,
                           height: child.position.height === 0 ? 'auto' : `${child.position.height}%`,
-                          minHeight: '30px',
+                          // ⭐ Occurrence 2 : minHeight 30px → 16px
+                          minHeight: '16px',
                           pointerEvents: 'auto',
                         }}
                         onClick={(e) => {
@@ -1121,7 +897,6 @@ export default function StudioCanvas({
                   handleSelectBlockWithGroup(block.id, 'background');
                 }}
                 onUpdate={stableProductsOnUpdate}
-                // ⭐ 2.3 - Utiliser block.gridConfig et passer block.id
                 gridConfig={block.gridConfig}
                 onUpdateGridConfig={(config) => stableOnUpdateGridConfig(block.id, config)}
                 productsList={memoizedProductsList}
@@ -1130,6 +905,8 @@ export default function StudioCanvas({
                 globalProductCustomizations={memoizedGlobalProductCustomizations}
                 onUpdateGlobalProductCustomization={stableOnUpdateGlobalProductCustomization}
                 onOpenAssetPicker={stableOnOpenAssetPicker}
+                // ⭐ Utilisation de la fonction stable par blockId
+                onHeightChange={getStableOnHeightChange(block.id)}
               />
             </div>
           );
@@ -1143,11 +920,7 @@ export default function StudioCanvas({
       }
     };
 
-    // ⭐ Pour les blocs products, on utilise la hauteur stockée ou auto
-    const blockHeight = isProductsBlock && productBlockHeights.current.has(block.id)
-      ? productBlockHeights.current.get(block.id)
-      : block.position.height;
-
+    // ⭐ blockStyle simplifié avec height: 'auto' pour les blocs products
     const blockStyle: React.CSSProperties = isChild
       ? {
           width: '100%',
@@ -1161,7 +934,9 @@ export default function StudioCanvas({
           left: block.position.x,
           top: block.position.y,
           width: block.position.width,
-          height: isProductsBlock ? 'auto' : blockHeight,
+          // ⭐ Toujours 'auto' pour laisser le contenu définir la hauteur
+          // Le hook mesure la hauteur réelle via onHeightChange
+          height: isProductsBlock ? 'auto' : block.position.height,
           zIndex: block.position.zIndex,
           transform: block.position.rotation ? `rotate(${block.position.rotation}deg)` : 'none',
         };
@@ -1199,13 +974,14 @@ export default function StudioCanvas({
               {children
                 .filter(child => child.type !== 'group')
                 .map(child => {
+                // ⭐ Occurrence 3 : childStyle minHeight 30px → 16px
                 const childStyle = {
                   position: 'absolute' as const,
                   left: `${child.position.x}%`,
                   top: `${child.position.y}%`,
                   width: `${child.position.width}%`,
                   height: child.position.height === 0 ? 'auto' : `${child.position.height}%`,
-                  minHeight: '30px',
+                  minHeight: '16px',
                   pointerEvents: 'auto' as const,
                 };
                 
@@ -1257,10 +1033,9 @@ export default function StudioCanvas({
         )}
       </div>
     );
-    // ⭐ 2.4 - Dépendances mises à jour
-  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent]);
+  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, getStableOnHeightChange, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent, reportBlockHeight]);
 
-  // ⭐⭐ MODIFICATION : Style du fond pour le canvas - avec minHeight et height: 100%
+  // Style du fond pour le canvas
   let backgroundStyle: React.CSSProperties = {
     position: 'absolute',
     top: 0,
@@ -1307,10 +1082,8 @@ export default function StudioCanvas({
       }}
       onClick={handleCanvasClick}
     >
-      {/* Fond */}
       <div style={backgroundStyle} />
       
-      {/* Contenu du canvas */}
       <div 
         style={{ 
           position: 'relative', 
@@ -1321,7 +1094,6 @@ export default function StudioCanvas({
       >
         {rootBlocks.map(block => renderBlock(block))}
         
-        {/* Indicateur de zone infinie */}
         {hasBlocks && (
           <div 
             className="absolute bottom-4 left-0 right-0 text-center pointer-events-none"

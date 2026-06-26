@@ -1,11 +1,12 @@
 'use client';
 
-import { FiPlus, FiSave, FiMonitor, FiTablet, FiSmartphone, FiEye, FiZoomIn, FiZoomOut, FiMaximize } from 'react-icons/fi';
+import { useRouter } from 'next/navigation';
+import { FiArrowLeft, FiSave, FiMonitor, FiTablet, FiSmartphone, FiEye, FiZoomIn, FiZoomOut, FiMaximize } from 'react-icons/fi';
+import ProductPageToolbarButton from './Productpagetoolbarbutton';
 
 interface Props {
   shop: any;
   saving: boolean;
-  onAddBlock: () => void;
   onSave: () => Promise<void>;
   previewMode: 'desktop' | 'tablet' | 'mobile';
   onPreviewModeChange: (mode: 'desktop' | 'tablet' | 'mobile') => void;
@@ -13,123 +14,122 @@ interface Props {
   onZoomOut: () => void;
   onZoomReset: () => void;
   zoom: number;
+  onOpenProductPage: () => void; // ← NOUVEAU
 }
 
 export default function StudioToolbar({ 
-  shop, 
-  saving, 
-  onAddBlock, 
-  onSave, 
-  previewMode, 
-  onPreviewModeChange,
-  onZoomIn,
-  onZoomOut,
-  onZoomReset,
-  zoom
+  shop, saving, onSave, previewMode, onPreviewModeChange,
+  onZoomIn, onZoomOut, onZoomReset, zoom,
+  onOpenProductPage, // ← NOUVEAU
 }: Props) {
+  const router = useRouter();
+
   return (
-    <div className="bg-gray-900 border-b border-gray-700 px-4 py-2 flex items-center justify-between">
+    <div
+      className="flex items-center justify-between px-4 flex-shrink-0"
+      style={{ background: '#0d0e14', borderBottom: '1px solid #1b1c26', height: 48 }}
+    >
+      {/* ── Gauche : retour + titre ── */}
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-sm">S</span>
-        </div>
-        <div>
-          <h1 className="text-white font-semibold">Studio Créateur</h1>
-          <p className="text-gray-400 text-xs">{shop?.name || 'Boutique'}</p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
         <button
-          onClick={onAddBlock}
-          className="flex items-center gap-2 px-3 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors text-sm"
+          onClick={() => router.push('/shop/my-shops')}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all text-sm group"
+          style={{ color: '#6b7280' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#16171f'; (e.currentTarget as HTMLElement).style.color = '#e5e7eb'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = '#6b7280'; }}
         >
-          <FiPlus size={16} />
-          Ajouter un élément
+          <FiArrowLeft size={14} />
+          <span className="text-xs font-medium">Mes boutiques</span>
         </button>
-
-        <div className="flex items-center gap-1 ml-4 bg-gray-800 rounded-lg p-1">
-          <button
-            onClick={() => onPreviewModeChange('desktop')}
-            className={`p-1.5 rounded transition-colors ${
-              previewMode === 'desktop' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'
-            }`}
-            title="Bureau"
-          >
-            <FiMonitor size={16} />
-          </button>
-          <button
-            onClick={() => onPreviewModeChange('tablet')}
-            className={`p-1.5 rounded transition-colors ${
-              previewMode === 'tablet' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'
-            }`}
-            title="Tablette"
-          >
-            <FiTablet size={16} />
-          </button>
-          <button
-            onClick={() => onPreviewModeChange('mobile')}
-            className={`p-1.5 rounded transition-colors ${
-              previewMode === 'mobile' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'
-            }`}
-            title="Mobile"
-          >
-            <FiSmartphone size={16} />
-          </button>
+        <div className="w-px h-4" style={{ background: '#1b1c26' }} />
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+            <span className="text-white font-bold text-[10px]">S</span>
+          </div>
+          <div className="leading-tight">
+            <p className="text-white text-xs font-semibold">Studio Créateur</p>
+            <p className="text-[10px]" style={{ color: '#4b5563' }}>{shop?.name || 'Boutique'}</p>
+          </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-1 ml-2 bg-gray-800 rounded-lg p-1">
-          <button
-            onClick={onZoomOut}
-            className="p-1.5 rounded transition-colors text-gray-400 hover:text-white"
-            title="Zoom out (Ctrl -)"
-          >
-            <FiZoomOut size={16} />
+      {/* ── Centre : preview + zoom ── */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5 p-1 rounded-lg" style={{ background: '#11121a', border: '1px solid #1b1c26' }}>
+          {[
+            { mode: 'desktop', icon: FiMonitor, label: 'Bureau' },
+            { mode: 'tablet', icon: FiTablet, label: 'Tablette' },
+            { mode: 'mobile', icon: FiSmartphone, label: 'Mobile' },
+          ].map(({ mode, icon: Icon, label }) => (
+            <button key={mode} onClick={() => onPreviewModeChange(mode as any)} title={label}
+              className="p-1.5 rounded-md transition-all"
+              style={{ background: previewMode === mode ? '#1e1f2e' : 'transparent', color: previewMode === mode ? '#8b5cf6' : '#6b7280' }}
+              onMouseEnter={e => { if (previewMode !== mode) (e.currentTarget as HTMLElement).style.color = '#d1d5db'; }}
+              onMouseLeave={e => { if (previewMode !== mode) (e.currentTarget as HTMLElement).style.color = '#6b7280'; }}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+        </div>
+        <div className="w-px h-4" style={{ background: '#1b1c26' }} />
+        <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: '#11121a', border: '1px solid #1b1c26' }}>
+          <button onClick={onZoomOut} title="Zoom out" className="p-1.5 rounded-md transition-colors" style={{ color: '#6b7280' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#d1d5db'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#6b7280'}>
+            <FiZoomOut size={13} />
           </button>
-          <span className="text-white text-xs min-w-[45px] text-center">{zoom}%</span>
-          <button
-            onClick={onZoomIn}
-            className="p-1.5 rounded transition-colors text-gray-400 hover:text-white"
-            title="Zoom in (Ctrl +)"
-          >
-            <FiZoomIn size={16} />
+          <button onClick={onZoomReset} className="px-2 py-1 rounded-md text-[11px] font-mono font-medium transition-colors tabular-nums"
+            style={{ color: '#9ca3af', minWidth: 42, textAlign: 'center' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#ffffff'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#9ca3af'}>
+            {zoom}%
           </button>
-          <button
-            onClick={onZoomReset}
-            className="p-1.5 rounded transition-colors text-gray-400 hover:text-white"
-            title="Reset zoom (Ctrl 0)"
-          >
-            <FiMaximize size={14} />
+          <button onClick={onZoomIn} title="Zoom in" className="p-1.5 rounded-md transition-colors" style={{ color: '#6b7280' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#d1d5db'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#6b7280'}>
+            <FiZoomIn size={13} />
+          </button>
+          <div className="w-px h-3 mx-0.5" style={{ background: '#1b1c26' }} />
+          <button onClick={onZoomReset} title="Centrer" className="p-1.5 rounded-md transition-colors" style={{ color: '#6b7280' }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = '#d1d5db'}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = '#6b7280'}>
+            <FiMaximize size={12} />
           </button>
         </div>
       </div>
 
+      {/* ── Droite : Page Produit + save + voir ── */}
       <div className="flex items-center gap-2">
         {saving && (
-          <div className="flex items-center gap-2 text-xs text-yellow-400">
-            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-400"></div>
+          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: '#f59e0b' }}>
+            <div className="animate-spin rounded-full h-2.5 w-2.5 border-b-2 border-yellow-400" />
             Sauvegarde...
           </div>
         )}
 
-        <button
-          onClick={onSave}
-          disabled={saving}
-          className="flex items-center gap-2 px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm"
-        >
-          <FiSave size={14} />
+        {/* ← NOUVEAU BOUTON PAGE PRODUIT */}
+        <ProductPageToolbarButton onOpen={onOpenProductPage} />
+
+        <div className="w-px h-4" style={{ background: '#1b1c26' }} />
+
+        <a href={`/shop/${shop?.slug}`} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          style={{ background: '#11121a', border: '1px solid #1b1c26', color: '#6b7280' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#e5e7eb'; (e.currentTarget as HTMLElement).style.borderColor = '#2d303f'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#6b7280'; (e.currentTarget as HTMLElement).style.borderColor = '#1b1c26'; }}>
+          <FiEye size={13} />
+          Aperçu
+        </a>
+
+        <button onClick={onSave} disabled={saving}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+          style={{ background: saving ? '#1e1f2e' : 'linear-gradient(135deg, #10b981, #6366f1)', color: '#ffffff', boxShadow: saving ? 'none' : '0 0 12px rgba(99,102,241,0.3)' }}
+          onMouseEnter={e => { if (!saving) (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)'; }}
+          onMouseLeave={e => { if (!saving) (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}>
+          <FiSave size={13} />
           Sauvegarder
         </button>
-
-        <a
-          href={`/shop/${shop?.slug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors text-sm"
-        >
-          <FiEye size={14} />
-          Voir
-        </a>
       </div>
     </div>
   );
