@@ -227,7 +227,8 @@ export interface Block {
 // ⭐ Interface BlockUI (pour le frontend - transformation)
 export interface BlockUI {
   id: string;
-  type: 'banner' | 'screen-banner' | 'carousel-banner' | 'carousel-slide' | 'logo' | 'title' | 'products' | 'section' | 'text' | 'image' | 'button' | 'spacer' | 'products-grid' | 'product-slot' | 'shape' | 'custom' | 'group';
+  type: 'banner' | 'screen-banner' | 'carousel-banner' | 'carousel-slide' | 'logo' | 'title' | 'products' | 'section' | 'text' | 'image' | 'button' | 'spacer' 
+      | 'products-grid' | 'product-slot' | 'shape' | 'custom' | 'group' | 'navbar-horizontal' | 'navbar-hero' | 'navbar-sidebar';
   props: any;
   order: number;
   isVisible?: boolean;
@@ -931,4 +932,102 @@ export interface PresetAnimation {
   cssClass: string;
   duration: number;
   easing: string;
+}
+
+// types/studio.ts — AJOUTS
+
+// ──────────────── NAVBAR ────────────────
+
+export type NavbarVariant = 'horizontal' | 'hero' | 'sidebar'; // ⭐ extensible : ajouter un id ici + un composant + une entrée au registre
+
+export type NavLinkTarget =
+  | { type: 'page'; pageId: string }
+  | { type: 'url'; url: string; openInNewTab?: boolean }
+  | { type: 'none' };
+
+export interface NavIcon {
+  type: 'preset' | 'custom' | 'none';
+  presetName?: string; // ex: 'FiHome', 'FiShoppingBag' (cf NAV_ICON_PRESETS)
+  url?: string;         // pour 'custom' (asset uploadé)
+}
+
+export interface NavButtonStyle {
+  textColor?: string;
+  textColorHover?: string;
+  textColorActive?: string;
+  backgroundColor?: string;
+  backgroundColorHover?: string;
+  backgroundColorActive?: string;
+  fontFamily?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  letterSpacing?: number;
+  borderWidth?: number;
+  borderColor?: string;
+  borderColorHover?: string;
+  borderRadius?: number;
+  paddingX?: number;
+  paddingY?: number;
+  gapIcon?: number;
+}
+
+export interface NavButtonAnimation {
+  hoverEffect?: 'none' | 'underline' | 'background' | 'scale' | 'glow' | 'slide-underline';
+  transitionDuration?: number; // ms
+  transitionEasing?: 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'linear';
+  entrance?: 'none' | 'fade' | 'slide-down' | 'slide-up';
+}
+
+export interface NavButton {
+  id: string;
+  label: string;
+  icon?: NavIcon;
+  iconPosition?: 'left' | 'right' | 'only';
+  order: number;
+  isVisible: boolean;
+  link: NavLinkTarget;
+  style?: Partial<NavButtonStyle>;       // override du style par défaut de la navbar
+  animation?: Partial<NavButtonAnimation>;
+  isActiveOverride?: boolean;            // pour prévisualiser l'état "actif" dans le Studio
+}
+
+export interface NavbarConfig {
+  variant: NavbarVariant;
+  buttons: NavButton[];
+
+  alignment?: 'left' | 'center' | 'right' | 'space-between';
+  gap?: number;
+  sticky?: boolean;
+
+  showLogo?: boolean;
+  logoUrl?: string;
+  logoLinkPageId?: string | null;
+
+  defaultButtonStyle: NavButtonStyle;
+  defaultButtonAnimation: NavButtonAnimation;
+
+  backgroundColor?: string;
+  backgroundType?: 'solid' | 'gradient' | 'transparent';
+  backgroundValue?: string;
+  backgroundOpacity?: number;
+
+  borderBottomWidth?: number;
+  borderBottomColor?: string;
+
+  sidebar?: {
+    width?: number;
+    position?: 'left' | 'right';
+    isOpenByDefault?: boolean;
+    overlayOnMobile?: boolean;
+    toggleButtonColor?: string;
+  };
+
+  hero?: {
+    height?: number;
+    showTagline?: boolean;
+    tagline?: string;
+  };
+
+  collapseBreakpoint?: 'mobile' | 'tablet' | 'none';
+  mobileMenuStyle?: 'drawer' | 'fullscreen' | 'dropdown';
 }

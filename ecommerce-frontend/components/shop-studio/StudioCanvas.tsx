@@ -16,6 +16,9 @@ import { GroupOverlay } from './GroupOverlay';
 import { ProductGridConfig, StudioProduct, ProductCustomization } from '@/types/studio';
 import { useCanvasHeight } from '@/hooks/useCanvasHeight';
 
+// ⭐ Import du renderer pour les Navbars
+import NavbarBlockRenderer from './blocks/navbar/NavbarBlockRenderer';
+
 interface Props {
   shop: any;
   blocks: any[];
@@ -45,6 +48,8 @@ interface Props {
   onOpenProductCustomization?: (productId: number, productName: string, customization: ProductCustomization, slideCount?: number) => void;
   globalProductCustomizations?: Map<number, ProductCustomization>;
   onUpdateGlobalProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
+  // ⭐ Pages pour les Navbars
+  pages?: any[];
 }
 
 export default function StudioCanvas({
@@ -74,6 +79,7 @@ export default function StudioCanvas({
   onOpenProductCustomization,
   globalProductCustomizations,
   onUpdateGlobalProductCustomization,
+  pages = [], // ⭐ Nouvelle prop
 }: Props) {
   console.log('🔵🔵🔵 StudioCanvas - productsList reçus:', productsList?.length);
 
@@ -390,9 +396,9 @@ export default function StudioCanvas({
       const block = blocksRef.current.find(b => b.id === blockId);
       const isChild = block?.parentId != null;
 
-      // Pour les blocs products, on bloque le redimensionnement vertical manuel
-      const isProductsBlock = block?.type === 'products';
-      if (isProductsBlock) {
+      // ⭐ GENERALISATION : isAutoHeightBlock au lieu de isProductsBlock
+      const isAutoHeightBlock = block?.type === 'products' || block?.type?.startsWith('navbar-');
+      if (isAutoHeightBlock) {
         newHeight = startData.startHeight;
         newY = startData.startYpos;
       }
@@ -404,44 +410,44 @@ export default function StudioCanvas({
           const dpx = (dx / pW) * 100, dpy = (dy / pH) * 100;
           switch (startData.direction) {
             case 'se': newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); 
-                       if (!isProductsBlock) newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); 
+                       if (!isAutoHeightBlock) newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); 
                        break;
             case 'e':  newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); break;
-            case 's':  if (!isProductsBlock) newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); break;
+            case 's':  if (!isAutoHeightBlock) newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); break;
             case 'ne': newWidth = Math.max(MIN_PERCENT, startData.startWidth + dpx); 
-                       if (!isProductsBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; }
+                       if (!isAutoHeightBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; }
                        break;
             case 'nw': newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); 
-                       if (!isProductsBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newX = startData.startXpos + dpx; newY = startData.startYpos + dpy; }
+                       if (!isAutoHeightBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newX = startData.startXpos + dpx; newY = startData.startYpos + dpy; }
                        break;
             case 'sw': newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); 
-                       if (!isProductsBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); newX = startData.startXpos + dpx; }
+                       if (!isAutoHeightBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight + dpy); newX = startData.startXpos + dpx; }
                        break;
-            case 'n':  if (!isProductsBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; } break;
+            case 'n':  if (!isAutoHeightBlock) { newHeight = Math.max(MIN_PERCENT, startData.startHeight - dpy); newY = startData.startYpos + dpy; } break;
             case 'w':  newWidth = Math.max(MIN_PERCENT, startData.startWidth - dpx); newX = startData.startXpos + dpx; break;
           }
           newWidth = Math.max(MIN_PERCENT, Math.min(100 - newX, newWidth));
-          if (!isProductsBlock) newHeight = Math.max(MIN_PERCENT, Math.min(100 - newY, newHeight));
+          if (!isAutoHeightBlock) newHeight = Math.max(MIN_PERCENT, Math.min(100 - newY, newHeight));
           newX = Math.max(0, Math.min(100 - newWidth, newX));
-          if (!isProductsBlock) newY = Math.max(0, Math.min(100 - newHeight, newY));
+          if (!isAutoHeightBlock) newY = Math.max(0, Math.min(100 - newHeight, newY));
         }
       } else {
         switch (startData.direction) {
           case 'se': newWidth = Math.max(MIN_PX, startData.startWidth + dx); 
-                     if (!isProductsBlock) newHeight = Math.max(MIN_PX, startData.startHeight + dy); 
+                     if (!isAutoHeightBlock) newHeight = Math.max(MIN_PX, startData.startHeight + dy); 
                      break;
           case 'e':  newWidth = Math.max(MIN_PX, startData.startWidth + dx); break;
-          case 's':  if (!isProductsBlock) newHeight = Math.max(MIN_PX, startData.startHeight + dy); break;
+          case 's':  if (!isAutoHeightBlock) newHeight = Math.max(MIN_PX, startData.startHeight + dy); break;
           case 'ne': newWidth = Math.max(MIN_PX, startData.startWidth + dx); 
-                     if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; }
+                     if (!isAutoHeightBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; }
                      break;
           case 'nw': newWidth = Math.max(MIN_PX, startData.startWidth - dx); 
-                     if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newX = startData.startXpos + dx; newY = startData.startYpos + dy; }
+                     if (!isAutoHeightBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newX = startData.startXpos + dx; newY = startData.startYpos + dy; }
                      break;
           case 'sw': newWidth = Math.max(MIN_PX, startData.startWidth - dx); 
-                     if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight + dy); newX = startData.startXpos + dx; }
+                     if (!isAutoHeightBlock) { newHeight = Math.max(MIN_PX, startData.startHeight + dy); newX = startData.startXpos + dx; }
                      break;
-          case 'n':  if (!isProductsBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; } break;
+          case 'n':  if (!isAutoHeightBlock) { newHeight = Math.max(MIN_PX, startData.startHeight - dy); newY = startData.startYpos + dy; } break;
           case 'w':  newWidth = Math.max(MIN_PX, startData.startWidth - dx); newX = startData.startXpos + dx; break;
         }
 
@@ -457,7 +463,7 @@ export default function StudioCanvas({
         }
         newWidth = Math.max(MIN_PX, newWidth);
 
-        if (!isProductsBlock && newY < 0) {
+        if (!isAutoHeightBlock && newY < 0) {
           newHeight += newY;
           newY = 0;
           newHeight = Math.max(MIN_PX, newHeight);
@@ -678,10 +684,11 @@ export default function StudioCanvas({
     const showSelectionRing = isSelected && !isCropperOpen;
     const showResizeHandles = isSelected && !isCropperOpen && block.type !== 'group';
     
-    const isProductsBlock = block.type === 'products';
+    // ⭐ GENERALISATION : isAutoHeightBlock au lieu de isProductsBlock
+    const isAutoHeightBlock = block.type === 'products' || block.type?.startsWith('navbar-');
     
     // ⭐ Pour le bloc products, mettre à jour la ref avec la vraie logique
-    if (isProductsBlock) {
+    if (block.type === 'products') {
       productsOnUpdateRef.current = (updates: any) => {
         if (updates._blockHeight) {
           // ⭐ Déléguer au hook centralisé
@@ -695,7 +702,7 @@ export default function StudioCanvas({
     const commonProps = {
       shop: stableShop,
       block,
-      customization: isProductsBlock ? {} : stableCustomizationForOtherBlocks,
+      customization: block.type === 'products' ? {} : stableCustomizationForOtherBlocks,
       isSelected: showSelectionRing,
       isEditing,
       textOpacity,
@@ -704,7 +711,7 @@ export default function StudioCanvas({
         if (isCropperOpen) return;
         handleSelectBlockWithGroup(block.id, 'background');
       },
-      onUpdate: isProductsBlock ? stableProductsOnUpdate : ((updates: any) => {
+      onUpdate: block.type === 'products' ? stableProductsOnUpdate : ((updates: any) => {
         stableOnUpdateBlock(block.id, updates);
       }),
       onDelete: () => stableOnDeleteBlock(block.id),
@@ -793,7 +800,6 @@ export default function StudioCanvas({
                       top: `${child.position.y}%`,
                       width: `${child.position.width}%`,
                       height: child.position.height === 0 ? 'auto' : `${child.position.height}%`,
-                      // ⭐ Occurrence 1 : minHeight 30px → 16px
                       minHeight: '16px',
                       pointerEvents: 'auto',
                       zIndex: child.position.zIndex,
@@ -826,7 +832,6 @@ export default function StudioCanvas({
                           top: `${child.position.y}%`,
                           width: `${child.position.width}%`,
                           height: child.position.height === 0 ? 'auto' : `${child.position.height}%`,
-                          // ⭐ Occurrence 2 : minHeight 30px → 16px
                           minHeight: '16px',
                           pointerEvents: 'auto',
                         }}
@@ -880,6 +885,26 @@ export default function StudioCanvas({
       switch (block.type) {
         case 'logo':   return <LogoBlock key={block.id} {...commonProps} />;
         case 'title':  return <TitleBlock key={block.id} {...commonProps} />;
+        
+        // ⭐ Navbars — shopSlug supprimé
+        case 'navbar-horizontal':
+        case 'navbar-hero':
+        case 'navbar-sidebar':
+          return (
+            <NavbarBlockRenderer
+              mode="studio"
+              navConfig={block.props?.navConfig}
+              pages={pages}
+              isSelected={showSelectionRing}
+              onSelect={() => {
+                if (!isCropperOpen) handleSelectBlockWithGroup(block.id, 'background');
+              }}
+              onSelectButton={() => {
+                if (!isCropperOpen) handleSelectBlockWithGroup(block.id, 'background');
+              }}
+            />
+          );
+        
         case 'products': {
           console.log('🟣🟣🟣 StudioCanvas - Rendu GridProductsBlock, productsList reçu:', memoizedProductsList?.length);
           return (
@@ -905,7 +930,6 @@ export default function StudioCanvas({
                 globalProductCustomizations={memoizedGlobalProductCustomizations}
                 onUpdateGlobalProductCustomization={stableOnUpdateGlobalProductCustomization}
                 onOpenAssetPicker={stableOnOpenAssetPicker}
-                // ⭐ Utilisation de la fonction stable par blockId
                 onHeightChange={getStableOnHeightChange(block.id)}
               />
             </div>
@@ -920,7 +944,7 @@ export default function StudioCanvas({
       }
     };
 
-    // ⭐ blockStyle simplifié avec height: 'auto' pour les blocs products
+    // ⭐ blockStyle avec height: 'auto' pour les blocs à hauteur auto
     const blockStyle: React.CSSProperties = isChild
       ? {
           width: '100%',
@@ -936,7 +960,7 @@ export default function StudioCanvas({
           width: block.position.width,
           // ⭐ Toujours 'auto' pour laisser le contenu définir la hauteur
           // Le hook mesure la hauteur réelle via onHeightChange
-          height: isProductsBlock ? 'auto' : block.position.height,
+          height: isAutoHeightBlock ? 'auto' : block.position.height,
           zIndex: block.position.zIndex,
           transform: block.position.rotation ? `rotate(${block.position.rotation}deg)` : 'none',
         };
@@ -974,7 +998,6 @@ export default function StudioCanvas({
               {children
                 .filter(child => child.type !== 'group')
                 .map(child => {
-                // ⭐ Occurrence 3 : childStyle minHeight 30px → 16px
                 const childStyle = {
                   position: 'absolute' as const,
                   left: `${child.position.x}%`,
@@ -1033,7 +1056,7 @@ export default function StudioCanvas({
         )}
       </div>
     );
-  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, getStableOnHeightChange, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent, reportBlockHeight]);
+  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, getStableOnHeightChange, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent, reportBlockHeight, pages]);
 
   // Style du fond pour le canvas
   let backgroundStyle: React.CSSProperties = {

@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import ShopCanvas from './ShopCanvas';
-import { GoogleFontsLoader } from './GoogleFontsLoader'; // ⭐ AJOUT
+import { GoogleFontsLoader } from './GoogleFontsLoader';
+import NavbarBlockRenderer from './blocks/navbar/NavbarBlockRenderer'; // ⭐ AJOUT
 import { ShopRenderData } from '@/services/api/shopRender';
 import { getCustomizationForPage } from '@/components/shop-studio/lib/pagesMeta';
 import { StudioProduct, StudioPage } from '@/types/studio';
@@ -25,14 +26,44 @@ export default function ShopPageRenderer({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [sortedPages.length]);
 
+  // ⭐ AJOUT — un clic sur un bouton de Navbar lié à une page résout vers
+  // l'index correspondant, la navigation se faisant en mémoire (pas d'URL par page).
+  const navigateToPageId = useCallback((pageId: string) => {
+    const idx = sortedPages.findIndex(p => p.id === pageId);
+    if (idx !== -1) goTo(idx);
+  }, [sortedPages, goTo]);
+
   if (!currentPage) return null;
 
   const customization = getCustomizationForPage(data.pages, currentPage.id, data.customization);
+  const hasGlobalNavbar = data.globalBlocks.length > 0;
 
   return (
     <div className="w-full min-h-screen flex flex-col">
-      {/* ⭐ AJOUT : charge les polices personnalisées utilisées dans la boutique */}
       <GoogleFontsLoader fonts={data.usedFonts} />
+
+      {/* ── Navigation globale (Navbar du Studio) — persistante sur toutes les pages ── */}
+      {hasGlobalNavbar &&
+        data.globalBlocks.map(block => (
+          <NavbarBlockRenderer
+            key={block.id}
+            mode="shop"
+            navConfig={block.props?.navConfig}
+            pages={sortedPages}
+            currentPageId={currentPage.id}
+            onNavigatePage={navigateToPageId}
+          />
+        ))}
+
+      {/* ── Fallback : onglets simples si aucune Navbar n'a été configurée ── */}
+      {!hasGlobalNavbar && sortedPages.length > 1 && (
+        <PageNavBar
+          pages={sortedPages}
+          currentIndex={currentIndex}
+          onSelect={goTo}
+          customization={customization}
+        />
+      )}
 
       {/* ── Page active ── */}
       <div className="flex-1">
@@ -64,7 +95,7 @@ export default function ShopPageRenderer({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Barre de navigation en haut (onglets)
+// Barre de navigation en haut (onglets) — fallback si aucune Navbar custom
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PageNavBar({
@@ -139,7 +170,6 @@ function PageFooterNav({
       className="w-full py-6 px-4 flex items-center justify-between gap-4"
       style={{ borderTop: `1px solid ${primaryColor}15`, backgroundColor: '#fafafa' }}
     >
-      {/* Bouton Précédent */}
       <button
         onClick={() => hasPrev && onGo(currentIndex - 1)}
         disabled={!hasPrev}
@@ -157,7 +187,6 @@ function PageFooterNav({
         {hasPrev ? pages[currentIndex - 1].name : 'Précédent'}
       </button>
 
-      {/* Dots de pagination */}
       <div className="flex items-center gap-2">
         {pages.map((_, idx) => (
           <button
@@ -175,7 +204,6 @@ function PageFooterNav({
         ))}
       </div>
 
-      {/* Bouton Suivant */}
       <button
         onClick={() => hasNext && onGo(currentIndex + 1)}
         disabled={!hasNext}
@@ -250,10 +278,6 @@ function PageSection({
     </section>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper
-// ─────────────────────────────────────────────────────────────────────────────
 
 function buildBackgroundStyle(customization: any): React.CSSProperties {
   if (!customization) return {};

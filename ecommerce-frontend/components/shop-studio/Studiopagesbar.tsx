@@ -11,6 +11,8 @@ interface StudioPagesBarProps {
   onSelectPage: (pageId: string) => void;
   onAddPage: () => void;
   onDeletePage: (pageId: string) => void;
+  // ⭐ NOUVEAU : prop pour dupliquer une page
+  onDuplicatePage?: (pageId: string) => void;
 }
 
 const THUMB_W = 96;
@@ -81,9 +83,11 @@ export default function StudioPagesBar({
   onSelectPage,
   onAddPage,
   onDeletePage,
+  onDuplicatePage,
 }: StudioPagesBarProps) {
   const [hoveredPageId, setHoveredPageId] = useState<string | null>(null);
   const [pageToDelete, setPageToDelete] = useState<StudioPage | null>(null);
+  const [pageToDuplicate, setPageToDuplicate] = useState<StudioPage | null>(null);
 
   const sortedPages = [...pages].sort((a, b) => a.order - b.order);
 
@@ -126,6 +130,26 @@ export default function StudioPagesBar({
                   />
                 </div>
 
+                {/* ⭐ Bouton Dupliquer */}
+                {sortedPages.length > 0 && onDuplicatePage && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPageToDuplicate(page);
+                    }}
+                    className={`absolute -top-2 -right-7 w-5 h-5 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center text-xs leading-none transition-opacity ${
+                      isHovered ? 'opacity-100' : 'opacity-0'
+                    }`}
+                    title="Dupliquer cette page"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+                      <rect x="3" y="3" width="10" height="10" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                      <rect x="6" y="6" width="10" height="10" rx="1" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                  </button>
+                )}
+
+                {/* ⭐ Bouton Supprimer */}
                 {sortedPages.length > 1 && (
                   <button
                     onClick={(e) => {
@@ -168,6 +192,7 @@ export default function StudioPagesBar({
         </button>
       </div>
 
+      {/* ⭐ Modal de confirmation pour la suppression */}
       {pageToDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
           <div className="bg-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl border border-gray-700">
@@ -190,6 +215,35 @@ export default function StudioPagesBar({
                 className="px-4 py-2 text-sm rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors"
               >
                 Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⭐ Modal de confirmation pour la duplication */}
+      {pageToDuplicate && onDuplicatePage && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
+          <div className="bg-gray-800 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl border border-gray-700">
+            <h3 className="text-white font-semibold mb-2">Dupliquer « {pageToDuplicate.name} » ?</h3>
+            <p className="text-gray-400 text-sm mb-5">
+              Une copie de cette page sera créée avec tous ses blocs.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setPageToDuplicate(null)}
+                className="px-4 py-2 text-sm rounded-lg bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => {
+                  onDuplicatePage(pageToDuplicate.id);
+                  setPageToDuplicate(null);
+                }}
+                className="px-4 py-2 text-sm rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+              >
+                Dupliquer
               </button>
             </div>
           </div>

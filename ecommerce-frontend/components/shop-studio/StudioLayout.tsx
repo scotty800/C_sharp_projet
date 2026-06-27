@@ -20,10 +20,16 @@ import { createDefaultSlideProps } from './blocks/CarouselSlideBlock';
 import { ProductGridConfig, ProductGridSlot, StudioProduct, ProductCustomization, CreateStudioProduct } from '@/types/studio';
 import { normalizeStudioProducts } from '@/components/shop-studio/lib/normalizeProduct';
 
-// ⭐ A) IMPORTS À AJOUTER EN HAUT DU FICHIER
+// ⭐ A) IMPORTS
 import ProductPageSidebar from './panels/Productpagesidebar';
 import { useProductPageBuilder } from '@/hooks/Useproductpagebuilder';
 import { ProductPageConfig } from '../../types/Productpage';
+
+// ⭐ 1) IMPORTS pour les Navbars
+import GlobalNavbarsBar from './GlobalNavbarsBar';
+import PageGlobalNavbars from './PageGlobalNavbars';
+import { useNavbarPageSync } from '@/hooks/useNavbarPageSync';
+import { isNavbarBlockType } from '../shop-studio/lib/navbar/navbarTemplates';
 
 export interface BlockPosition {
   x: number;
@@ -101,6 +107,8 @@ const DEFAULT_POSITION: BlockPosition = {
 };
 
 export const DEFAULT_PAGE_ID = 'page-1';
+export const GLOBAL_BLOCK_PAGE_ID = '__global__';
+
 const PAGES_META_BLOCK_TYPE = '__pages_meta__';
 const PAGES_META_BLOCK_ID = '__pages_meta__';
 const generatePageId = () => `page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -341,8 +349,16 @@ export default function StudioLayout() {
   const [showFloatingLayers, setShowFloatingLayers] = useState(false);
   const [addToParentData, setAddToParentData] = useState<{ parentId: string; parentType: string; parentName: string } | null>(null);
 
-  // ⭐ B) ÉTAT À AJOUTER
   const [showProductPageSidebar, setShowProductPageSidebar] = useState(false);
+
+  // ⭐ useNavbarPageSync
+  useNavbarPageSync(state.pages, (updater) =>
+    setState(prev => {
+      const nextBlocks = updater(prev.blocks);
+      if (nextBlocks === prev.blocks) return prev;
+      return { ...prev, blocks: nextBlocks, isDirty: true };
+    })
+  );
 
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const canvasScrollRef = useRef<HTMLDivElement>(null);
@@ -408,9 +424,19 @@ export default function StudioLayout() {
     setZIndexVersion(prev => prev + 1);
   }, []);
 
+  // ⭐ globalNavbarBlocks
+  const globalNavbarBlocks = useMemo(
+    () => state.blocks.filter(b => b.pageId === GLOBAL_BLOCK_PAGE_ID && isNavbarBlockType(b.type)),
+    [state.blocks]
+  );
+
+  // ⭐ currentPageBlocks
   const currentPageBlocks = useMemo(
-    () => state.blocks.filter(b => (b.pageId || DEFAULT_PAGE_ID) === state.currentPageId),
-    [state.blocks, state.currentPageId]
+    () => [
+      ...globalNavbarBlocks,
+      ...state.blocks.filter(b => (b.pageId || DEFAULT_PAGE_ID) === state.currentPageId),
+    ],
+    [state.blocks, state.currentPageId, globalNavbarBlocks]
   );
 
   const getCustomizationForPage = useCallback((pageId: string) => {
@@ -475,7 +501,7 @@ export default function StudioLayout() {
     refreshCanvas,
   });
 
-  // ⭐ DÉCLARATION DE animateZoomAndCenterOnPage AVANT useProductPageBuilder
+  // ⭐ animateZoomAndCenterOnPage
   const getViewportCenterAnchor = useCallback(() => {
     const scrollEl = canvasScrollRef.current;
     if (!scrollEl) return null;
@@ -585,7 +611,7 @@ export default function StudioLayout() {
     zoomAnimationRef.current = requestAnimationFrame(step);
   }, [applyZoomToDOM, getViewportCenterAnchor]);
 
-  // ⭐ C) CONNECTER useProductPageBuilder (APRÈS la déclaration de animateZoomAndCenterOnPage)
+  // ⭐ useProductPageBuilder
   const { buildProductPage, isGenerating: isGeneratingProductPage } = useProductPageBuilder({
     pages: state.pages,
     blocks: state.blocks,
@@ -595,11 +621,41 @@ export default function StudioLayout() {
     animateZoomAndCenterOnPage,
   });
 
-  // ⭐ D) HANDLER POUR GÉNÉRER LA PAGE
+  // ⭐ HANDLER POUR GÉNÉRER LA PAGE
   const handleGenerateProductPage = useCallback((config: ProductPageConfig) => {
     buildProductPage(config);
     setShowProductPageSidebar(false);
   }, [buildProductPage]);
+
+  // ⭐ duplicatePage
+  const duplicatePage = useCallback((pageId: string) => {
+    setState(prev => {
+      const source = prev.pages.find(p => p.id === pageId);
+      if (!source) return prev;
+      const newPage: StudioPage = {
+        ...source,
+        id: generatePageId(),
+        name: `${source.name} (copie)`,
+        order: prev.pages.length,
+        canvasX: (source.canvasX ?? 0) + 1320,
+        canvasY: source.canvasY ?? 0,
+      };
+      const sourceBlocks = prev.blocks.filter(b => (b.pageId || DEFAULT_PAGE_ID) === pageId);
+      const idMap = new Map(sourceBlocks.map(b => [b.id, `${b.type}-${Date.now()}-${Math.random()}`]));
+      const clonedBlocks = sourceBlocks.map(b => ({
+        ...b,
+        id: idMap.get(b.id)!,
+        pageId: newPage.id,
+        parentId: b.parentId ? (idMap.get(b.parentId) || null) : null,
+      }));
+      return {
+        ...prev,
+        pages: [...prev.pages, newPage],
+        blocks: [...prev.blocks, ...clonedBlocks],
+        isDirty: true,
+      };
+    });
+  }, []);
 
   const selectPage = useCallback((pageId: string) => {
     setState(prev => prev.currentPageId === pageId ? prev : { ...prev, currentPageId: pageId });
@@ -1319,12 +1375,14 @@ export default function StudioLayout() {
       const blockToMove = prev.blocks.find(b => b.id === layerId);
       if (!blockToMove) return prev;
       if (blockToMove.type === 'carousel-slide') return prev;
+      if (isNavbarBlockType(blockToMove.type)) return prev;
+      
       if (newParentId) {
         const newParent = prev.blocks.find(b => b.id === newParentId);
-        if (newParent?.type === 'carousel-slide' && blockToMove.type === 'carousel-slide') {
-          return prev;
-        }
+        if (newParent?.type === 'carousel-slide' && blockToMove.type === 'carousel-slide') return prev;
+        if (newParent && isNavbarBlockType(newParent.type)) return prev;
       }
+      
       let current = newParentId;
       while (current) {
         const parent = prev.blocks.find(b => b.id === current);
@@ -1354,13 +1412,8 @@ export default function StudioLayout() {
             positionType: 'absolute',
           };
         } else {
-          // ⭐ CORRECTIF : pour les blocs de type texte (text, title, button)
-          // on met height: 0 → auto pour qu'ils s'ajustent à leur contenu
           const isTextLikeBlock = ['text', 'title', 'button'].includes(blockToMove.type);
           
-          // ⭐ Convertit la largeur héritée en px en un vrai pourcentage
-          // du nouveau parent, au lieu de réutiliser la valeur px comme
-          // si c'était déjà un %.
           const getAbsoluteWidth = (b: BlockUI): number => {
             if (!b.parentId) return b.position?.width ?? 1200;
             const p = prev.blocks.find(bl => bl.id === b.parentId);
@@ -1589,6 +1642,7 @@ export default function StudioLayout() {
     refreshCanvas();
   }, [refreshCanvas]);
 
+  // ⭐ addBlock
   const addBlock = useCallback((type: string, props: any, parentId: string | null = null) => {
     const newBlockId = `${type}-${Date.now()}-${Math.random()}`;
     setState(prev => {
@@ -1604,16 +1658,21 @@ export default function StudioLayout() {
         else if (type === 'shape') defaultWidth = 20;
         position = { x: 50 - defaultWidth / 2, y: 10, width: defaultWidth, height: 0, zIndex: 10, rotation: 0, positionType: 'relative' };
       } else {
-        position = {
-          x: 200 + pageBlocks.length * 20,
-          y: 100 + pageBlocks.length * 30,
-          width: props.width || 200,
-          height: props.height || (type === 'text' ? 80 : 100),
-          zIndex: pageBlocks.length + 1,
-          rotation: 0,
-          positionType: 'absolute',
-        };
+        const isNavbar = isNavbarBlockType(type);
+        position = isNavbar
+          ? { x: 0, y: 0, width: 1200, height: props.height || 80, zIndex: 9999, rotation: 0, positionType: 'absolute' }
+          : {
+              x: 200 + pageBlocks.length * 20,
+              y: 100 + pageBlocks.length * 30,
+              width: props.width || 200,
+              height: props.height || (type === 'text' ? 80 : 100),
+              zIndex: pageBlocks.length + 1,
+              rotation: 0,
+              positionType: 'absolute',
+            };
       }
+      
+      const isNavbar = isNavbarBlockType(type);
       const newBlock: BlockUI = {
         id: newBlockId,
         type,
@@ -1625,7 +1684,7 @@ export default function StudioLayout() {
         isLocked: false,
         groupId: null,
         gridConfig: type === 'products' ? cloneFreshGridConfig() : undefined,
-        pageId: prev.currentPageId,
+        pageId: isNavbar ? GLOBAL_BLOCK_PAGE_ID : prev.currentPageId,
       };
       return {
         ...prev,
@@ -1659,7 +1718,7 @@ export default function StudioLayout() {
     return [...new Set(fonts.filter(f => f && f !== 'Inter'))];
   }, [state.customization, state.blocks]);
 
-  // ⭐ loadData avec Promise.all incluant rawProducts
+  // ⭐ loadData
   useEffect(() => {
     const loadData = async () => {
       if (!user) {
@@ -1769,9 +1828,11 @@ export default function StudioLayout() {
             const isParent = !!b.parentId;
 
             const rawPageId = b.settings?.pageId;
-            const resolvedPageId = (typeof rawPageId === 'string' && validPageIds.has(rawPageId))
-              ? rawPageId
-              : fallbackPageId;
+            const resolvedPageId = rawPageId === GLOBAL_BLOCK_PAGE_ID
+              ? GLOBAL_BLOCK_PAGE_ID
+              : (typeof rawPageId === 'string' && validPageIds.has(rawPageId))
+                ? rawPageId
+                : fallbackPageId;
             
             return {
               id: b.id,
@@ -1799,7 +1860,6 @@ export default function StudioLayout() {
           console.log(`📐 ${savedBlocks.length} blocs restaurés`);
         }
 
-        // Normaliser et hydrater les produits dans les slots en une seule passe
         const normalizedProducts: StudioProduct[] = normalizeStudioProducts(rawProducts as any[]);
 
         const hydratedBlocks = savedBlocks.map(block => {
@@ -2092,7 +2152,7 @@ export default function StudioLayout() {
     }));
   }, []);
 
-  const duplicateBlock = (blockId: string) => {
+  const duplicateBlock = useCallback((blockId: string) => {
     const block = state.blocks.find(b => b.id === blockId);
     if (block) {
       const newBlock: BlockUI = {
@@ -2118,7 +2178,7 @@ export default function StudioLayout() {
       }));
       refreshCanvas();
     }
-  };
+  }, [currentPageBlocks.length, state.blocks, state.currentPageId, refreshCanvas]);
 
   const reorderBlocks = (startIndex: number, endIndex: number) => {
     setState(prev => {
@@ -2167,17 +2227,21 @@ export default function StudioLayout() {
     setState(prev => ({ ...prev, selectedBlockId: null, selectedTarget: 'background', isBackgroundSelected: true }));
   };
 
+  // ⭐ selectBlock — auto-ouverture du panneau Navigation au clic dans le canvas
   const selectBlock = (blockId: string | null, target?: 'text' | 'background') => {
     if (isCropperOpen && blockId !== null) return;
     setState(prev => {
       const block = blockId ? prev.blocks.find(b => b.id === blockId) : null;
-      const newPageId = block?.pageId || prev.currentPageId;
+      const isGlobalBlock = block?.pageId === GLOBAL_BLOCK_PAGE_ID;
+      const newPageId = (!isGlobalBlock && block?.pageId) || prev.currentPageId;
+      const isNavbar = !!block && isNavbarBlockType(block.type);
       return {
         ...prev,
         selectedBlockId: blockId,
         selectedTarget: target || 'text',
         isBackgroundSelected: false,
         currentPageId: newPageId,
+        activePanel: isNavbar ? 'navbar' : prev.activePanel, // ⭐ ouvre direct le bon panneau
       };
     });
     const matched = blockId ? stateRef.current.blocks.find(b => b.id === blockId) : null;
@@ -2316,7 +2380,6 @@ export default function StudioLayout() {
       <GoogleFontsLoader fonts={usedFonts} />
 
       <div className="fixed inset-0 flex flex-col bg-gray-900 overflow-hidden">
-        {/* ⭐ E) AJOUT DE onOpenProductPage DANS StudioToolbar */}
         <StudioToolbar
           shop={state.shop}
           saving={saving}
@@ -2328,6 +2391,16 @@ export default function StudioLayout() {
           onZoomReset={handleZoomReset}
           zoom={state.zoom}
           onOpenProductPage={() => setShowProductPageSidebar(true)}
+        />
+
+        {/* ⭐ GlobalNavbarsBar avec props simplifiées (pages/currentPageId retirées) */}
+        <GlobalNavbarsBar
+          navbarBlocks={globalNavbarBlocks}
+          selectedBlockId={state.selectedBlockId}
+          onSelectBlock={(id) => selectBlock(id, 'background')}
+          onToggleVisibility={toggleLayerVisibility}
+          onDeleteBlock={deleteLayer}
+          onAddNavbar={addBlock}
         />
 
         <div className="flex flex-1 overflow-hidden">
@@ -2371,6 +2444,7 @@ export default function StudioLayout() {
             onUpdateProductCustomization={updateProductCustomizationRealtime}
             onCloseProductCustomization={handleCloseProductCustomization}
             productsList={memoizedProductsList}
+            pages={state.pages}
           />
 
           <div ref={canvasScrollRef} className="flex-1 overflow-auto p-4 bg-gray-800 relative">
@@ -2393,6 +2467,7 @@ export default function StudioLayout() {
                   transformOrigin: 'top left',
                 }}
               >
+                {/* ⭐ Boucle des frames de page — la Navbar devient partie du frame */}
                 {sortedPages.map(page => {
                   const pageBlocks = state.blocks.filter(b => (b.pageId || DEFAULT_PAGE_ID) === page.id);
                   const frameWidth = state.previewMode === 'desktop' ? 1200 : state.previewMode === 'tablet' ? 768 : 375;
@@ -2416,36 +2491,47 @@ export default function StudioLayout() {
                       >
                         ⠿ {page.name}
                       </span>
-                      <StudioCanvas
-                        shop={state.shop}
-                        blocks={pageBlocks}
-                        customization={getCustomizationForPage(page.id)}
-                        filters={state.filters}
-                        canvasFilters={state.canvasFilters}
-                        selectedBlockId={state.selectedBlockId}
-                        isBackgroundSelected={state.isBackgroundSelected}
-                        onSelectBlock={stableSelectBlock}
-                        onSelectBackground={stableSelectBackground}
-                        onUpdateBlock={stableOnUpdateBlock}
-                        onUpdateBlockPosition={stableOnUpdateBlockPosition}
-                        onReorderBlocks={stableOnReorderBlocks}
-                        onDeleteBlock={stableOnDeleteBlock}
-                        onDuplicateBlock={stableOnDuplicateBlock}
-                        isCropperOpen={isCropperOpen}
-                        onMoveGroup={stableOnMoveGroup}
-                        getGroupMembers={stableGetGroupMembers}
-                        onResizeGroup={stableOnResizeGroup}
-                        getGroupBounds={stableGetGroupBounds}
-                        onResizeGroupStart={stableOnResizeGroupStart}
-                        onResizeGroupEnd={stableOnResizeGroupEnd}
-                        onAddSlide={stableOnAddSlide}
-                        onUpdateGridConfig={updateBlockGridConfig}
-                        productsList={memoizedProductsList}
-                        onLinkProduct={linkProductToSlot}
-                        onOpenProductCustomization={stableHandleOpenProductCustomization}
-                        globalProductCustomizations={memoizedGlobalProductCustomizations}
-                        onUpdateGlobalProductCustomization={stableHandleUpdateGlobalProductCustomization}
-                      />
+
+                      {/* ⭐ Wrapper relatif : permet à la Navbar sidebar (overlay) de s'étirer sur toute la hauteur de la frame */}
+                      <div className="relative">
+                        <PageGlobalNavbars
+                          navbarBlocks={globalNavbarBlocks}
+                          pages={state.pages}
+                          pageId={page.id}
+                          selectedBlockId={state.selectedBlockId}
+                          onSelectBlock={(id) => selectBlock(id, 'background')}
+                        />
+                        <StudioCanvas
+                          shop={state.shop}
+                          blocks={pageBlocks}
+                          customization={getCustomizationForPage(page.id)}
+                          filters={state.filters}
+                          canvasFilters={state.canvasFilters}
+                          selectedBlockId={state.selectedBlockId}
+                          isBackgroundSelected={state.isBackgroundSelected}
+                          onSelectBlock={stableSelectBlock}
+                          onSelectBackground={stableSelectBackground}
+                          onUpdateBlock={stableOnUpdateBlock}
+                          onUpdateBlockPosition={stableOnUpdateBlockPosition}
+                          onReorderBlocks={stableOnReorderBlocks}
+                          onDeleteBlock={stableOnDeleteBlock}
+                          onDuplicateBlock={stableOnDuplicateBlock}
+                          isCropperOpen={isCropperOpen}
+                          onMoveGroup={stableOnMoveGroup}
+                          getGroupMembers={stableGetGroupMembers}
+                          onResizeGroup={stableOnResizeGroup}
+                          getGroupBounds={stableGetGroupBounds}
+                          onResizeGroupStart={stableOnResizeGroupStart}
+                          onResizeGroupEnd={stableOnResizeGroupEnd}
+                          onAddSlide={stableOnAddSlide}
+                          onUpdateGridConfig={updateBlockGridConfig}
+                          productsList={memoizedProductsList}
+                          onLinkProduct={linkProductToSlot}
+                          onOpenProductCustomization={stableHandleOpenProductCustomization}
+                          globalProductCustomizations={memoizedGlobalProductCustomizations}
+                          onUpdateGlobalProductCustomization={stableHandleUpdateGlobalProductCustomization}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -2476,6 +2562,7 @@ export default function StudioLayout() {
               onSelectPage={selectPage}
               onAddPage={addPage}
               onDeletePage={deletePage}
+              onDuplicatePage={duplicatePage}
             />
           </div>
         </div>
@@ -2517,7 +2604,6 @@ export default function StudioLayout() {
           />
         )}
 
-        {/* ⭐ F) AFFICHAGE DE LA SIDEBAR PRODUCT PAGE (overlay) */}
         {showProductPageSidebar && (
           <div className="fixed inset-y-0 left-14 z-[200] flex">
             <ProductPageSidebar

@@ -2,6 +2,7 @@ import { shopCustomizationService } from './shopCustomization';
 import { productService } from './products';
 import { normalizeStudioProducts } from '@/components/shop-studio/lib/normalizeProduct';
 import { parsePagesAndBlocks } from '@/components/shop-studio/lib/pagesMeta';
+import { isNavbarBlockType } from '@/components/shop-studio/lib/navbar/navbarTemplates'; // ⭐ AJOUT
 import { BlockUI, ProductCustomization, StudioPage, StudioProduct } from '@/types/studio';
 
 export interface ShopRenderData {
@@ -10,18 +11,13 @@ export interface ShopRenderData {
   canvasFilters: any;
   pages: StudioPage[];
   blocksByPage: Map<string, BlockUI[]>;
+  globalBlocks: BlockUI[]; // ⭐ AJOUT — Navbars persistantes, indépendantes de la page courante
   hasStudioContent: boolean;
   productsList: StudioProduct[];
   globalProductCustomizations: Map<number, ProductCustomization>;
-  usedFonts: string[]; // ⭐ NOUVEAU
+  usedFonts: string[];
 }
 
-/**
- * Recense toutes les polices personnalisées utilisées dans la boutique :
- * customization globale + props des blocs + configs des slots produits
- * (traditionalConfig/interactiveConfig ne sont pas dans block.props, donc
- * il faut les inspecter à part).
- */
 function collectUsedFonts(customization: any, blocks: BlockUI[]): string[] {
   const fonts: string[] = [];
 
@@ -40,7 +36,6 @@ function collectUsedFonts(customization: any, blocks: BlockUI[]): string[] {
     if (props.priceFont) fonts.push(props.priceFont);
     if (props.productNameFont) fonts.push(props.productNameFont);
 
-    // ⭐ Polices définies au niveau des slots (grille produits)
     if (block.type === 'products' && block.gridConfig?.slots) {
       block.gridConfig.slots.forEach(slot => {
         const cc: any = slot.customConfig;
@@ -50,13 +45,21 @@ function collectUsedFonts(customization: any, blocks: BlockUI[]): string[] {
         if (cc?.interactiveConfig?.priceFont) fonts.push(cc.interactiveConfig.priceFont);
       });
     }
+
+    // ⭐ AJOUT — polices utilisées dans une Navbar (style par défaut + overrides par bouton)
+    if (isNavbarBlockType(block.type) && props.navConfig) {
+      const nav = props.navConfig;
+      if (nav.defaultButtonStyle?.fontFamily) fonts.push(nav.defaultButtonStyle.fontFamily);
+      nav.buttons?.forEach((btn: any) => {
+        if (btn.style?.fontFamily) fonts.push(btn.style.fontFamily);
+      });
+    }
   });
 
   return [...new Set(fonts.filter(f => f && f !== 'Inter'))];
 }
 
 export const shopRenderService = {
-  /** `shop` doit déjà avoir été chargé (évite un double appel réseau). */
   async getRenderData(shop: any): Promise<ShopRenderData> {
     const shopId = shop.id;
 
@@ -74,9 +77,15 @@ export const shopRenderService = {
 
     const { pages, blocks, productCustomizations } = parsePagesAndBlocks(blocksFromApi as any[]);
 
+    // ⭐ AJOUT — on isole les Navbars (blocs globaux) avant de répartir le reste
+    // par page. Une Navbar ajoutée dans le Studio est automatiquement
+    // persistante sur toutes les pages de la boutique.
+    const globalBlocks = blocks.filter(b => isNavbarBlockType(b.type));
+    const pageScopedBlocks = blocks.filter(b => !isNavbarBlockType(b.type));
+
     const blocksByPage = new Map<string, BlockUI[]>();
     pages.forEach(p => blocksByPage.set(p.id, []));
-    blocks.forEach(b => {
+    pageScopedBlocks.forEach(b => {
       const pid = b.pageId || pages[0].id;
       if (!blocksByPage.has(pid)) blocksByPage.set(pid, []);
       blocksByPage.get(pid)!.push(b);
@@ -98,7 +107,6 @@ export const shopRenderService = {
       backgroundOpacity: background?.backgroundOpacity ?? 100,
     };
 
-    // ⭐ Calcul des polices à charger
     const usedFonts = collectUsedFonts(finalCustomization, blocks);
 
     return {
@@ -107,6 +115,7 @@ export const shopRenderService = {
       canvasFilters,
       pages,
       blocksByPage,
+      globalBlocks, // ⭐ AJOUT
       hasStudioContent: blocks.length > 0,
       productsList,
       globalProductCustomizations,

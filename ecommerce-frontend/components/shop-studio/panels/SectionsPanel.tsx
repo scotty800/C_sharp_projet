@@ -1,7 +1,7 @@
-// components/shop-studio/panels/SectionsPanel.tsx
 'use client';
 
-import { FiMaximize2, FiGrid, FiFileText, FiMonitor, FiImage } from 'react-icons/fi';
+import { FiMaximize2, FiGrid, FiImage, FiMonitor, FiMenu, FiColumns } from 'react-icons/fi';
+import { NAVBAR_TEMPLATES, NavbarTemplate } from '../lib/navbar/navbarTemplates';
 
 interface Props {
   onAddSection: (type: string, props: any) => void;
@@ -77,33 +77,68 @@ const SECTIONS = [
   },
 ];
 
+const NAVBAR_VARIANT_ICONS: Record<string, any> = {
+  horizontal: FiMenu,
+  hero: FiMaximize2,
+  sidebar: FiColumns,
+};
+
 export default function SectionsPanel({ onAddSection }: Props) {
+  const handleAddNavbar = (tpl: NavbarTemplate) => {
+    onAddSection(`navbar-${tpl.variant}`, { navConfig: tpl.createDefaultConfig() });
+  };
+
   return (
     <div className="space-y-3">
-      <h3 className="text-white font-semibold mb-3">Ajouter une section</h3>
-      <div className="space-y-2">
-        {SECTIONS.map((section) => {
-          const Icon = section.icon;
-          return (
-            <button
-              key={section.type}
-              onClick={() => {
-                console.log('🖱️ Ajout section:', section.type);
-                onAddSection(section.type, section.defaultProps);
-              }}
-              className="w-full flex items-center gap-4 p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all hover:scale-[1.02] text-left"
-            >
-              <div className="p-2 bg-primary/20 rounded-lg">
-                <Icon size={24} className="text-primary" />
-              </div>
-              <div className="flex-1">
-                <div className="text-white font-medium">{section.label}</div>
-                <div className="text-gray-400 text-xs">{section.description}</div>
-              </div>
-              <div className="text-gray-500 text-xl">+</div>
-            </button>
-          );
-        })}
+      <div>
+        <h3 className="text-white font-semibold mb-1 text-sm">Navigation</h3>
+        <p className="text-gray-500 text-xs mb-3">Menus globaux — visibles sur toutes les pages</p>
+        <div className="space-y-2">
+          {NAVBAR_TEMPLATES.map((tpl) => {
+            const Icon = NAVBAR_VARIANT_ICONS[tpl.variant] || FiMenu;
+            return (
+              <button
+                key={tpl.id}
+                onClick={() => handleAddNavbar(tpl)}
+                className="w-full flex items-center gap-4 p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all hover:scale-[1.02] text-left border border-purple-500/20"
+              >
+                <div className="p-2 bg-purple-500/20 rounded-lg">
+                  <Icon size={24} className="text-purple-400" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-white font-medium">{tpl.label}</div>
+                  <div className="text-gray-400 text-xs">{tpl.description}</div>
+                </div>
+                <div className="text-gray-500 text-xl">+</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-white font-semibold mb-3 text-sm">Sections</h3>
+        <div className="space-y-2">
+          {SECTIONS.map((section) => {
+            const Icon = section.icon;
+            return (
+              <button
+                key={section.type}
+                onClick={() => onAddSection(section.type, section.defaultProps)}
+                className="w-full flex items-center gap-4 p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all hover:scale-[1.02] text-left"
+              >
+                <div className="p-2 bg-primary/20 rounded-lg">
+                  <Icon size={24} className="text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-white font-medium">{section.label}</div>
+                  <div className="text-gray-400 text-xs">{section.description}</div>
+                </div>
+                <div className="text-gray-500 text-xl">+</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -4,13 +4,22 @@ import {
   FiType, FiImage, FiGrid, FiMaximize2, 
   FiSquare, FiHeart, FiFileText, FiMousePointer,
   FiBox, FiCircle, FiTriangle, FiStar, FiPlus,
-  FiShoppingBag, FiTag, FiVideo, FiMapPin, FiX
+  FiShoppingBag, FiTag, FiVideo, FiMapPin, FiX,
+  FiMenu, FiColumns // ⭐ AJOUT — icônes pour les modèles de Navbar
 } from 'react-icons/fi';
+import { NAVBAR_TEMPLATES, NavbarTemplate } from '../lib/navbar/navbarTemplates'; // ⭐ AJOUT
 
 interface Props {
   onClose: () => void;
   onAddBlock: (type: any, props: any) => void;
 }
+
+// ⭐ AJOUT — mapping variant → icône (extensible : ajouter une entrée ici pour un nouveau style)
+const NAVBAR_VARIANT_ICONS: Record<string, any> = {
+  horizontal: FiMenu,
+  hero: FiMaximize2,
+  sidebar: FiColumns,
+};
 
 const BLOCKS = [
   // 📝 Textes
@@ -233,6 +242,13 @@ const BLOCKS = [
 ];
 
 export default function AddBlockPanel({ onClose, onAddBlock }: Props) {
+  // ⭐ AJOUT — ajout d'une navbar : type = `navbar-${variant}`, props = { navConfig } généré frais à chaque clic
+  // (on appelle createDefaultConfig() au clic et non à la définition du module, pour éviter
+  // que deux navbars ajoutées depuis ce panneau ne partagent la même référence d'objet)
+  const handleAddNavbar = (tpl: NavbarTemplate) => {
+    onAddBlock(`navbar-${tpl.variant}`, { navConfig: tpl.createDefaultConfig() });
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-gray-800 rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] overflow-y-auto p-6">
@@ -248,22 +264,51 @@ export default function AddBlockPanel({ onClose, onAddBlock }: Props) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-          {BLOCKS.map((block) => (
-            <button
-              key={`${block.type}-${block.label}`}
-              onClick={() => onAddBlock(block.type, block.defaultProps)}
-              className="flex flex-col items-center gap-2 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-all hover:scale-105"
-            >
-              <block.icon size={28} className="text-primary" />
-              <span className="text-white text-xs">{block.label}</span>
-            </button>
-          ))}
+        {/* ⭐ AJOUT — Catégorie Navigation */}
+        <div className="mb-6">
+          <h4 className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-3 flex items-center gap-2">
+            🧭 Navigation
+            <span className="text-gray-500 font-normal normal-case">— Menus de la boutique</span>
+          </h4>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            {NAVBAR_TEMPLATES.map((tpl) => {
+              const Icon = NAVBAR_VARIANT_ICONS[tpl.variant] || FiMenu;
+              return (
+                <button
+                  key={tpl.id}
+                  onClick={() => handleAddNavbar(tpl)}
+                  title={tpl.description}
+                  className="flex flex-col items-center gap-2 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-all hover:scale-105 border border-purple-500/20"
+                >
+                  <Icon size={28} className="text-purple-400" />
+                  <span className="text-white text-xs text-center">{tpl.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <h4 className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-3">
+            🧩 Composants
+          </h4>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+            {BLOCKS.map((block) => (
+              <button
+                key={`${block.type}-${block.label}`}
+                onClick={() => onAddBlock(block.type, block.defaultProps)}
+                className="flex flex-col items-center gap-2 p-3 bg-gray-700 rounded-lg hover:bg-gray-600 transition-all hover:scale-105"
+              >
+                <block.icon size={28} className="text-primary" />
+                <span className="text-white text-xs">{block.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
         
         <div className="mt-6 pt-4 border-t border-gray-700 text-center">
           <p className="text-gray-500 text-xs">
-            + de 20 éléments disponibles • Cliquez pour ajouter
+            + de {BLOCKS.length + NAVBAR_TEMPLATES.length} éléments disponibles • Cliquez pour ajouter
           </p>
         </div>
       </div>

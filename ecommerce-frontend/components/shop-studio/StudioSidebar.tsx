@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { 
   FiDroplet, FiType, FiFilter, FiImage, FiLayout, 
-  FiPackage, FiSettings, FiCamera, FiPlusSquare, FiLayers, FiX
+  FiPackage, FiSettings, FiCamera, FiPlusSquare, FiLayers, FiX,
+  FiMenu // ⭐ NOUVEAU pour la navigation
 } from 'react-icons/fi';
 import ColorsPanel from './panels/ColorsPanel';
 import FontsPanel from './panels/FontsPanel';
@@ -17,7 +18,10 @@ import SnapshotsPanel from './panels/SnapshotsPanel';
 import TextPanel from './panels/TextPanel';
 import GridManagerPanel from './panels/GridManagerPanel';
 import ProductCustomizationSidebar from './panels/ProductCustomizationSidebar';
+// ⭐ NOUVEAU : panneau Navigation
+import NavbarPanel from './panels/NavbarPanel';
 import { ProductGridConfig, ProductGridSlot, StudioProduct, ProductCustomization, CreateStudioProduct } from '@/types/studio';
+import { StudioPage } from '@/types/studio';
 
 interface Props {
   shop: any;
@@ -65,8 +69,11 @@ interface Props {
   onUpdateProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
   onCloseProductCustomization?: () => void;
   productsList?: StudioProduct[];
+  // ⭐ NOUVEAU : pages pour la navigation
+  pages?: StudioPage[];
 }
 
+// ⭐ PANELS mis à jour avec l'ajout de 'navbar'
 const PANELS = [
   { id: 'sections',   label: 'Sections',    icon: FiPlusSquare },
   { id: 'textes',     label: 'Textes',      icon: FiType },
@@ -79,6 +86,7 @@ const PANELS = [
   { id: 'snapshots',  label: 'Versions',    icon: FiCamera },
   { id: 'settings',   label: 'Paramètres',  icon: FiSettings },
   { id: 'layers',     label: 'Calques',     icon: FiLayers },
+  { id: 'navbar',     label: 'Navigation',  icon: FiMenu }, // ⭐ NOUVEAU
 ];
 
 export default function StudioSidebar({ 
@@ -92,6 +100,7 @@ export default function StudioSidebar({
   onCreateProduct, selectedProductForCustomization,
   onUpdateProductCustomization, onCloseProductCustomization,
   productsList = [],
+  pages = [], // ⭐ NOUVEAU : pages
 }: Props) {
 
   // Panel ouvert (null = panneau droit fermé)
@@ -243,6 +252,19 @@ export default function StudioSidebar({
             </p>
           </div>
         );
+
+      // ⭐ NOUVEAU : Panneau Navigation
+      case 'navbar':
+        return selectedBlock?.type?.startsWith('navbar-')
+          ? <NavbarPanel block={selectedBlock} pages={pages} onUpdateBlock={handleUpdateBlock} />
+          : (
+            <div className="text-center py-8 text-gray-400 text-xs">
+              <FiMenu size={24} className="mx-auto mb-2 text-gray-600" />
+              Sélectionnez une Navbar sur le canvas
+              <br />
+              <span className="text-gray-600 text-[10px]">(bloc de type "navbar-*")</span>
+            </div>
+          );
 
       default:
         return null;
