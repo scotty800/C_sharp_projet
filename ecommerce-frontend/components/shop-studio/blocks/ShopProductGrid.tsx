@@ -4,13 +4,28 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image';
 import { FiX } from 'react-icons/fi';
 import {
-  useInjectGridStyles, DEFAULT_CUSTOMIZATION, FRAME_STYLE_CONFIG,
-  getSlideCustomization, getHoverEffectClass, getCustomFrameStylesUtil, getImageStylesUtil,
-  getHoverEffectVarsUtil, getEntranceAnimationClassUtil, getEntranceAnimationStyleUtil,
-  renderCustomBadgeUtil, getBackgroundStylesOnly, getImageCropStyle, computeSlotGeometry,
+  useInjectGridStyles,
+  DEFAULT_CUSTOMIZATION,
+  FRAME_STYLE_CONFIG,
+  getSlideCustomization,
+  getHoverEffectClass,
+  getCustomFrameStylesUtil,
+  getImageStylesUtil,
+  getHoverEffectVarsUtil,
+  getEntranceAnimationClassUtil,
+  getEntranceAnimationStyleUtil,
+  renderCustomBadgeUtil,
+  getBackgroundStylesOnly,
+  getImageCropStyle,
+  computeSlotGeometry,
   ProductCarousel,
 } from '@/components/shop-studio/blocks/productGrid/shared';
-import { ProductCustomization, ProductGridConfig, ProductGridSlot, StudioProduct, ProductSlotData } from '@/types/studio';
+import {
+  ProductCustomization,
+  ProductGridConfig,
+  ProductGridSlot,
+  StudioProduct,
+} from '@/types/studio';
 
 interface Props {
   block: any;
@@ -19,10 +34,20 @@ interface Props {
   globalProductCustomizations: Map<number, ProductCustomization>;
   onAddToCart?: (product: StudioProduct) => void;
   onHeightChange?: (height: number) => void;
+  // ⭐ Navigation produit → page produit
+  onNavigateToProduct?: (productId: number) => void;
+  hasProductPage?: (productId: number) => boolean;
 }
 
 export default function ShopProductGrid({
-  block, gridConfig, productsList, globalProductCustomizations, onAddToCart, onHeightChange,
+  block,
+  gridConfig,
+  productsList,
+  globalProductCustomizations,
+  onAddToCart,
+  onHeightChange,
+  onNavigateToProduct,
+  hasProductPage,
 }: Props) {
   useInjectGridStyles();
 
@@ -31,9 +56,9 @@ export default function ShopProductGrid({
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const ro = new ResizeObserver(entries => {
+    const ro = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
-      setContainerWidth(w => (Math.abs(w - width) > 0.5 ? width : w));
+      setContainerWidth((w) => (Math.abs(w - width) > 0.5 ? width : w));
       onHeightChange?.(height);
     });
     ro.observe(containerRef.current);
@@ -43,12 +68,14 @@ export default function ShopProductGrid({
   const props = block?.props || {};
 
   const getSlotProduct = useCallback(
-    (slot: ProductGridSlot) => slot.linkedProduct || productsList.find(p => p.id === slot.productId) || null,
+    (slot: ProductGridSlot) =>
+      slot.linkedProduct || productsList.find((p) => p.id === slot.productId) || null,
     [productsList]
   );
 
   const getProductCustomization = useCallback(
-    (productId: number) => globalProductCustomizations.get(productId) || { ...DEFAULT_CUSTOMIZATION },
+    (productId: number) =>
+      globalProductCustomizations.get(productId) || { ...DEFAULT_CUSTOMIZATION },
     [globalProductCustomizations]
   );
 
@@ -60,16 +87,16 @@ export default function ShopProductGrid({
   const slots = gridConfig.slots;
 
   const coveredCells = new Set<string>();
-  slots.forEach(slot => {
-    const startRow = slot.gridPosition.row, startCol = slot.gridPosition.col;
-    const rowSpan = slot.gridPosition.rowSpan || 1, colSpan = slot.gridPosition.colSpan || 1;
+  slots.forEach((slot) => {
+    const { row: startRow, col: startCol, rowSpan = 1, colSpan = 1 } = slot.gridPosition;
     for (let r = startRow; r < startRow + rowSpan; r++)
       for (let c = startCol; c < startCol + colSpan; c++)
         if (r !== startRow || c !== startCol) coveredCells.add(`${c}-${r}`);
   });
 
   const dynamicRowsCount = slots.reduce(
-    (max, s) => Math.max(max, s.gridPosition.row + (s.gridPosition.rowSpan || 1)), 0
+    (max, s) => Math.max(max, s.gridPosition.row + (s.gridPosition.rowSpan || 1)),
+    0
   );
 
   const gridStyle: React.CSSProperties = {
@@ -100,7 +127,9 @@ export default function ShopProductGrid({
             Array.from({ length: columns }, (_, colIndex) => {
               const cellKey = `${colIndex}-${rowIndex}`;
               if (coveredCells.has(cellKey)) return null;
-              const slot = slots.find(s => s.gridPosition.row === rowIndex && s.gridPosition.col === colIndex);
+              const slot = slots.find(
+                (s) => s.gridPosition.row === rowIndex && s.gridPosition.col === colIndex
+              );
               if (!slot) return null;
 
               return (
@@ -120,6 +149,8 @@ export default function ShopProductGrid({
                     getSlotProduct={getSlotProduct}
                     getProductCustomization={getProductCustomization}
                     onAddToCart={onAddToCart}
+                    onNavigateToProduct={onNavigateToProduct}
+                    hasProductPage={hasProductPage}
                   />
                 </div>
               );
@@ -131,7 +162,8 @@ export default function ShopProductGrid({
   );
 }
 
-// ⭐ Interface pour les types du customConfig
+// ─────────────────────────────────────────────────────────────────────────────
+
 interface CustomConfigWithTraditional {
   customTitle?: string;
   customImage?: string;
@@ -185,7 +217,17 @@ interface CustomConfigWithTraditional {
 }
 
 function ShopSlotView({
-  slot, containerWidth, columns, gap, gridPadding, props, getSlotProduct, getProductCustomization, onAddToCart,
+  slot,
+  containerWidth,
+  columns,
+  gap,
+  gridPadding,
+  props,
+  getSlotProduct,
+  getProductCustomization,
+  onAddToCart,
+  onNavigateToProduct,
+  hasProductPage,
 }: {
   slot: ProductGridSlot;
   containerWidth: number;
@@ -196,12 +238,12 @@ function ShopSlotView({
   getSlotProduct: (slot: ProductGridSlot) => StudioProduct | null;
   getProductCustomization: (productId: number) => ProductCustomization;
   onAddToCart?: (product: StudioProduct) => void;
+  onNavigateToProduct?: (productId: number) => void;
+  hasProductPage?: (productId: number) => boolean;
 }) {
   const [overlayOpen, setOverlayOpen] = useState(false);
 
   const product = getSlotProduct(slot);
-  
-  // ⭐ Typer correctement le customConfig
   const cc = slot.customConfig as CustomConfigWithTraditional | undefined;
   const hasCustom = cc?.customTitle || cc?.customImage;
   const productCustom = product ? getProductCustomization(product.id) : null;
@@ -213,7 +255,8 @@ function ShopSlotView({
   const effectiveCustom = getSlideCustomization(productCustom, currentImageIndex) || productCustom;
 
   const frameStyle = slot.frameStyle || 'square';
-  const frameConfig = FRAME_STYLE_CONFIG[frameStyle as keyof typeof FRAME_STYLE_CONFIG] || FRAME_STYLE_CONFIG.square;
+  const frameConfig =
+    FRAME_STYLE_CONFIG[frameStyle as keyof typeof FRAME_STYLE_CONFIG] || FRAME_STYLE_CONFIG.square;
 
   const displayName = cc?.customTitle || product?.name || 'Sans titre';
   const displayPrice = product?.price;
@@ -222,16 +265,26 @@ function ShopSlotView({
 
   const displayImage = !product
     ? cc?.customImage || null
-    : slot.imageIndex === 0 && product.imageUrl1 ? product.imageUrl1
-    : slot.imageIndex === 1 && product.imageUrl2 ? product.imageUrl2
-    : slot.imageIndex === 2 && product.imageUrl3 ? product.imageUrl3
+    : slot.imageIndex === 0 && product.imageUrl1
+    ? product.imageUrl1
+    : slot.imageIndex === 1 && product.imageUrl2
+    ? product.imageUrl2
+    : slot.imageIndex === 2 && product.imageUrl3
+    ? product.imageUrl3
     : product.imageUrl1 || product.imageUrl2 || product.imageUrl3 || null;
 
   const rowSpan = slot.gridPosition.rowSpan || 1;
   const colSpan = slot.gridPosition.colSpan || 1;
-  const { slotBoxStyle, cellWidth, ar1, ar2 } = computeSlotGeometry(containerWidth, columns, gap, gridPadding, frameConfig, rowSpan, colSpan);
+  const { slotBoxStyle, cellWidth, ar1, ar2 } = computeSlotGeometry(
+    containerWidth,
+    columns,
+    gap,
+    gridPadding,
+    frameConfig,
+    rowSpan,
+    colSpan
+  );
 
-  // Tous les hooks doivent être appelés avant le "return null" du cas vide
   const imageCropsMap = useMemo(() => {
     const map: Record<number, React.CSSProperties> = {};
     for (let idx = 0; idx < allImages.length; idx++) map[idx] = getImageCropStyle(slot, idx);
@@ -241,28 +294,52 @@ function ShopSlotView({
   const slideCustomizationsMap = useMemo(() => {
     if (!productCustom) return {};
     const map: Record<number, ProductCustomization | null> = {};
-    for (let idx = 0; idx < allImages.length; idx++) map[idx] = getSlideCustomization(productCustom, idx);
+    for (let idx = 0; idx < allImages.length; idx++)
+      map[idx] = getSlideCustomization(productCustom, idx);
     return map;
   }, [productCustom, allImages.length, JSON.stringify(productCustom?.slidesConfig)]);
 
-  // Côté Boutique : un slot vide ne s'affiche jamais
+  // Côté boutique : slot vide non affiché
   if (!product && !hasCustom) return null;
 
-  const getCustomForImageIndex = (imageIdx: number) => getSlideCustomization(productCustom, imageIdx) || productCustom;
+  // ⭐ Est-ce que ce produit a une page produit dédiée ?
+  const productHasPage = product && hasProductPage ? hasProductPage(product.id) : false;
+
+  /**
+   * ⭐ Gestionnaire de clic centralisé.
+   *
+   * Priorité :
+   *  1. Si une page produit est liée → navigation immédiate (avec transition)
+   *  2. Mode interactif sans page produit → ouvre l'overlay local
+   *  3. Sinon → rien (clic ignoré silencieusement)
+   */
+  const handleSlotClick = useCallback(() => {
+    if (productHasPage && product && onNavigateToProduct) {
+      onNavigateToProduct(product.id);
+      return;
+    }
+    if (slot.displayMode === 'interactive') {
+      setOverlayOpen(true);
+    }
+  }, [productHasPage, product, onNavigateToProduct, slot.displayMode]);
+
   const hoverClass = getHoverEffectClass(effectiveCustom);
   const hoverVars = getHoverEffectVarsUtil(effectiveCustom);
   const frameStyles = getCustomFrameStylesUtil(effectiveCustom);
   const entranceClass = getEntranceAnimationClassUtil(effectiveCustom);
   const entranceStyle = getEntranceAnimationStyleUtil(effectiveCustom);
-  
-  // ⭐ Extraire la config traditionnelle avec des valeurs par défaut
   const tradConfig = cc?.traditionalConfig || {};
 
-  // ── MODE INTERACTIF ──
+  // ── CURSEUR ADAPTATIF ──────────────────────────────────────────────────────
+  // pointer si cliquable (page produit ou mode interactif), sinon default
+  const slotCursor =
+    productHasPage || slot.displayMode === 'interactive' ? 'pointer' : 'default';
+
+  // ── MODE INTERACTIF ────────────────────────────────────────────────────────
   if (slot.displayMode === 'interactive') {
-    const triggerType = cc?.interactiveConfig?.triggerType || 'click';
+    const interactiveCfg = cc?.interactiveConfig || {};
     const currentImageIdx = slot.imageIndex ?? 0;
-    const customForImage = getCustomForImageIndex(currentImageIdx);
+    const customForImage = getSlideCustomization(productCustom, currentImageIdx) || productCustom;
     const interactiveImgStyles = getImageStylesUtil(customForImage);
     const interactiveBgStyles = getBackgroundStylesOnly(customForImage);
     const interactiveBadge = customForImage && renderCustomBadgeUtil(customForImage, frameConfig);
@@ -270,28 +347,57 @@ function ShopSlotView({
     const interactiveHoverVars = getHoverEffectVarsUtil(customForImage);
     const interactiveFrameStyles = getCustomFrameStylesUtil(customForImage);
 
-    // ⭐ Extraire la config interactive avec des valeurs par défaut
-    const interactiveCfg = cc?.interactiveConfig || {};
-
     return (
       <>
         <div
-          className={`relative cursor-pointer w-full group ${interactiveHoverClass}`}
-          style={{ ...slotBoxStyle, overflow: 'visible', ...interactiveHoverVars }}
-          onClick={() => triggerType === 'click' && setOverlayOpen(true)}
-          onMouseEnter={() => triggerType === 'hover' && setOverlayOpen(true)}
-          onMouseLeave={() => triggerType === 'hover' && setOverlayOpen(false)}
+          className={`relative w-full group ${interactiveHoverClass}`}
+          style={{
+            ...slotBoxStyle,
+            overflow: 'visible',
+            ...interactiveHoverVars,
+            cursor: slotCursor,
+          }}
+          onClick={handleSlotClick}
+          onMouseEnter={() =>
+            !productHasPage && interactiveCfg.triggerType === 'hover' && setOverlayOpen(true)
+          }
+          onMouseLeave={() =>
+            !productHasPage && interactiveCfg.triggerType === 'hover' && setOverlayOpen(false)
+          }
         >
-          <div className="relative w-full h-full overflow-hidden transition-colors duration-300" style={{ borderRadius: frameConfig.borderRadius, ...interactiveFrameStyles, ...interactiveBgStyles }}>
+          <div
+            className="relative w-full h-full overflow-hidden transition-colors duration-300"
+            style={{
+              borderRadius: frameConfig.borderRadius,
+              ...interactiveFrameStyles,
+              ...interactiveBgStyles,
+            }}
+          >
             {isCarousel && product ? (
               <ProductCarousel
-                images={allImages} productName={displayName} frameConfig={frameConfig} carouselConfig={carCfg} autoPlay
-                imageCrops={imageCropsMap} slideCustomizations={slideCustomizationsMap}
-                slotId={slot.id} namespace="shop"
+                images={allImages}
+                productName={displayName}
+                frameConfig={frameConfig}
+                carouselConfig={carCfg}
+                autoPlay
+                imageCrops={imageCropsMap}
+                slideCustomizations={slideCustomizationsMap}
+                slotId={slot.id}
+                namespace="shop"
               />
             ) : displayImage ? (
               <div style={interactiveImgStyles} className="w-full h-full relative">
-                <Image src={displayImage} alt={displayName} fill className="object-cover" unoptimized style={{ backgroundColor: 'transparent', ...imageCropsMap[slot.imageIndex ?? 0] }} />
+                <Image
+                  src={displayImage}
+                  alt={displayName}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                  style={{
+                    backgroundColor: 'transparent',
+                    ...imageCropsMap[slot.imageIndex ?? 0],
+                  }}
+                />
               </div>
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50/50">
@@ -303,38 +409,70 @@ function ShopSlotView({
           </div>
         </div>
 
-        {overlayOpen && (
+        {/* Overlay local — affiché uniquement si PAS de page produit liée */}
+        {overlayOpen && !productHasPage && (
           <>
             <div
               className="fixed inset-0 z-[999]"
-              style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: `blur(${interactiveCfg.overlayBlur ?? 4}px)` }}
+              style={{
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                backdropFilter: `blur(${interactiveCfg.overlayBlur ?? 4}px)`,
+              }}
               onClick={() => setOverlayOpen(false)}
             />
             <div
-              className={`fixed z-[1000] ${entranceClass}`}
+              className="fixed z-[1000]"
               style={{
-                top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
                 width: `${Math.min(cellWidth * 1.8, 480)}px`,
                 height: `${Math.min(cellWidth * 1.8, 480) * (ar2 / ar1)}px`,
-                borderRadius: frameConfig.borderRadius === '50%' ? '16px' : frameConfig.borderRadius,
-                overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
-                animation: entranceClass ? undefined : 'interactiveSlotIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
-                ...interactiveFrameStyles, ...interactiveBgStyles, ...entranceStyle,
+                borderRadius:
+                  frameConfig.borderRadius === '50%' ? '16px' : frameConfig.borderRadius,
+                overflow: 'hidden',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+                animation: 'interactiveSlotIn 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                ...interactiveFrameStyles,
+                ...interactiveBgStyles,
               }}
-              onClick={e => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="relative w-full" style={{ height: `${Math.min(cellWidth * 1.8, 480) * (ar2 / ar1)}px`, overflow: 'hidden' }}>
+              <div
+                className="relative w-full"
+                style={{
+                  height: `${Math.min(cellWidth * 1.8, 480) * (ar2 / ar1)}px`,
+                  overflow: 'hidden',
+                }}
+              >
                 {isCarousel && product ? (
                   <ProductCarousel
-                    images={allImages} productName={displayName}
-                    frameConfig={{ ...frameConfig, borderRadius: frameConfig.borderRadius === '50%' ? '16px 16px 0 0' : `${frameConfig.borderRadius} ${frameConfig.borderRadius} 0 0` }}
-                    carouselConfig={{ ...carCfg, showArrows: true, showDots: true }} autoPlay
-                    imageCrops={imageCropsMap} slideCustomizations={slideCustomizationsMap}
-                    slotId={`${slot.id}-overlay`} namespace="shop"
+                    images={allImages}
+                    productName={displayName}
+                    frameConfig={{
+                      ...frameConfig,
+                      borderRadius:
+                        frameConfig.borderRadius === '50%'
+                          ? '16px 16px 0 0'
+                          : `${frameConfig.borderRadius} ${frameConfig.borderRadius} 0 0`,
+                    }}
+                    carouselConfig={{ ...carCfg, showArrows: true, showDots: true }}
+                    autoPlay
+                    imageCrops={imageCropsMap}
+                    slideCustomizations={slideCustomizationsMap}
+                    slotId={`${slot.id}-overlay`}
+                    namespace="shop"
                   />
                 ) : displayImage ? (
                   <div style={interactiveImgStyles} className="w-full h-full relative">
-                    <Image src={displayImage} alt={displayName} fill className="object-cover" unoptimized style={{ ...imageCropsMap[slot.imageIndex ?? 0] }} />
+                    <Image
+                      src={displayImage}
+                      alt={displayName}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                      style={{ ...imageCropsMap[slot.imageIndex ?? 0] }}
+                    />
                   </div>
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center bg-gray-100">
@@ -343,12 +481,20 @@ function ShopSlotView({
                 )}
                 {interactiveBadge}
               </div>
-              <button onClick={() => setOverlayOpen(false)} className="absolute top-2 right-2 z-20 w-7 h-7 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white transition-colors shadow-md">
+              <button
+                onClick={() => setOverlayOpen(false)}
+                className="absolute top-2 right-2 z-20 w-7 h-7 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white transition-colors shadow-md"
+              >
                 <FiX size={14} />
               </button>
+              {/* Infos produit dans l'overlay */}
               {(() => {
                 const getStyle = (pos: string): React.CSSProperties => {
-                  const base: React.CSSProperties = { position: 'absolute', zIndex: 15, maxWidth: '60%' };
+                  const base: React.CSSProperties = {
+                    position: 'absolute',
+                    zIndex: 15,
+                    maxWidth: '60%',
+                  };
                   const shadow = '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.5)';
                   switch (pos) {
                     case 'top-left':      return { ...base, top: 12, left: 12, textShadow: shadow };
@@ -367,37 +513,48 @@ function ShopSlotView({
                   <>
                     {interactiveCfg.showNameOnClick !== false && (
                       <div style={getStyle(interactiveCfg.namePosition || 'bottom-left')}>
-                        <div className="font-semibold text-sm line-clamp-2" style={{
-                          fontFamily: interactiveCfg.nameFont || props.productNameFont || 'Inter',
-                          fontSize: interactiveCfg.nameFontSize ? `${interactiveCfg.nameFontSize}px` : '14px',
-                          fontWeight: interactiveCfg.nameFontWeight || props.productNameWeight || '600',
-                          color: interactiveCfg.nameColor || '#FFFFFF',
-                        }}>
+                        <div
+                          className="font-semibold text-sm line-clamp-2"
+                          style={{
+                            fontFamily: interactiveCfg.nameFont || props.productNameFont || 'Inter',
+                            fontSize: interactiveCfg.nameFontSize ? `${interactiveCfg.nameFontSize}px` : '14px',
+                            fontWeight: interactiveCfg.nameFontWeight || props.productNameWeight || '600',
+                            color: interactiveCfg.nameColor || '#FFFFFF',
+                          }}
+                        >
                           {displayName}
                         </div>
                       </div>
                     )}
                     {interactiveCfg.showPriceOnClick !== false && displayPrice != null && (
                       <div style={getStyle(interactiveCfg.pricePosition || 'bottom-left')}>
-                        <div className="font-bold" style={{
-                          fontFamily: interactiveCfg.priceFont || props.priceFont || 'Inter',
-                          fontSize: interactiveCfg.priceFontSize ? `${interactiveCfg.priceFontSize}px` : '15px',
-                          fontWeight: interactiveCfg.priceFontWeight || props.priceWeight || '700',
-                          color: interactiveCfg.priceColor || '#FFFFFF',
-                        }}>
+                        <div
+                          className="font-bold"
+                          style={{
+                            fontFamily: interactiveCfg.priceFont || props.priceFont || 'Inter',
+                            fontSize: interactiveCfg.priceFontSize ? `${interactiveCfg.priceFontSize}px` : '15px',
+                            fontWeight: interactiveCfg.priceFontWeight || props.priceWeight || '700',
+                            color: interactiveCfg.priceColor || '#FFFFFF',
+                          }}
+                        >
                           {displayPrice} €
                         </div>
                       </div>
                     )}
                     {interactiveCfg.showDescriptionOnClick && product?.description && (
                       <div style={getStyle(interactiveCfg.descriptionPosition || 'bottom-center')}>
-                        <p className="text-xs line-clamp-2" style={{ color: '#FFFFFF' }}>{product.description}</p>
+                        <p className="text-xs line-clamp-2" style={{ color: '#FFFFFF' }}>
+                          {product.description}
+                        </p>
                       </div>
                     )}
                     {interactiveCfg.showAddToCart !== false && product && (
                       <div style={getStyle(interactiveCfg.buttonPosition || 'bottom-right')}>
                         <button
-                          onClick={(e) => { e.stopPropagation(); onAddToCart?.(product); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToCart?.(product);
+                          }}
                           className="px-3 py-1.5 bg-primary text-white rounded-lg text-xs font-medium hover:bg-primary/90 transition-colors shadow-md whitespace-nowrap"
                         >
                           {interactiveCfg.cartButtonText || 'Ajouter au panier'}
@@ -414,34 +571,59 @@ function ShopSlotView({
     );
   }
 
-  // ── MODE TRADITIONNEL ──
-  // ⭐ Utiliser tradConfig avec des valeurs par défaut sécurisées
+  // ── MODE TRADITIONNEL ──────────────────────────────────────────────────────
   const showName = tradConfig.showName !== false;
   const showPrice = tradConfig.showPrice !== false;
   const showAddToCart = tradConfig.showAddToCart !== false;
   const buttonStyle = tradConfig.buttonStyle || 'primary';
 
   return (
-    <div className="relative group w-full" style={{ height: 'auto' }}>
-      <div className={`relative w-full ${hoverClass}`} style={{ borderRadius: frameConfig.borderRadius, ...hoverVars }}>
+    <div
+      className="relative group w-full"
+      style={{ height: 'auto', cursor: slotCursor }}
+      onClick={handleSlotClick}
+    >
+      <div
+        className={`relative w-full ${hoverClass}`}
+        style={{ borderRadius: frameConfig.borderRadius, ...hoverVars }}
+      >
         <div
           className="relative overflow-hidden"
           style={{
-            borderRadius: frameConfig.borderRadius, width: '100%', ...slotBoxStyle,
-            transition: 'background 0.3s ease', ...frameStyles,
+            borderRadius: frameConfig.borderRadius,
+            width: '100%',
+            ...slotBoxStyle,
+            transition: 'background 0.3s ease',
+            ...frameStyles,
             ...(isCarousel ? {} : getBackgroundStylesOnly(effectiveCustom)),
           }}
         >
           {isCarousel && product ? (
             <ProductCarousel
-              images={allImages} productName={displayName} frameConfig={frameConfig} carouselConfig={carCfg} autoPlay
-              imageCrops={imageCropsMap} slideCustomizations={slideCustomizationsMap}
-              slotId={slot.id} namespace="shop"
+              images={allImages}
+              productName={displayName}
+              frameConfig={frameConfig}
+              carouselConfig={carCfg}
+              autoPlay
+              imageCrops={imageCropsMap}
+              slideCustomizations={slideCustomizationsMap}
+              slotId={slot.id}
+              namespace="shop"
             />
           ) : (
             <div style={getImageStylesUtil(effectiveCustom)} className="w-full h-full">
               {displayImage ? (
-                <Image src={displayImage} alt={displayName} fill className="object-cover" unoptimized style={{ backgroundColor: 'transparent', ...imageCropsMap[slot.imageIndex ?? 0] }} />
+                <Image
+                  src={displayImage}
+                  alt={displayName}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                  style={{
+                    backgroundColor: 'transparent',
+                    ...imageCropsMap[slot.imageIndex ?? 0],
+                  }}
+                />
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50/50">
                   <div className="text-3xl mb-1">{frameConfig.icon}</div>
@@ -452,38 +634,68 @@ function ShopSlotView({
           {effectiveCustom && renderCustomBadgeUtil(effectiveCustom, frameConfig)}
         </div>
       </div>
+
       <div className={`mt-2 text-center ${entranceClass}`} style={entranceStyle}>
         {showName && (
-          <h3 className="font-semibold text-sm line-clamp-2" style={{
-            fontFamily: tradConfig.nameFont || props.productNameFont || 'Inter',
-            fontSize: tradConfig.nameFontSize ? `${tradConfig.nameFontSize}px` : (props.productNameSize || '14px'),
-            fontWeight: tradConfig.nameFontWeight || props.productNameWeight || '600',
-            color: tradConfig.nameColor || props.productNameColor || '#1F2937',
-          }}>
+          <h3
+            className="font-semibold text-sm line-clamp-2"
+            style={{
+              fontFamily: tradConfig.nameFont || props.productNameFont || 'Inter',
+              fontSize: tradConfig.nameFontSize
+                ? `${tradConfig.nameFontSize}px`
+                : props.productNameSize || '14px',
+              fontWeight: tradConfig.nameFontWeight || props.productNameWeight || '600',
+              color: tradConfig.nameColor || props.productNameColor || '#1F2937',
+            }}
+          >
             {displayName}
           </h3>
         )}
         {showPrice && displayPrice != null && (
-          <p className="font-bold mt-1" style={{
-            fontFamily: tradConfig.priceFont || props.priceFont || 'Inter',
-            fontSize: tradConfig.priceFontSize ? `${tradConfig.priceFontSize}px` : (props.priceSize || '14px'),
-            fontWeight: tradConfig.priceFontWeight || props.priceWeight || '700',
-            color: tradConfig.priceColor || props.priceColor || '#2563EB',
-          }}>
+          <p
+            className="font-bold mt-1"
+            style={{
+              fontFamily: tradConfig.priceFont || props.priceFont || 'Inter',
+              fontSize: tradConfig.priceFontSize
+                ? `${tradConfig.priceFontSize}px`
+                : props.priceSize || '14px',
+              fontWeight: tradConfig.priceFontWeight || props.priceWeight || '700',
+              color: tradConfig.priceColor || props.priceColor || '#2563EB',
+            }}
+          >
             {displayPrice} €
           </p>
         )}
-        {showAddToCart && product && (
+        {/* ⭐ "Voir le produit" si page liée, sinon bouton panier normal */}
+        {productHasPage ? (
           <button
-            onClick={() => onAddToCart?.(product)}
-            className={`mt-2 w-full text-xs py-1.5 rounded transition-colors ${
-              buttonStyle === 'outline' ? 'border border-gray-800 hover:bg-gray-100'
-              : buttonStyle === 'text' ? 'text-primary hover:underline'
-              : 'bg-primary text-white hover:bg-primary/80'
-            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (product && onNavigateToProduct) onNavigateToProduct(product.id);
+            }}
+            className="mt-2 w-full text-xs py-1.5 rounded transition-colors bg-primary text-white hover:bg-primary/80"
           >
-            Ajouter au panier
+            Voir le produit
           </button>
+        ) : (
+          showAddToCart &&
+          product && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToCart?.(product);
+              }}
+              className={`mt-2 w-full text-xs py-1.5 rounded transition-colors ${
+                buttonStyle === 'outline'
+                  ? 'border border-gray-800 hover:bg-gray-100'
+                  : buttonStyle === 'text'
+                  ? 'text-primary hover:underline'
+                  : 'bg-primary text-white hover:bg-primary/80'
+              }`}
+            >
+              Ajouter au panier
+            </button>
+          )
         )}
       </div>
     </div>

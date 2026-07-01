@@ -3,10 +3,14 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import ShopCanvas from './ShopCanvas';
 import { GoogleFontsLoader } from './GoogleFontsLoader';
-import NavbarBlockRenderer from './blocks/navbar/NavbarBlockRenderer'; // ⭐ AJOUT
+import NavbarBlockRenderer from './blocks/navbar/NavbarBlockRenderer';
 import { ShopRenderData } from '@/services/api/shopRender';
 import { getCustomizationForPage } from '@/components/shop-studio/lib/pagesMeta';
 import { StudioProduct, StudioPage } from '@/types/studio';
+import { useBlockAnimation, usePageTransition } from '@/hooks/useBlockAnimation';
+import { usePageNavigationEngine } from '@/hooks/usePageNavigationEngine';
+import { useProductNavigation } from '@/hooks/useProductNavigation';
+import type { BlockAnimationsConfig, PageTransitionConfig } from '@/types/animations';
 
 const STUDIO_FRAME_WIDTH = 1200;
 
@@ -21,17 +25,49 @@ export default function ShopPageRenderer({
   const [currentIndex, setCurrentIndex] = useState(0);
   const currentPage = sortedPages[currentIndex];
 
-  const goTo = useCallback((idx: number) => {
-    setCurrentIndex(Math.max(0, Math.min(idx, sortedPages.length - 1)));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [sortedPages.length]);
+  const pageContainerRef = useRef<HTMLDivElement>(null);
 
-  // ⭐ AJOUT — un clic sur un bouton de Navbar lié à une page résout vers
-  // l'index correspondant, la navigation se faisant en mémoire (pas d'URL par page).
-  const navigateToPageId = useCallback((pageId: string) => {
-    const idx = sortedPages.findIndex(p => p.id === pageId);
-    if (idx !== -1) goTo(idx);
-  }, [sortedPages, goTo]);
+  // ── Config de transition (lue depuis la navbar globale) ───────────────────
+  const navbarWithTransition = data.globalBlocks.find(
+    (b) => b.props?.navConfig?.pageTransition && b.props.navConfig.pageTransition.type !== 'none'
+  );
+  const pageTransitionConfig: PageTransitionConfig | null =
+    navbarWithTransition?.props?.navConfig?.pageTransition ?? null;
+
+  const { transitionToPage } = usePageTransition({
+    containerRef: pageContainerRef,
+    config: pageTransitionConfig,
+    context: 'shop',
+  });
+
+  // ── goTo stable (ref pour éviter les closures stale) ─────────────────────
+  const currentIndexRef = useRef(currentIndex);
+  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
+
+  const goTo = useCallback(
+    (idx: number) => {
+      const targetIdx = Math.max(0, Math.min(idx, sortedPages.length - 1));
+      if (targetIdx === currentIndexRef.current) return;
+
+      transitionToPage(() => {
+        setCurrentIndex(targetIdx);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    },
+    [sortedPages.length, transitionToPage]
+  );
+
+  // ── ⭐ Navigation engine centralisé ────────────────────────────────────────
+  const { navigateToPageId, resolveNavLink, isLinkActive } = usePageNavigationEngine({
+    pages: sortedPages,
+    goTo,
+  });
+
+  // ── ⭐ Navigation produit → page produit ──────────────────────────────────
+  const { navigateToProduct, hasProductPage } = useProductNavigation({
+    pages: sortedPages,
+    navigateToPageId,
+  });
 
   if (!currentPage) return null;
 
@@ -42,9 +78,9 @@ export default function ShopPageRenderer({
     <div className="w-full min-h-screen flex flex-col">
       <GoogleFontsLoader fonts={data.usedFonts} />
 
-      {/* ── Navigation globale (Navbar du Studio) — persistante sur toutes les pages ── */}
+      {/* Navbar persistante sur toutes les pages */}
       {hasGlobalNavbar &&
-        data.globalBlocks.map(block => (
+        data.globalBlocks.map((block) => (
           <NavbarBlockRenderer
             key={block.id}
             mode="shop"
@@ -55,7 +91,7 @@ export default function ShopPageRenderer({
           />
         ))}
 
-      {/* ── Fallback : onglets simples si aucune Navbar n'a été configurée ── */}
+      {/* Fallback : onglets simples si aucune Navbar custom */}
       {!hasGlobalNavbar && sortedPages.length > 1 && (
         <PageNavBar
           pages={sortedPages}
@@ -65,8 +101,8 @@ export default function ShopPageRenderer({
         />
       )}
 
-      {/* ── Page active ── */}
-      <div className="flex-1">
+      {/* Conteneur stable pour les transitions GSAP */}
+      <div ref={pageContainerRef} className="flex-1" style={{ position: 'relative' }}>
         <PageSection
           key={currentPage.id}
           page={currentPage}
@@ -77,10 +113,16 @@ export default function ShopPageRenderer({
           productsList={data.productsList}
           globalProductCustomizations={data.globalProductCustomizations}
           onAddToCart={onAddToCart}
+          pageAnimationsConfig={data.customization?.pageAnimationsConfig ?? null}
+          // ⭐ Navigation produit propagée vers ShopCanvas → ShopProductGrid
+          onNavigateToProduct={navigateToProduct}
+          hasProductPage={hasProductPage}
+          onNavigateLink={resolveNavLink}
+          isNavLinkActive={isLinkActive}
         />
       </div>
 
-      {/* ── Navigation bas de page (Précédent / Suivant) ── */}
+      {/* Navigation bas de page */}
       {sortedPages.length > 1 && (
         <PageFooterNav
           currentIndex={currentIndex}
@@ -95,7 +137,7 @@ export default function ShopPageRenderer({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Barre de navigation en haut (onglets) — fallback si aucune Navbar custom
+// Barre de navigation en haut (fallback sans Navbar custom)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PageNavBar({
@@ -117,7 +159,7 @@ function PageNavBar({
       style={{ backgroundColor: '#ffffff', borderBottom: `2px solid ${primaryColor}20` }}
     >
       <div className="max-w-7xl mx-auto px-4">
-        <ul className="flex items-center gap-1 overflow-x-auto scrollbar-none py-0" style={{ scrollbarWidth: 'none' }}>
+        <ul className="flex items-center gap-1 overflow-x-auto py-0" style={{ scrollbarWidth: 'none' }}>
           {pages.map((page, idx) => {
             const isActive = idx === currentIndex;
             return (
@@ -145,7 +187,7 @@ function PageNavBar({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Navigation bas de page (Précédent / Suivant + dots)
+// Navigation bas de page
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PageFooterNav({
@@ -182,7 +224,7 @@ function PageFooterNav({
         }}
       >
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         {hasPrev ? pages[currentIndex - 1].name : 'Précédent'}
       </button>
@@ -217,7 +259,7 @@ function PageFooterNav({
       >
         {hasNext ? pages[currentIndex + 1].name : 'Suivant'}
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
     </div>
@@ -237,14 +279,26 @@ function PageSection({
   productsList,
   globalProductCustomizations,
   onAddToCart,
+  pageAnimationsConfig,
+  onNavigateToProduct,
+  hasProductPage,
+  onNavigateLink,
+  isNavLinkActive,
 }: any) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [frameWidth, setFrameWidth] = useState(STUDIO_FRAME_WIDTH);
   const [canvasHeight, setCanvasHeight] = useState(0);
 
+  const { setRef } = useBlockAnimation({
+    blockId: `page-${page.id}`,
+    config: pageAnimationsConfig ?? null,
+    context: 'shop',
+    studioMode: false,
+  });
+
   useEffect(() => {
     if (!containerRef.current) return;
-    const ro = new ResizeObserver(entries => {
+    const ro = new ResizeObserver((entries) => {
       const w = entries[0].contentRect.width;
       if (w > 0) setFrameWidth(w);
     });
@@ -255,9 +309,18 @@ function PageSection({
 
   const backgroundStyle = buildBackgroundStyle(customization);
 
+  const combinedRef = useCallback(
+    (element: HTMLElement | null) => {
+      setRef(element);
+      // @ts-ignore
+      containerRef.current = element;
+    },
+    [setRef]
+  );
+
   return (
     <section
-      ref={containerRef}
+      ref={combinedRef}
       className="relative w-full overflow-x-hidden"
       style={{
         ...backgroundStyle,
@@ -274,6 +337,11 @@ function PageSection({
         frameWidth={frameWidth}
         onHeightChange={setCanvasHeight}
         onAddToCart={onAddToCart}
+        // ⭐ Propagation vers ShopCanvas
+        onNavigateToProduct={onNavigateToProduct}
+        hasProductPage={hasProductPage}
+        onNavigateLink={onNavigateLink}
+        isNavLinkActive={isNavLinkActive}
       />
     </section>
   );

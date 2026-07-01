@@ -246,6 +246,12 @@ public class ShopController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Upload du logo de la boutique
+    /// </summary>
+    /// <param name="id">ID de la boutique</param>
+    /// <param name="file">Fichier image (JPG, PNG, WEBP, GIF)</param>
+    /// <returns>L'URL du logo uploadé</returns>
     [HttpPost("{id}/logo")]
     [Authorize]
     public async Task<IActionResult> UploadLogo(int id, [FromForm] IFormFile file)
@@ -256,14 +262,15 @@ public class ShopController : ControllerBase
         try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var uploaded = await _shopService.UploadLogoAsync(id, userId, file);
+            var logoUrl = await _shopService.UploadLogoAsync(id, userId, file); // ⭐ MODIFIÉ
 
-            if (!uploaded)
+            if (logoUrl == null) // ⭐ MODIFIÉ
                 return NotFound(new { message = "Shop non trouvé" });
 
             return Ok(new
             {
-                message = "Logo uploadé avec succès"
+                message = "Logo uploadé avec succès",
+                logoUrl = logoUrl // ⭐ AJOUT
             });
         }
         catch (Exception ex)
@@ -272,6 +279,12 @@ public class ShopController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Upload de la bannière de la boutique
+    /// </summary>
+    /// <param name="id">ID de la boutique</param>
+    /// <param name="file">Fichier image (JPG, PNG, WEBP, GIF)</param>
+    /// <returns>L'URL de la bannière uploadée</returns>
     [HttpPost("{id}/banner")]
     [Authorize]
     public async Task<IActionResult> UploadBanner(int id, [FromForm] IFormFile file)
@@ -282,14 +295,15 @@ public class ShopController : ControllerBase
         try
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            var uploaded = await _shopService.UploadBannerAsync(id, userId, file);
+            var bannerUrl = await _shopService.UploadBannerAsync(id, userId, file); // ⭐ MODIFIÉ
 
-            if (!uploaded)
+            if (bannerUrl == null) // ⭐ MODIFIÉ
                 return NotFound(new { message = "Shop non trouvé" });
 
             return Ok(new
             {
-                message = "Bannière uploadée avec succès"
+                message = "Bannière uploadée avec succès",
+                bannerUrl = bannerUrl // ⭐ AJOUT
             });
         }
         catch (Exception ex)

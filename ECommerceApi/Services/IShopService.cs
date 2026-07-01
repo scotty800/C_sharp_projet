@@ -7,14 +7,14 @@ namespace ECommerceApi.Services
     {
         Task<List<Shop>> GetUserShopsAsync(int userId);
         Task<Shop?> GetShopByIdAsync(int id);
-        Task<Shop?> GetShopBySlugAsync(string slug);  // CORRIGÉ : retourne Shop
+        Task<Shop?> GetShopBySlugAsync(string slug);
 
         Task<Shop> CreateShopAsync(int ownerId, CreateShopRequestDto shop);
         Task<bool> UpdateShopAsync(int shopId, int userId, UpdateShopRequestDto shop);
         Task<bool> DeleteShopAsync(int shopId, int userId);
 
-        Task<bool> UploadLogoAsync(int shopId, int userId, IFormFile file);
-        Task<bool> UploadBannerAsync(int shopId, int userId, IFormFile file);
+        Task<string?> UploadLogoAsync(int shopId, int userId, IFormFile file);   // ⭐ MODIFIÉ
+        Task<string?> UploadBannerAsync(int shopId, int userId, IFormFile file); // ⭐ MODIFIÉ
 
         Task<PagedResultDto<ShopListDto>> GetShopsPagedAsync(
             int page,

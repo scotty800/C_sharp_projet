@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { FiLink } from 'react-icons/fi';
 import { BannerBlock } from './blocks/BannerBlock';
 import { LogoBlock } from './blocks/LogoBlock';
 import { TitleBlock } from './blocks/TitleBlock';
@@ -10,14 +11,58 @@ import { ImageBlock } from './blocks/ImageBlock';
 import { ButtonBlock } from './blocks/ButtonBlock';
 import { SpacerBlock } from './blocks/SpacerBlock';
 import { ShapeBlock } from './blocks/ShapeBlock';
+import { FrameBlock } from './blocks/FrameBlock'; // ⭐ AJOUTÉ
 import { ScreenBannerBlock } from './blocks/ScreenBannerBlock';
 import { CarouselBannerBlock } from './blocks/CarouselBannerBlock';
 import { GroupOverlay } from './GroupOverlay';
 import { ProductGridConfig, StudioProduct, ProductCustomization } from '@/types/studio';
 import { useCanvasHeight } from '@/hooks/useCanvasHeight';
+import { useBlockAnimation } from '@/hooks/useBlockAnimation';
+import type { BlockAnimationsConfig } from '@/types/animations';
 
 // ⭐ Import du renderer pour les Navbars
 import NavbarBlockRenderer from './blocks/navbar/NavbarBlockRenderer';
+
+// ⭐ Wrapper qui applique les animations GSAP sur un bloc
+function AnimatedBlockWrapper({
+  blockId,
+  animationsConfig,
+  children,
+  className,
+  style,
+  onClick,
+  onMouseDown,
+  'data-block-id': dataBlockId,
+}: {
+  blockId: string;
+  animationsConfig?: BlockAnimationsConfig | null;
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  onClick?: React.MouseEventHandler;
+  onMouseDown?: React.MouseEventHandler;
+  'data-block-id'?: string;
+}) {
+  const { setRef } = useBlockAnimation({
+    blockId,
+    config: animationsConfig ?? null,
+    context: 'studio',
+    studioMode: true, // en studio : seulement boucles + hover
+  });
+
+  return (
+    <div
+      ref={setRef as any}
+      data-block-id={dataBlockId}
+      className={className}
+      style={style}
+      onClick={onClick}
+      onMouseDown={onMouseDown}
+    >
+      {children}
+    </div>
+  );
+}
 
 interface Props {
   shop: any;
@@ -48,8 +93,8 @@ interface Props {
   onOpenProductCustomization?: (productId: number, productName: string, customization: ProductCustomization, slideCount?: number) => void;
   globalProductCustomizations?: Map<number, ProductCustomization>;
   onUpdateGlobalProductCustomization?: (productId: number, updates: Partial<ProductCustomization>) => void;
-  // ⭐ Pages pour les Navbars
   pages?: any[];
+  onUploadLogo?: (file: File) => Promise<void>; // ⭐ AJOUT
 }
 
 export default function StudioCanvas({
@@ -79,7 +124,8 @@ export default function StudioCanvas({
   onOpenProductCustomization,
   globalProductCustomizations,
   onUpdateGlobalProductCustomization,
-  pages = [], // ⭐ Nouvelle prop
+  pages = [],
+  onUploadLogo, // ⭐ AJOUT
 }: Props) {
   console.log('🔵🔵🔵 StudioCanvas - productsList reçus:', productsList?.length);
 
@@ -637,12 +683,14 @@ export default function StudioCanvas({
     window.dispatchEvent(event);
   }, []);
 
+  // ⭐ AJOUT de logoUrl dans stableShop
   const stableShop = useMemo(() => ({
     id: shop?.id,
     name: shop?.name,
     slug: shop?.slug,
     ownerId: shop?.ownerId,
-  }), [shop?.id, shop?.name, shop?.slug, shop?.ownerId]);
+    logoUrl: shop?.logoUrl, // ⭐ AJOUT
+  }), [shop?.id, shop?.name, shop?.slug, shop?.ownerId, shop?.logoUrl]); // ⭐ AJOUT shop?.logoUrl
 
   const stableCustomizationForOtherBlocks = useMemo(() => ({
     primaryColor: customization?.primaryColor,
@@ -739,7 +787,9 @@ export default function StudioCanvas({
       
       return (
         <div key={`wrapper-${block.id}`}>
-          <div
+          <AnimatedBlockWrapper
+            blockId={block.id}
+            animationsConfig={block.props?.animationsConfig}
             style={{
               position: 'absolute',
               left: block.position.x,
@@ -749,21 +799,21 @@ export default function StudioCanvas({
               zIndex: block.position.zIndex,
             }}
             className="relative"
+            data-block-id={block.id}
+            onClick={(e) => {
+              if (isCropperOpen) {
+                e.stopPropagation();
+                return;
+              }
+              e.stopPropagation();
+              handleSelectBlockWithGroup(block.id, 'background');
+            }}
+            onMouseDown={(e) => {
+              handleMouseDown(e, block.id, block);
+            }}
           >
             <div
-              data-block-id={block.id}
               className={`w-full h-full ${!isChild ? 'cursor-grab active:cursor-grabbing' : ''} ${showSelectionRing && !isChild ? 'ring-2 ring-primary ring-offset-2 rounded-lg z-50' : ''}`}
-              onClick={(e) => {
-                if (isCropperOpen) {
-                  e.stopPropagation();
-                  return;
-                }
-                e.stopPropagation();
-                handleSelectBlockWithGroup(block.id, 'background');
-              }}
-              onMouseDown={(e) => {
-                handleMouseDown(e, block.id, block);
-              }}
               style={{
                 filter: blockFilter,
                 opacity: blockOpacity,
@@ -791,9 +841,10 @@ export default function StudioCanvas({
                 if (!isActiveSlide) return null;
                 
                 return slideChildren.map(child => (
-                  <div
+                  <AnimatedBlockWrapper
                     key={`slide-child-${child.id}`}
-                    data-block-id={child.id}
+                    blockId={child.id}
+                    animationsConfig={child.props?.animationsConfig}
                     style={{
                       position: 'absolute',
                       left: `${child.position.x}%`,
@@ -804,13 +855,14 @@ export default function StudioCanvas({
                       pointerEvents: 'auto',
                       zIndex: child.position.zIndex,
                     }}
+                    data-block-id={child.id}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSelectBlockWithGroup(child.id, 'text');
                     }}
                   >
                     {renderBlock(child, true)}
-                  </div>
+                  </AnimatedBlockWrapper>
                 ));
               })}
               
@@ -823,9 +875,10 @@ export default function StudioCanvas({
                     .filter(child => child.type !== 'group')
                     .map(child => {
                     return (
-                      <div
+                      <AnimatedBlockWrapper
                         key={`child-wrapper-${child.id}`}
-                        data-block-id={child.id}
+                        blockId={child.id}
+                        animationsConfig={child.props?.animationsConfig}
                         style={{
                           position: 'absolute',
                           left: `${child.position.x}%`,
@@ -835,13 +888,14 @@ export default function StudioCanvas({
                           minHeight: '16px',
                           pointerEvents: 'auto',
                         }}
+                        data-block-id={child.id}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleSelectBlockWithGroup(child.id, 'text');
                         }}
                       >
                         {renderBlock(child, true)}
-                      </div>
+                      </AnimatedBlockWrapper>
                     );
                   })}
                 </div>
@@ -876,14 +930,25 @@ export default function StudioCanvas({
                      onMouseDown={(e) => handleResizeStart(e, block.id, block, 'e')} />
               </div>
             )}
-          </div>
+
+            {/* ⭐ Badge "lié à une page" */}
+            {block.props?.navigationLink?.type === 'page' && !isCropperOpen && (
+              <div
+                className="absolute -top-2 -right-2 z-40 w-5 h-5 rounded-full bg-emerald-500 border-2 border-gray-900 flex items-center justify-center shadow-md pointer-events-none"
+                title="Lié à une page"
+              >
+                <FiLink size={9} className="text-white" />
+              </div>
+            )}
+          </AnimatedBlockWrapper>
         </div>
       );
     }
 
     const renderContent = () => {
       switch (block.type) {
-        case 'logo':   return <LogoBlock key={block.id} {...commonProps} />;
+        case 'logo':
+          return <LogoBlock key={block.id} {...commonProps} onUploadLogo={onUploadLogo} />; // ⭐ MODIFIÉ
         case 'title':  return <TitleBlock key={block.id} {...commonProps} />;
         
         // ⭐ Navbars — shopSlug supprimé
@@ -940,6 +1005,7 @@ export default function StudioCanvas({
         case 'button': return <ButtonBlock key={block.id} {...commonProps} />;
         case 'spacer': return <SpacerBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
         case 'shape': return <ShapeBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />;
+        case 'frame': return <FrameBlock key={`${block.id}-${resizeForceUpdate}`} {...commonProps} />; // ⭐ NOUVEAU
         default: return <div key={block.id} className="w-full h-full bg-gray-100 flex items-center justify-center">⚠️ {block.type}</div>;
       }
     };
@@ -968,16 +1034,18 @@ export default function StudioCanvas({
     const hasChildren = children && children.length > 0;
 
     return (
-      <div
+      <AnimatedBlockWrapper
         key={`wrapper-${block.id}`}
-        data-block-id={block.id}
+        blockId={block.id}
+        animationsConfig={block.props?.animationsConfig}
         style={blockStyle}
         className="relative"
+        data-block-id={block.id}
+        onClick={(e) => handleBlockClick(e, block.id, block)}
+        onMouseDown={(e) => handleMouseDown(e, block.id, block)}
       >
         <div
           className={`w-full h-full cursor-grab active:cursor-grabbing ${showSelectionRing ? 'ring-2 ring-primary ring-offset-2 rounded-lg z-50' : ''}`}
-          onClick={(e) => handleBlockClick(e, block.id, block)}
-          onMouseDown={(e) => handleMouseDown(e, block.id, block)}
           style={{
             filter: blockFilter,
             opacity: blockOpacity,
@@ -1009,17 +1077,19 @@ export default function StudioCanvas({
                 };
                 
                 return (
-                  <div
+                  <AnimatedBlockWrapper
                     key={`child-wrapper-${child.id}`}
-                    data-block-id={child.id}
+                    blockId={child.id}
+                    animationsConfig={child.props?.animationsConfig}
                     style={childStyle}
+                    data-block-id={child.id}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleSelectBlockWithGroup(child.id, 'text');
                     }}
                   >
                     {renderBlock(child, true)}
-                  </div>
+                  </AnimatedBlockWrapper>
                 );
               })}
             </div>
@@ -1054,9 +1124,19 @@ export default function StudioCanvas({
                  onMouseDown={(e) => handleResizeStart(e, block.id, block, 'e')} />
           </div>
         )}
-      </div>
+
+        {/* ⭐ Badge "lié à une page" */}
+        {block.props?.navigationLink?.type === 'page' && !isCropperOpen && (
+          <div
+            className="absolute -top-2 -right-2 z-40 w-5 h-5 rounded-full bg-emerald-500 border-2 border-gray-900 flex items-center justify-center shadow-md pointer-events-none"
+            title="Lié à une page"
+          >
+            <FiLink size={9} className="text-white" />
+          </div>
+        )}
+      </AnimatedBlockWrapper>
     );
-  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, getStableOnHeightChange, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent, reportBlockHeight, pages]);
+  }, [blocks, selectedBlockId, editingTextId, isCropperOpen, isResizing, getChildren, resizeForceUpdate, stableShop, stableOnUpdateBlock, stableOnDeleteBlock, stableOnDuplicateBlock, stableOnUpdateBlockPosition, stableProductsOnUpdate, getStableOnHeightChange, handleSelectBlockWithGroup, handleTextDoubleClick, handleTextBlur, handleBlockClick, handleMouseDown, handleResizeStart, stableOnUpdateGridConfig, memoizedProductsList, stableOnLinkProduct, stableOnOpenProductCustomization, memoizedGlobalProductCustomizations, stableOnUpdateGlobalProductCustomization, stableOnOpenAssetPicker, onAddSlide, renderParentContent, reportBlockHeight, pages, onUploadLogo]); // ⭐ AJOUT onUploadLogo
 
   // Style du fond pour le canvas
   let backgroundStyle: React.CSSProperties = {

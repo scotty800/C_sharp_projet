@@ -3,14 +3,17 @@
 import { useCallback, useState } from 'react';
 import { StudioProduct } from '@/types/studio';
 import { ProductPageConfig, generateProductPageBlocks } from '@/types/Productpage';
-import { DEFAULT_PAGE_ID } from '@/components/shop-studio/StudioLayout';
 
 /**
- * Integrates product page generation into the Studio's block/page system.
- * Call `buildProductPage(config)` to:
- *  1. Create a new canvas page
- *  2. Inject the template blocks onto it
- *  3. Navigate the studio to that new page
+ * Intègre la génération de page produit dans le système bloc/page du Studio.
+ * Appeler `buildProductPage(config)` pour :
+ *  1. Créer une nouvelle page canvas
+ *  2. Injecter les blocs du template sur cette page
+ *  3. Naviguer le studio vers cette nouvelle page
+ *
+ * ⭐ NOUVEAU : la page créée porte `linkedProductId = config.product.id`
+ *    ce qui permet à la boutique publique de naviguer automatiquement vers
+ *    cette page quand un visiteur clique sur ce produit.
  */
 export function useProductPageBuilder({
   pages,
@@ -20,7 +23,18 @@ export function useProductPageBuilder({
   setCurrentPageId,
   animateZoomAndCenterOnPage,
 }: {
-  pages: Array<{ id: string; name: string; order: number; canvasX?: number; canvasY?: number; backgroundColor?: string; backgroundType?: string; backgroundValue?: string | null; backgroundOpacity?: number }>;
+  pages: Array<{
+    id: string;
+    name: string;
+    order: number;
+    canvasX?: number;
+    canvasY?: number;
+    backgroundColor?: string;
+    backgroundType?: string;
+    backgroundValue?: string | null;
+    backgroundOpacity?: number;
+    linkedProductId?: number | null;
+  }>;
   blocks: any[];
   setPages: (updater: (prev: any[]) => any[]) => void;
   setBlocks: (updater: (prev: any[]) => any[]) => void;
@@ -35,7 +49,7 @@ export function useProductPageBuilder({
       setIsGenerating(true);
 
       try {
-        // Position the new page to the right of the last page
+        // ── Positionne la nouvelle page à droite de la dernière ──────────────
         const FRAME_WIDTH = 1200;
         const GAP = 160;
         const lastPage = [...pages].sort((a, b) => (b.canvasX ?? 0) - (a.canvasX ?? 0))[0];
@@ -43,11 +57,16 @@ export function useProductPageBuilder({
 
         const newPageId = `product-page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
-        const templateDef = { classic: 'Classique', immersive: 'Immersif', gallery: 'Galerie', minimal: 'Minimal' };
+        const TEMPLATE_LABELS: Record<string, string> = {
+          classic: 'Classique',
+          immersive: 'Immersif',
+          gallery: 'Galerie',
+          minimal: 'Minimal',
+        };
 
         const newPage = {
           id: newPageId,
-          name: `${config.product.name} — ${templateDef[config.template]}`,
+          name: `${config.product.name} — ${TEMPLATE_LABELS[config.template] ?? config.template}`,
           order: pages.length,
           canvasX: nextX,
           canvasY: 0,
@@ -55,22 +74,26 @@ export function useProductPageBuilder({
           backgroundType: 'solid' as const,
           backgroundValue: null,
           backgroundOpacity: 100,
+          // ⭐ Liaison produit → page (clé de toute la fonctionnalité)
+          linkedProductId: config.product.id,
         };
 
-        // Generate the blocks for this template
-        const maxZIndex = blocks.reduce((max, b) => Math.max(max, b.position?.zIndex ?? 0), 0);
+        // ── Génère les blocs du template ─────────────────────────────────────
+        const maxZIndex = blocks.reduce(
+          (max, b) => Math.max(max, b.position?.zIndex ?? 0),
+          0
+        );
         const newBlocks = generateProductPageBlocks(config, newPageId, maxZIndex + 1);
 
-        // Commit everything to state
-        setPages(prev => [...prev, newPage]);
-        setBlocks(prev => [...prev, ...newBlocks]);
+        // ── Commit dans le state ─────────────────────────────────────────────
+        setPages((prev) => [...prev, newPage]);
+        setBlocks((prev) => [...prev, ...newBlocks]);
         setCurrentPageId(newPageId);
 
-        // Animate zoom to new page after state settles
+        // ── Animation après que le state se soit propagé ─────────────────────
         setTimeout(() => {
           animateZoomAndCenterOnPage(newPageId, 65, 900);
         }, 80);
-
       } finally {
         setIsGenerating(false);
       }

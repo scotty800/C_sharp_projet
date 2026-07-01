@@ -1,5 +1,7 @@
 // types/studio.ts
 
+import type { PageTransitionConfig } from '@/types/animations';
+
 export interface CustomAsset {
   id: number;
   type: 'text' | 'image' | 'shape' | 'sticker';
@@ -228,7 +230,7 @@ export interface Block {
 export interface BlockUI {
   id: string;
   type: 'banner' | 'screen-banner' | 'carousel-banner' | 'carousel-slide' | 'logo' | 'title' | 'products' | 'section' | 'text' | 'image' | 'button' | 'spacer' 
-      | 'products-grid' | 'product-slot' | 'shape' | 'custom' | 'group' | 'navbar-horizontal' | 'navbar-hero' | 'navbar-sidebar';
+      | 'products-grid' | 'product-slot' | 'shape' | 'frame' | 'custom' | 'group' | 'navbar-horizontal' | 'navbar-hero' | 'navbar-sidebar';
   props: any;
   order: number;
   isVisible?: boolean;
@@ -807,8 +809,11 @@ export interface StudioPage {
   backgroundOpacity?: number;
   canvasX?: number;
   canvasY?: number;
+  /** ⭐ Liaison produit → page. Défini quand la page a été générée depuis un
+   *  template de page produit. Permet à la boutique de naviguer automatiquement
+   *  vers cette page quand un visiteur clique sur ce produit. */
+  linkedProductId?: number | null;
 }
-
 // ⭐ Type pour la configuration d'une slide (tous les champs sont optionnels car une slide peut hériter du global)
 export interface SlideCustomization {
   // Background
@@ -1030,4 +1035,6 @@ export interface NavbarConfig {
 
   collapseBreakpoint?: 'mobile' | 'tablet' | 'none';
   mobileMenuStyle?: 'drawer' | 'fullscreen' | 'dropdown';
+
+  pageTransition?: PageTransitionConfig;
 }

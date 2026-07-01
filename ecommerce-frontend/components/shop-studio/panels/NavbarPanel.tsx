@@ -8,11 +8,14 @@ import { getImageUrl } from '@/utils/imageUtils';
 import { NavbarConfig, NavButton, StudioPage } from '@/types/studio';
 import { useNavButtons } from '@/hooks/useNavButtons';
 import { NAV_ICON_PRESETS } from '../blocks/navbar/navIcons';
+import { usePreviewOnRealElement } from '@/hooks/useBlockAnimation';
+import type { PageTransitionType, EasingPreset, PageTransitionConfig } from '@/types/animations';
 
 interface Props {
   block: any;
   pages: StudioPage[];
   onUpdateBlock: (id: string, updates: any) => void;
+  currentPageId?: string; // ⭐ NOUVEAU
 }
 
 const FONTS = ['Inter', 'Poppins', 'Montserrat', 'Roboto', 'Open Sans', 'Lato', 'Raleway'];
@@ -30,11 +33,15 @@ const TABS = [
   { id: 'animations', label: 'Animations', icon: FiZap },
 ] as const;
 
-export default function NavbarPanel({ block, pages, onUpdateBlock }: Props) {
+export default function NavbarPanel({ block, pages, onUpdateBlock, currentPageId }: Props) {
   const navConfig: NavbarConfig = block.props?.navConfig;
   const [tab, setTab] = useState<typeof TABS[number]['id']>('buttons');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  // ⭐ NOUVEAU : hook pour prévisualiser la transition sur la page actuelle
+  const { playPageTransition } = usePreviewOnRealElement(currentPageId ? `page-${currentPageId}` : '__no_page__');
+  const pageTransition = navConfig?.pageTransition;
 
   const setNavConfig = (next: NavbarConfig) => onUpdateBlock(block.id, { navConfig: next });
   const { addButton, removeButton, updateButton, reorderButtons, duplicateButton } = useNavButtons(navConfig, setNavConfig);
@@ -46,6 +53,20 @@ export default function NavbarPanel({ block, pages, onUpdateBlock }: Props) {
       detail: { callback: (asset: any) => updateButton(buttonId, { icon: { type: 'custom', url: getImageUrl(asset.url) } }) },
     });
     window.dispatchEvent(ev);
+  };
+
+  // ⭐ Helper pour mettre à jour la transition de page
+  const updatePageTransition = (patch: Partial<PageTransitionConfig>) => {
+    setNavConfig({
+      ...navConfig,
+      pageTransition: {
+        type: 'none',
+        duration: 0.4,
+        ease: 'power2.inOut',
+        ...pageTransition,
+        ...patch,
+      },
+    });
   };
 
   if (!navConfig) {
@@ -334,8 +355,73 @@ export default function NavbarPanel({ block, pages, onUpdateBlock }: Props) {
           </div>
           <div><label className="text-xs text-gray-400 block mb-1">Easing</label>
             <select value={navConfig.defaultButtonAnimation.transitionEasing || 'ease'} onChange={(e) => setNavConfig({ ...navConfig, defaultButtonAnimation: { ...navConfig.defaultButtonAnimation, transitionEasing: e.target.value as any } })} className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-xs">
-              <option value="ease">ease</option><option value="ease-in">ease-in</option><option value="ease-out">ease-out</option><option value="ease-in-out">ease-in-out</option><option value="linear">linear</option>
+              <option value="ease">ease</option>
+              <option value="ease-in">ease-in</option>
+              <option value="ease-out">ease-out</option>
+              <option value="ease-in-out">ease-in-out</option>
+              <option value="linear">linear</option>
             </select>
+          </div>
+
+          {/* ⭐ NOUVEAU : transition de page */}
+          <div className="border-t border-white/10 pt-3 space-y-2">
+            <h4 className="text-white text-xs font-semibold">🎭 Transition entre les pages</h4>
+            <p className="text-[10px] text-gray-500 -mt-1">
+              Jouée quand un visiteur clique sur un bouton de cette navbar.
+            </p>
+
+            <select
+              value={pageTransition?.type ?? 'none'}
+              onChange={(e) => updatePageTransition({ type: e.target.value as PageTransitionType })}
+              className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-xs"
+            >
+              <option value="none">Aucune</option>
+              <option value="fade">Fondu</option>
+              <option value="slideLeft">Glissement gauche</option>
+              <option value="slideRight">Glissement droite</option>
+              <option value="slideUp">Glissement haut</option>
+              <option value="slideDown">Glissement bas</option>
+              <option value="zoomIn">Zoom avant</option>
+              <option value="zoomOut">Zoom arrière</option>
+              <option value="reveal">Révélation</option>
+              <option value="curtainVertical">Rideau vertical</option>
+            </select>
+
+            {pageTransition && pageTransition.type !== 'none' && (
+              <>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">
+                    Durée : {pageTransition.duration.toFixed(2)}s
+                  </label>
+                  <input
+                    type="range" min={0.2} max={2} step={0.05}
+                    value={pageTransition.duration}
+                    onChange={(e) => updatePageTransition({ duration: parseFloat(e.target.value) })}
+                    className="w-full accent-primary"
+                  />
+                </div>
+
+                <select
+                  value={pageTransition.ease}
+                  onChange={(e) => updatePageTransition({ ease: e.target.value as EasingPreset })}
+                  className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-xs"
+                >
+                  <option value="power2.inOut">Lent → Rapide → Lent</option>
+                  <option value="power3.inOut">Lent → Rapide → Lent (fort)</option>
+                  <option value="power1.inOut">Lent → Rapide → Lent (léger)</option>
+                  <option value="sine.inOut">Sinusoïdal doux</option>
+                  <option value="expo.inOut">Exponentiel</option>
+                </select>
+
+                <button
+                  onClick={() => playPageTransition(pageTransition)}
+                  disabled={!currentPageId}
+                  className="w-full py-1.5 bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs rounded-lg disabled:opacity-40 hover:bg-purple-500/25 transition-colors"
+                >
+                  ▶ Prévisualiser sur la page actuelle
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

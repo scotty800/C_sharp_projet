@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { FiSquare, FiCircle, FiTriangle, FiImage, FiUpload, FiX, FiTrash2 } from 'react-icons/fi';
+import { FiSquare, FiCircle, FiTriangle, FiImage, FiUpload, FiX, FiTrash2, FiHexagon } from 'react-icons/fi';
 import { assetsService, ShopAsset } from '@/services/api/assets';
 import { getImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
@@ -45,6 +45,100 @@ const SHAPES: ShapeAsset[] = [
     label: 'Triangle', 
     icon: FiTriangle, 
     defaultProps: { shape: 'triangle', width: 100, height: 100, backgroundColor: '#F59E0B' } 
+  },
+];
+
+// ⭐ NOUVEAU : Multiples cadres photo
+const FRAMES: ShapeAsset[] = [
+  { 
+    type: 'frame', 
+    label: 'Cadre carré', 
+    icon: FiSquare, 
+    defaultProps: { 
+      shape: 'square', 
+      width: 250, 
+      height: 250, 
+      borderWidth: 4, 
+      borderColor: '#FFFFFF', 
+      borderStyle: 'solid', 
+      backgroundColor: '#1e1e2f', 
+      url: '' 
+    } 
+  },
+  { 
+    type: 'frame', 
+    label: 'Cadre rond', 
+    icon: FiCircle, 
+    defaultProps: { 
+      shape: 'circle', 
+      width: 250, 
+      height: 250, 
+      borderWidth: 4, 
+      borderColor: '#FFFFFF', 
+      borderStyle: 'solid', 
+      backgroundColor: '#1e1e2f', 
+      url: '' 
+    } 
+  },
+  { 
+    type: 'frame', 
+    label: 'Cadre arrondi', 
+    icon: FiSquare, 
+    defaultProps: { 
+      shape: 'rounded', 
+      width: 250, 
+      height: 250, 
+      borderWidth: 4, 
+      borderColor: '#FFFFFF', 
+      borderStyle: 'solid', 
+      backgroundColor: '#1e1e2f', 
+      url: '' 
+    } 
+  },
+  { 
+    type: 'frame', 
+    label: 'Cadre hexagone', 
+    icon: FiHexagon, 
+    defaultProps: { 
+      shape: 'hexagon', 
+      width: 250, 
+      height: 250, 
+      borderWidth: 4, 
+      borderColor: '#FFFFFF', 
+      borderStyle: 'solid', 
+      backgroundColor: '#1e1e2f', 
+      url: '' 
+    } 
+  },
+  { 
+    type: 'frame', 
+    label: 'Cadre losange', 
+    icon: FiHexagon, 
+    defaultProps: { 
+      shape: 'diamond', 
+      width: 250, 
+      height: 250, 
+      borderWidth: 4, 
+      borderColor: '#FFFFFF', 
+      borderStyle: 'solid', 
+      backgroundColor: '#1e1e2f', 
+      url: '' 
+    } 
+  },
+  { 
+    type: 'frame', 
+    label: 'Cadre octogone', 
+    icon: FiHexagon, 
+    defaultProps: { 
+      shape: 'octagon', 
+      width: 250, 
+      height: 250, 
+      borderWidth: 4, 
+      borderColor: '#FFFFFF', 
+      borderStyle: 'solid', 
+      backgroundColor: '#1e1e2f', 
+      url: '' 
+    } 
   },
 ];
 
@@ -322,26 +416,49 @@ export default function AssetsPanel({ onSelectAsset, shopId }: Props) {
         </button>
       </div>
 
-      {/* Formes */}
+      {/* Formes + Cadres */}
       {activeTab === 'shapes' && (
-        <div className="grid grid-cols-2 gap-2">
-          {SHAPES.map((shape, idx) => {
-            const Icon = shape.icon;
-            return (
-              <button
-                key={idx}
-                onClick={() => handleSelectShape(shape)}
-                className="flex flex-col items-center gap-2 p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all hover:scale-105"
-              >
-                <Icon size={28} className="text-primary" />
-                <span className="text-white text-sm">{shape.label}</span>
-              </button>
-            );
-          })}
+        <div className="space-y-4">
+          {/* Formes simples */}
+          <div className="grid grid-cols-2 gap-2">
+            {SHAPES.map((shape, idx) => {
+              const Icon = shape.icon;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => handleSelectShape(shape)}
+                  className="flex flex-col items-center gap-2 p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all hover:scale-105"
+                >
+                  <Icon size={28} className="text-primary" />
+                  <span className="text-white text-sm">{shape.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ⭐ NOUVEAU : Section Cadres photo */}
+          <div>
+            <h4 className="text-gray-400 text-xs font-semibold uppercase mb-2">Cadres photo</h4>
+            <div className="grid grid-cols-2 gap-2">
+              {FRAMES.map((frame, idx) => {
+                const Icon = frame.icon;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => handleSelectShape(frame)}
+                    className="flex flex-col items-center gap-2 p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all hover:scale-105"
+                  >
+                    <Icon size={28} className="text-primary" />
+                    <span className="text-white text-sm">{frame.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Mes images */}
+      {/* Mes images — ⭐ DRAGGABLE */}
       {activeTab === 'my-images' && (
         <div className="space-y-3">
           {loading ? (
@@ -363,6 +480,14 @@ export default function AssetsPanel({ onSelectAsset, shopId }: Props) {
                 return (
                   <div
                     key={asset.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/json', JSON.stringify({
+                        url: imageUrl,
+                        name: asset.name,
+                        assetId: asset.id,
+                      }));
+                    }}
                     className={`group relative aspect-square bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-primary transition-all ${
                       deletingId === asset.id ? 'opacity-50' : ''
                     }`}
@@ -373,7 +498,7 @@ export default function AssetsPanel({ onSelectAsset, shopId }: Props) {
                       <img
                         src={imageUrl}
                         alt={asset.name}
-                        className="w-full h-full object-cover cursor-pointer"
+                        className="w-full h-full object-cover cursor-grab active:cursor-grabbing"
                         onError={() => handleImageError(asset.id)}
                       />
                     ) : (
@@ -382,7 +507,7 @@ export default function AssetsPanel({ onSelectAsset, shopId }: Props) {
                       </div>
                     )}
                     
-                    {/* Overlay au survol - seulement "Utiliser" au clic gauche */}
+                    {/* Overlay au survol */}
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <span className="text-white text-xs bg-primary px-2 py-1 rounded">
                         Cliquer pour utiliser

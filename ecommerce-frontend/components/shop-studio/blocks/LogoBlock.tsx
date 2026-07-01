@@ -1,6 +1,8 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import Image from 'next/image';
+import { FiUpload } from 'react-icons/fi';
 
 interface Props {
   shop: any;
@@ -9,57 +11,92 @@ interface Props {
   isSelected: boolean;
   onSelect: () => void;
   onUpdate: (updates: any) => void;
+  onUploadLogo?: (file: File) => Promise<void>;
 }
 
-export function LogoBlock({ shop, block, customization, isSelected, onSelect, onUpdate }: Props) {
+export function LogoBlock({ shop, block, customization, isSelected, onSelect, onUploadLogo }: Props) {
   const { props } = block;
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ⭐ STYLE DU CONTENEUR PRINCIPAL - prend toute la place
-  const containerStyle = {
+  const containerStyle: React.CSSProperties = {
     width: '100%',
     height: '100%',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: props.position === 'left' ? 'flex-start' : props.position === 'center' ? 'center' : 'flex-end',
-    padding: '0.5rem',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: props.shape === 'circle' ? '50%' : props.shape === 'rounded' ? '12px' : '0',
+    // ⭐ Plus de fond forcé ici — transparent par défaut
   };
 
-  // ⭐ STYLE DU LOGO - s'adapte à la taille du conteneur
-  const logoStyle = {
-    width: `${props.size || 80}px`,
-    height: `${props.size || 80}px`,
-    maxWidth: '100%',
-    maxHeight: '100%',
-    objectFit: 'contain' as const,
-    borderRadius: props.shape === 'circle' ? '50%' : props.shape === 'rounded' ? '12px' : '0',
-    cursor: 'pointer',
+  const logoStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    objectFit: props.objectFit || 'contain',
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUploadLogo) return;
+    setUploading(true);
+    try {
+      await onUploadLogo(file);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   return (
     <div
-      className={`relative w-full h-full transition-all ${
+      className={`relative w-full h-full transition-all group ${
         isSelected ? 'ring-2 ring-blue-500 ring-offset-2 rounded-lg' : 'hover:ring-1 hover:ring-gray-300'
       }`}
       onClick={onSelect}
     >
       <div style={containerStyle}>
         {shop?.logoUrl ? (
-          <div style={logoStyle} className="overflow-hidden bg-white shadow-sm">
-            <Image
-              src={shop.logoUrl}
-              alt={shop.name}
-              width={props.size || 80}
-              height={props.size || 80}
-              className="object-cover w-full h-full"
-              unoptimized
-            />
-          </div>
+          <Image
+            key={shop.logoUrl} // ⭐ AJOUT — force le re-render au changement d'URL
+            src={shop.logoUrl}
+            alt={shop.name}
+            width={400}
+            height={400}
+            style={logoStyle}
+            className="w-full h-full"
+            unoptimized
+          />
         ) : (
           <div
-            className="flex items-center justify-center text-white font-bold text-2xl shadow-sm"
-            style={{ ...logoStyle, backgroundColor: customization?.primaryColor || '#2563EB' }}
+            className="flex items-center justify-center text-white font-bold w-full h-full text-2xl shadow-sm" // ⭐ shadow déplacé ici
+            style={{ backgroundColor: customization?.primaryColor || '#2563EB' }}
           >
             {shop?.name?.charAt(0).toUpperCase() || 'S'}
+          </div>
+        )}
+
+        {onUploadLogo && (
+          <div
+            className="absolute inset-0 bg-black/0 group-hover:bg-black/50 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+          >
+            {uploading ? (
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white" />
+            ) : (
+              <FiUpload size={20} className="text-white" />
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
           </div>
         )}
       </div>

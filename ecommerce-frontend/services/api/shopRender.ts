@@ -2,8 +2,10 @@ import { shopCustomizationService } from './shopCustomization';
 import { productService } from './products';
 import { normalizeStudioProducts } from '@/components/shop-studio/lib/normalizeProduct';
 import { parsePagesAndBlocks } from '@/components/shop-studio/lib/pagesMeta';
-import { isNavbarBlockType } from '@/components/shop-studio/lib/navbar/navbarTemplates'; // ⭐ AJOUT
+import { isNavbarBlockType } from '@/components/shop-studio/lib/navbar/navbarTemplates';
 import { BlockUI, ProductCustomization, StudioPage, StudioProduct } from '@/types/studio';
+
+const PAGES_META_BLOCK_TYPE = '__pages_meta__';
 
 export interface ShopRenderData {
   shop: any;
@@ -11,7 +13,7 @@ export interface ShopRenderData {
   canvasFilters: any;
   pages: StudioPage[];
   blocksByPage: Map<string, BlockUI[]>;
-  globalBlocks: BlockUI[]; // ⭐ AJOUT — Navbars persistantes, indépendantes de la page courante
+  globalBlocks: BlockUI[];
   hasStudioContent: boolean;
   productsList: StudioProduct[];
   globalProductCustomizations: Map<number, ProductCustomization>;
@@ -46,7 +48,6 @@ function collectUsedFonts(customization: any, blocks: BlockUI[]): string[] {
       });
     }
 
-    // ⭐ AJOUT — polices utilisées dans une Navbar (style par défaut + overrides par bouton)
     if (isNavbarBlockType(block.type) && props.navConfig) {
       const nav = props.navConfig;
       if (nav.defaultButtonStyle?.fontFamily) fonts.push(nav.defaultButtonStyle.fontFamily);
@@ -75,11 +76,22 @@ export const shopRenderService = {
       productService.getProductsByShopAll(shopId).catch(() => []),
     ]);
 
+    // ⭐ Récupération de pageAnimationsConfig depuis le bloc meta
+    let pageAnimationsConfig: any = null;
+    const pagesMetaRaw = (blocksFromApi as any[]).find((b: any) => b.type === PAGES_META_BLOCK_TYPE);
+    if (pagesMetaRaw?.settings?.pageAnimationsConfig) {
+      try {
+        const raw = pagesMetaRaw.settings.pageAnimationsConfig;
+        pageAnimationsConfig = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      } catch {
+        pageAnimationsConfig = null;
+      }
+    }
+
+    // ⭐ parsePagesAndBlocks conserve linkedProductId
     const { pages, blocks, productCustomizations } = parsePagesAndBlocks(blocksFromApi as any[]);
 
-    // ⭐ AJOUT — on isole les Navbars (blocs globaux) avant de répartir le reste
-    // par page. Une Navbar ajoutée dans le Studio est automatiquement
-    // persistante sur toutes les pages de la boutique.
+    // ⭐ Isolation des Navbars (blocs globaux)
     const globalBlocks = blocks.filter(b => isNavbarBlockType(b.type));
     const pageScopedBlocks = blocks.filter(b => !isNavbarBlockType(b.type));
 
@@ -105,6 +117,7 @@ export const shopRenderService = {
       backgroundType: background?.backgroundType || 'solid',
       backgroundValue: background?.backgroundValue || null,
       backgroundOpacity: background?.backgroundOpacity ?? 100,
+      pageAnimationsConfig,
     };
 
     const usedFonts = collectUsedFonts(finalCustomization, blocks);
@@ -115,7 +128,7 @@ export const shopRenderService = {
       canvasFilters,
       pages,
       blocksByPage,
-      globalBlocks, // ⭐ AJOUT
+      globalBlocks,
       hasStudioContent: blocks.length > 0,
       productsList,
       globalProductCustomizations,

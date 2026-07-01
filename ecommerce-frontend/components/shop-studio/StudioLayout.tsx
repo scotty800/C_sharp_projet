@@ -31,6 +31,12 @@ import PageGlobalNavbars from './PageGlobalNavbars';
 import { useNavbarPageSync } from '@/hooks/useNavbarPageSync';
 import { isNavbarBlockType } from '../shop-studio/lib/navbar/navbarTemplates';
 
+// ⭐ E.2 — IMPORT pour les animations de page
+import { useBlockAnimation } from '@/hooks/useBlockAnimation';
+import { animationEngine } from '@/components/shop-studio/lib/animations/engine';
+import type { AnimationParams, BlockAnimationsConfig } from '@/types/animations';
+import { FiPlay, FiEyeOff } from 'react-icons/fi';
+
 export interface BlockPosition {
   x: number;
   y: number;
@@ -62,6 +68,7 @@ export interface StudioPage {
   backgroundOpacity?: number;
   canvasX?: number;
   canvasY?: number;
+  linkedProductId?: number | null; // ⭐ AJOUT
 }
 
 export interface BlockUI {
@@ -284,6 +291,44 @@ const generateLayersFromBlocks = (blocks: BlockUI[], expandedLayers: Set<string>
   return buildTree();
 };
 
+// ═══════════════════════════════════════════════════════════════
+// ⭐ E.2 — StudioAnimatedPageFrame
+// ═══════════════════════════════════════════════════════════════
+
+function StudioAnimatedPageFrame({
+  pageId,
+  animationsConfig,
+  style,
+  className,
+  registerPageFrameRef,
+  children,
+}: {
+  pageId: string;
+  animationsConfig: BlockAnimationsConfig | null | undefined;
+  style: React.CSSProperties;
+  className?: string;
+  registerPageFrameRef: (pageId: string, el: HTMLDivElement | null) => void;
+  children: React.ReactNode;
+}) {
+  const { setRef } = useBlockAnimation({
+    blockId: `page-${pageId}`,
+    config: animationsConfig ?? null,
+    context: 'studio',
+    studioMode: true,
+  });
+
+  const combinedRef = useCallback((el: HTMLDivElement | null) => {
+    setRef(el as any);
+    registerPageFrameRef(pageId, el);
+  }, [setRef, registerPageFrameRef, pageId]);
+
+  return (
+    <div data-page-frame-id={pageId} ref={combinedRef} style={style} className={className}>
+      {children}
+    </div>
+  );
+}
+
 export default function StudioLayout() {
   const { id } = useParams();
   const router = useRouter();
@@ -350,6 +395,10 @@ export default function StudioLayout() {
   const [addToParentData, setAddToParentData] = useState<{ parentId: string; parentType: string; parentName: string } | null>(null);
 
   const [showProductPageSidebar, setShowProductPageSidebar] = useState(false);
+
+  // ⭐ E.3 — État pour le mode aperçu des animations
+  const [animationPreviewMode, setAnimationPreviewMode] = useState(false);
+  const previewModeCleanupRef = useRef<(() => void) | null>(null);
 
   // ⭐ useNavbarPageSync
   useNavbarPageSync(state.pages, (updater) =>
@@ -639,6 +688,7 @@ export default function StudioLayout() {
         order: prev.pages.length,
         canvasX: (source.canvasX ?? 0) + 1320,
         canvasY: source.canvasY ?? 0,
+        linkedProductId: source.linkedProductId ?? null,
       };
       const sourceBlocks = prev.blocks.filter(b => (b.pageId || DEFAULT_PAGE_ID) === pageId);
       const idMap = new Map(sourceBlocks.map(b => [b.id, `${b.type}-${Date.now()}-${Math.random()}`]));
@@ -679,6 +729,7 @@ export default function StudioLayout() {
         backgroundOpacity: prev.customization?.backgroundOpacity,
         canvasX: nextX,
         canvasY: 0,
+        linkedProductId: null,
       };
       return {
         ...prev,
@@ -870,6 +921,86 @@ export default function StudioLayout() {
     };
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════
+  // ⭐ E.3 — handleToggleAnimationPreview
+  // ═══════════════════════════════════════════════════════════════
+
+  const handleToggleAnimationPreview = useCallback(() => {
+    setAnimationPreviewMode(prev => {
+      const next = !prev;
+      if (!next && previewModeCleanupRef.current) {
+        previewModeCleanupRef.current();
+        previewModeCleanupRef.current = null;
+      }
+      return next;
+    });
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════
+  // ⭐ E.3 — useEffect pour le mode aperçu
+  // ═══════════════════════════════════════════════════════════════
+
+  useEffect(() => {
+    if (!animationPreviewMode) return;
+
+    const pageBlockId = `page-${state.currentPageId}`;
+    const pageCfg = state.customization?.pageAnimationsConfig as BlockAnimationsConfig | undefined;
+    const demoable = (a: AnimationParams) =>
+      a.enabled && ['entrance', 'scroll', 'exit', 'click'].includes(a.category);
+
+    const touched: Array<{ blockId: string; animId: string }> = [];
+    const touchedBlockIds = new Set<string>();
+
+    // Animations de la page
+    if (pageCfg?.animations?.some(demoable)) {
+      pageCfg.animations.filter(demoable).forEach(anim => {
+        const el = animationEngine.getElement(pageBlockId);
+        if (el) {
+          animationEngine.previewAnimation(el, anim, pageBlockId);
+          touched.push({ blockId: pageBlockId, animId: anim.id });
+          touchedBlockIds.add(pageBlockId);
+        }
+      });
+    }
+
+    // ⭐ APRÈS — la transition vient désormais de la navbar globale, pas de pageCfg
+    const navbarWithTransition = state.blocks.find(
+      b => isNavbarBlockType(b.type)
+        && b.pageId === GLOBAL_BLOCK_PAGE_ID
+        && b.props?.navConfig?.pageTransition
+        && b.props.navConfig.pageTransition.type !== 'none'
+    );
+    const pageTransition = navbarWithTransition?.props?.navConfig?.pageTransition;
+    if (pageTransition) {
+      const pageEl = animationEngine.getElement(pageBlockId);
+      if (pageEl) animationEngine.previewPageTransition(pageEl, pageTransition);
+    }
+
+    // Animations des blocs de la page courante
+    currentPageBlocks.forEach(block => {
+      const cfg = block.props?.animationsConfig as BlockAnimationsConfig | undefined;
+      if (!cfg || cfg.disabled) return;
+      (cfg.animations ?? []).filter(demoable).forEach(anim => {
+        const el = animationEngine.getElement(block.id);
+        if (el) {
+          animationEngine.previewAnimation(el, anim, block.id);
+          touched.push({ blockId: block.id, animId: anim.id });
+          touchedBlockIds.add(block.id);
+        }
+      });
+    });
+
+    previewModeCleanupRef.current = () => {
+      touched.forEach(({ blockId, animId }) => animationEngine.killAnimation(blockId, animId));
+      touchedBlockIds.forEach(id => animationEngine.resetElementStyle(id));
+    };
+
+    return () => {
+      previewModeCleanupRef.current?.();
+      previewModeCleanupRef.current = null;
+    };
+  }, [animationPreviewMode, state.currentPageId, currentPageBlocks, state.customization?.pageAnimationsConfig]);
+
   const updateCustomization = useCallback((updates: any) => {
     const bgKeys = ['backgroundColor', 'backgroundType', 'backgroundValue', 'backgroundOpacity'];
     const isBackgroundUpdate = Object.keys(updates).some(k => bgKeys.includes(k));
@@ -900,6 +1031,22 @@ export default function StudioLayout() {
 
   const handleCloseProductCustomization = useCallback(() => {
     setSelectedProductForCustomization(null);
+  }, []);
+
+  // ⭐ NOUVEAU — upload du logo de la boutique avec cache-busting
+  const handleUploadLogo = useCallback(async (file: File) => {
+    const shopId = stateRef.current.shop?.id;
+    if (!shopId) return;
+    try {
+      const { logoUrl } = await shopService.uploadLogo(shopId, file);
+      // ⭐ Cache-bust : force le navigateur à re-télécharger même si le nom de fichier est identique
+      const bustedUrl = logoUrl
+        ? `${logoUrl}${logoUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
+        : logoUrl;
+      setState(prev => ({ ...prev, shop: { ...prev.shop, logoUrl: bustedUrl } }));
+    } catch (error) {
+      console.error('❌ Erreur upload logo:', error);
+    }
   }, []);
 
   const updateGlobalProductCustomization = useCallback((productId: number, updates: Partial<ProductCustomization>) => {
@@ -1749,6 +1896,8 @@ export default function StudioLayout() {
         const realBlocksFromApi = (blocksFromApi as any[]).filter((b: any) => b.type !== PAGES_META_BLOCK_TYPE);
 
         let loadedPages: StudioPage[] = [];
+        let loadedPageAnimationsConfig: any = null;
+
         if (pagesMetaRaw) {
           try {
             const raw = pagesMetaRaw.settings?.pages;
@@ -1766,14 +1915,26 @@ export default function StudioLayout() {
                   backgroundOpacity: p.backgroundOpacity,
                   canvasX: typeof p.canvasX === 'number' ? p.canvasX : idx * 1320,
                   canvasY: typeof p.canvasY === 'number' ? p.canvasY : 0,
+                  linkedProductId: typeof p.linkedProductId === 'number' ? p.linkedProductId : null, // ⭐ AJOUT
                 }));
             }
           } catch (e) {
             console.error('❌ Erreur parsing des pages:', e);
           }
+
+          // ⭐ AJOUT : chargement de pageAnimationsConfig
+          try {
+            const rawAnim = pagesMetaRaw.settings?.pageAnimationsConfig;
+            if (rawAnim) {
+              loadedPageAnimationsConfig = typeof rawAnim === 'string' ? JSON.parse(rawAnim) : rawAnim;
+            }
+          } catch (e) {
+            console.error('❌ Erreur parsing pageAnimationsConfig:', e);
+          }
         }
+
         if (loadedPages.length === 0) {
-          loadedPages = [{ id: DEFAULT_PAGE_ID, name: 'Page 1', order: 0, canvasX: 0, canvasY: 0 }];
+          loadedPages = [{ id: DEFAULT_PAGE_ID, name: 'Page 1', order: 0, canvasX: 0, canvasY: 0, linkedProductId: null }];
         }
         loadedPages.sort((a, b) => a.order - b.order);
         const validPageIds = new Set(loadedPages.map(p => p.id));
@@ -1890,6 +2051,7 @@ export default function StudioLayout() {
             backgroundType: background?.backgroundType || 'solid',
             backgroundValue: background?.backgroundValue || null,
             backgroundOpacity: background?.backgroundOpacity ?? 100,
+            pageAnimationsConfig: loadedPageAnimationsConfig,
           },
           filters: filters || { shopId: shop.id, globalFilter: 'none' },
           canvasFilters,
@@ -2030,7 +2192,10 @@ export default function StudioLayout() {
           X: 0, Y: 0, Width: 1, Height: 1, ZIndex: 0, Rotation: 0,
           PositionType: 'absolute', ParentId: null, GroupId: null, IsLocked: false, Alignment: 'center',
         },
-        settings: { pages: JSON.stringify(state.pages) },
+        settings: {
+          pages: JSON.stringify(state.pages),
+          pageAnimationsConfig: JSON.stringify(state.customization?.pageAnimationsConfig ?? null),
+        },
         brightness: 1, contrast: 1, saturation: 1, blur: 0, cssFilter: 'none',
       };
       
@@ -2241,7 +2406,7 @@ export default function StudioLayout() {
         selectedTarget: target || 'text',
         isBackgroundSelected: false,
         currentPageId: newPageId,
-        activePanel: isNavbar ? 'navbar' : prev.activePanel, // ⭐ ouvre direct le bon panneau
+        activePanel: isNavbar ? 'navbar' : prev.activePanel,
       };
     });
     const matched = blockId ? stateRef.current.blocks.find(b => b.id === blockId) : null;
@@ -2393,7 +2558,6 @@ export default function StudioLayout() {
           onOpenProductPage={() => setShowProductPageSidebar(true)}
         />
 
-        {/* ⭐ GlobalNavbarsBar avec props simplifiées (pages/currentPageId retirées) */}
         <GlobalNavbarsBar
           navbarBlocks={globalNavbarBlocks}
           selectedBlockId={state.selectedBlockId}
@@ -2445,6 +2609,7 @@ export default function StudioLayout() {
             onCloseProductCustomization={handleCloseProductCustomization}
             productsList={memoizedProductsList}
             pages={state.pages}
+            currentPageId={state.currentPageId}
           />
 
           <div ref={canvasScrollRef} className="flex-1 overflow-auto p-4 bg-gray-800 relative">
@@ -2467,22 +2632,22 @@ export default function StudioLayout() {
                   transformOrigin: 'top left',
                 }}
               >
-                {/* ⭐ Boucle des frames de page — la Navbar devient partie du frame */}
                 {sortedPages.map(page => {
                   const pageBlocks = state.blocks.filter(b => (b.pageId || DEFAULT_PAGE_ID) === page.id);
                   const frameWidth = state.previewMode === 'desktop' ? 1200 : state.previewMode === 'tablet' ? 768 : 375;
                   return (
-                    <div
+                    <StudioAnimatedPageFrame
                       key={page.id}
-                      data-page-frame-id={page.id}
-                      ref={(el) => registerPageFrameRef(page.id, el)}
+                      pageId={page.id}
+                      animationsConfig={state.customization?.pageAnimationsConfig ?? null}
+                      registerPageFrameRef={registerPageFrameRef}
+                      className="flex flex-col gap-2"
                       style={{
                         position: 'absolute',
                         left: (page.canvasX ?? 0) + 'px',
                         top: (page.canvasY ?? 0) + 'px',
                         width: frameWidth + 'px',
                       }}
-                      className="flex flex-col gap-2"
                     >
                       <span
                         className="text-gray-400 text-xs font-medium cursor-grab active:cursor-grabbing select-none w-fit px-2 py-1 rounded hover:bg-gray-700/50 hover:text-white transition-colors"
@@ -2492,7 +2657,6 @@ export default function StudioLayout() {
                         ⠿ {page.name}
                       </span>
 
-                      {/* ⭐ Wrapper relatif : permet à la Navbar sidebar (overlay) de s'étirer sur toute la hauteur de la frame */}
                       <div className="relative">
                         <PageGlobalNavbars
                           navbarBlocks={globalNavbarBlocks}
@@ -2530,15 +2694,27 @@ export default function StudioLayout() {
                           onOpenProductCustomization={stableHandleOpenProductCustomization}
                           globalProductCustomizations={memoizedGlobalProductCustomizations}
                           onUpdateGlobalProductCustomization={stableHandleUpdateGlobalProductCustomization}
+                          onUploadLogo={handleUploadLogo} // ⭐ AJOUT
                         />
                       </div>
-                    </div>
+                    </StudioAnimatedPageFrame>
                   );
                 })}
               </div>
             </div>
 
             <div className="fixed bottom-4 right-4 flex items-center gap-3 bg-gray-900 rounded-lg px-4 py-2 shadow-lg z-50">
+              <button
+                onClick={handleToggleAnimationPreview}
+                title={animationPreviewMode ? 'Revenir au mode édition' : 'Aperçu des animations de la page'}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                  animationPreviewMode ? 'bg-purple-600 text-white' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
+                }`}
+              >
+                {animationPreviewMode ? <FiEyeOff size={13} /> : <FiPlay size={13} />}
+                {animationPreviewMode ? 'Édition' : 'Aperçu'}
+              </button>
+
               <input
                 ref={zoomSliderRef}
                 type="range"

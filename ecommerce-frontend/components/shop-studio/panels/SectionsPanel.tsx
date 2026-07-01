@@ -65,6 +65,17 @@ const SECTIONS = [
     } 
   },
   { 
+    type: 'logo', 
+    label: 'Logo', 
+    icon: FiImage, 
+    description: 'Affiche le logo de votre boutique',
+    defaultProps: { 
+      position: 'center', 
+      size: 80, 
+      shape: 'square' 
+    } 
+  },
+  { 
     type: 'products', 
     label: 'Grille produits', 
     icon: FiGrid, 

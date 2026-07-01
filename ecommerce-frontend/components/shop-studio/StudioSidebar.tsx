@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import { 
   FiDroplet, FiType, FiFilter, FiImage, FiLayout, 
   FiPackage, FiSettings, FiCamera, FiPlusSquare, FiLayers, FiX,
-  FiMenu // ⭐ NOUVEAU pour la navigation
+  FiMenu, // ⭐ pour la navigation
+  FiZap, // ⭐ NOUVEAU pour les animations
+  FiCreditCard // ⭐ AJOUTÉ pour les boutons
 } from 'react-icons/fi';
 import ColorsPanel from './panels/ColorsPanel';
 import FontsPanel from './panels/FontsPanel';
@@ -16,10 +18,15 @@ import ProductsPanel from './panels/ProductsPanel';
 import SettingsPanel from './panels/SettingsPanel';
 import SnapshotsPanel from './panels/SnapshotsPanel';
 import TextPanel from './panels/TextPanel';
+import ButtonsPanel from './panels/ButtonsPanel'; // ⭐ AJOUTÉ
 import GridManagerPanel from './panels/GridManagerPanel';
 import ProductCustomizationSidebar from './panels/ProductCustomizationSidebar';
-// ⭐ NOUVEAU : panneau Navigation
+// ⭐ Panneau Navigation
 import NavbarPanel from './panels/NavbarPanel';
+// ⭐ Panneau Navigation Link
+import NavigationLinkPanel from './panels/NavigationLinkPanel';
+// ⭐ NOUVEAU : Panneau Animations
+import AnimationsPanel from './panels/AnimationsPanel';
 import { ProductGridConfig, ProductGridSlot, StudioProduct, ProductCustomization, CreateStudioProduct } from '@/types/studio';
 import { StudioPage } from '@/types/studio';
 
@@ -71,12 +78,15 @@ interface Props {
   productsList?: StudioProduct[];
   // ⭐ NOUVEAU : pages pour la navigation
   pages?: StudioPage[];
+  // ⭐ NOUVEAU : ID de la page actuelle pour les animations de page
+  currentPageId?: string;
 }
 
-// ⭐ PANELS mis à jour avec l'ajout de 'navbar'
+// ⭐ PANELS mis à jour avec l'ajout de 'buttons', 'navbar' et 'animations'
 const PANELS = [
   { id: 'sections',   label: 'Sections',    icon: FiPlusSquare },
   { id: 'textes',     label: 'Textes',      icon: FiType },
+  { id: 'buttons',    label: 'Boutons',     icon: FiCreditCard }, // ⭐ NOUVEAU
   { id: 'colors',     label: 'Couleurs',    icon: FiDroplet },
   { id: 'fonts',      label: 'Polices',     icon: FiType },
   { id: 'filters',    label: 'Filtres',     icon: FiFilter },
@@ -86,7 +96,8 @@ const PANELS = [
   { id: 'snapshots',  label: 'Versions',    icon: FiCamera },
   { id: 'settings',   label: 'Paramètres',  icon: FiSettings },
   { id: 'layers',     label: 'Calques',     icon: FiLayers },
-  { id: 'navbar',     label: 'Navigation',  icon: FiMenu }, // ⭐ NOUVEAU
+  { id: 'navbar',     label: 'Navigation',  icon: FiMenu },
+  { id: 'animations', label: 'Animations',  icon: FiZap }, // ⭐ NOUVEAU
 ];
 
 export default function StudioSidebar({ 
@@ -101,6 +112,7 @@ export default function StudioSidebar({
   onUpdateProductCustomization, onCloseProductCustomization,
   productsList = [],
   pages = [], // ⭐ NOUVEAU : pages
+  currentPageId, // ⭐ NOUVEAU : ID de la page actuelle
 }: Props) {
 
   // Panel ouvert (null = panneau droit fermé)
@@ -147,6 +159,14 @@ export default function StudioSidebar({
         return (
           <TextPanel onAddText={(textData) => {
             onAddBlock(textData.type, { ...textData, position: { x: 200, y: 200, width: 300, height: 100, zIndex: 10 } });
+          }} />
+        );
+
+      // ⭐ NOUVEAU : Panneau Boutons
+      case 'buttons':
+        return (
+          <ButtonsPanel onAddButton={(buttonData) => {
+            onAddBlock(buttonData.type, { ...buttonData, position: { x: 200, y: 200, width: 160, height: 48, zIndex: 10 } });
           }} />
         );
 
@@ -253,18 +273,58 @@ export default function StudioSidebar({
           </div>
         );
 
-      // ⭐ NOUVEAU : Panneau Navigation
+      // ⭐ Panneau Navigation — Navbar OU bloc lié à une page
       case 'navbar':
-        return selectedBlock?.type?.startsWith('navbar-')
-          ? <NavbarPanel block={selectedBlock} pages={pages} onUpdateBlock={handleUpdateBlock} />
-          : (
-            <div className="text-center py-8 text-gray-400 text-xs">
-              <FiMenu size={24} className="mx-auto mb-2 text-gray-600" />
-              Sélectionnez une Navbar sur le canvas
-              <br />
-              <span className="text-gray-600 text-[10px]">(bloc de type "navbar-*")</span>
-            </div>
+        if (selectedBlock?.type?.startsWith('navbar-')) {
+          return (
+            <NavbarPanel
+              block={selectedBlock}
+              pages={pages}
+              onUpdateBlock={handleUpdateBlock}
+              currentPageId={currentPageId}
+            />
           );
+        }
+        if (selectedBlock && !isBackgroundSelected) {
+          return (
+            <NavigationLinkPanel
+              value={selectedBlock.props?.navigationLink}
+              pages={pages}
+              onChange={(link) => handleUpdateBlock(selectedBlock.id, { navigationLink: link })}
+            />
+          );
+        }
+        return (
+          <div className="text-center py-8 text-gray-400 text-xs">
+            <FiMenu size={24} className="mx-auto mb-2 text-gray-600" />
+            Sélectionnez un élément ou une Navbar sur le canvas
+          </div>
+        );
+
+      // ⭐ NOUVEAU : Panneau Animations
+      case 'animations':
+        return selectedBlock ? (
+          <AnimationsPanel
+            blockId={selectedBlock.id}
+            blockType={selectedBlock.type}
+            config={selectedBlock.props?.animationsConfig ?? null}
+            onChange={(config) => {
+              handleUpdateBlock(selectedBlock.id, { animationsConfig: config });
+            }}
+          />
+        ) : (
+          // ⭐ REMPLACER le message vide par les animations de PAGE
+          <AnimationsPanel
+            blockId="__page__"
+            blockType="page"
+            config={customization?.pageAnimationsConfig ?? null}
+            onChange={(config) => {
+              onUpdateCustomization({ pageAnimationsConfig: config });
+            }}
+            isPageMode
+            pageId={currentPageId} // ⭐ AJOUT : passer l'ID de la page actuelle
+          />
+        );
 
       default:
         return null;

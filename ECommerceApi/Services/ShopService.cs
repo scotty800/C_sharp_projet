@@ -160,7 +160,11 @@ namespace ECommerceApi.Services
                 throw new Exception("Fichier trop volumineux (5MB max)");
         }
 
-        public async Task<bool> UploadLogoAsync(int shopId, int userId, IFormFile file)
+        /// <summary>
+        /// Upload du logo de la boutique
+        /// </summary>
+        /// <returns>L'URL du logo uploadé, ou null en cas d'erreur</returns>
+        public async Task<string?> UploadLogoAsync(int shopId, int userId, IFormFile file)
         {
             try
             {
@@ -168,7 +172,7 @@ namespace ECommerceApi.Services
 
                 var shop = await _context.Shops.FindAsync(shopId);
                 if (shop == null || shop.OwnerId != userId)
-                    return false;
+                    return null; // ⭐ MODIFIÉ
 
                 var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "shops", shopId.ToString());
                 Directory.CreateDirectory(uploadsPath);
@@ -191,15 +195,19 @@ namespace ECommerceApi.Services
                 shop.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                return true;
+                return shop.LogoUrl; // ⭐ MODIFIÉ
             }
             catch
             {
-                return false;
+                return null; // ⭐ MODIFIÉ
             }
         }
 
-        public async Task<bool> UploadBannerAsync(int shopId, int userId, IFormFile file)
+        /// <summary>
+        /// Upload de la bannière de la boutique
+        /// </summary>
+        /// <returns>L'URL de la bannière uploadée, ou null en cas d'erreur</returns>
+        public async Task<string?> UploadBannerAsync(int shopId, int userId, IFormFile file)
         {
             try
             {
@@ -207,7 +215,7 @@ namespace ECommerceApi.Services
 
                 var shop = await _context.Shops.FindAsync(shopId);
                 if (shop == null || shop.OwnerId != userId)
-                    return false;
+                    return null; // ⭐ MODIFIÉ
 
                 var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "shops", shopId.ToString());
                 Directory.CreateDirectory(uploadsPath);
@@ -230,11 +238,11 @@ namespace ECommerceApi.Services
                 shop.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
-                return true;
+                return shop.BannerUrl; // ⭐ MODIFIÉ
             }
             catch
             {
-                return false;
+                return null; // ⭐ MODIFIÉ
             }
         }
 

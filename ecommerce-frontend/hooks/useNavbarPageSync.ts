@@ -1,14 +1,11 @@
-// hooks/useNavbarPageSync.ts
 import { useEffect } from 'react';
 import { StudioPage } from '@/types/studio';
 
 /**
- * - Renommage d'une page : RIEN À FAIRE, car on lie par `pageId` (stable), jamais par nom.
- *   Le `<select>` affiche toujours `pages.find(p => p.id === pageId)?.name`, donc le nouveau nom apparaît automatiquement.
- * - Suppression d'une page : ce hook détecte les boutons qui pointent vers un pageId qui n'existe plus
- *   et neutralise le lien (évite un lien mort silencieux).
- * - Duplication d'une page : un nouvel id est généré, les liens existants restent valides (ils pointent
- *   toujours vers la page source, ce qui est le comportement attendu).
+ * - Renommage d'une page : RIEN À FAIRE (liaison par pageId stable).
+ * - Suppression d'une page : neutralise tout lien (Navbar OU bloc générique)
+ *   qui pointait vers cette page, pour éviter un lien mort silencieux.
+ * - Duplication d'une page : les liens existants restent valides.
  */
 export function useNavbarPageSync(
   pages: StudioPage[],
@@ -20,21 +17,34 @@ export function useNavbarPageSync(
     setBlocks(prevBlocks => {
       let changed = false;
       const next = prevBlocks.map((block: any) => {
-        const navConfig = block.props?.navConfig;
-        if (!block.type?.startsWith('navbar-') || !navConfig) return block;
-
         let blockChanged = false;
-        const buttons = navConfig.buttons.map((btn: any) => {
-          if (btn.link?.type === 'page' && !validPageIds.has(btn.link.pageId)) {
-            blockChanged = true;
-            return { ...btn, link: { type: 'none' } }; // ⭐ lien cassé neutralisé
+        let updatedProps = block.props;
+
+        // Cas 1 : boutons de Navbar
+        const navConfig = block.props?.navConfig;
+        if (block.type?.startsWith('navbar-') && navConfig) {
+          const buttons = navConfig.buttons.map((btn: any) => {
+            if (btn.link?.type === 'page' && !validPageIds.has(btn.link.pageId)) {
+              blockChanged = true;
+              return { ...btn, link: { type: 'none' } };
+            }
+            return btn;
+          });
+          if (blockChanged) {
+            updatedProps = { ...updatedProps, navConfig: { ...navConfig, buttons } };
           }
-          return btn;
-        });
+        }
+
+        // Cas 2 : ⭐ lien générique sur un bloc (bouton, image, forme, custom…)
+        const navLink = block.props?.navigationLink;
+        if (navLink?.type === 'page' && !validPageIds.has(navLink.pageId)) {
+          blockChanged = true;
+          updatedProps = { ...updatedProps, navigationLink: { type: 'none' } };
+        }
 
         if (!blockChanged) return block;
         changed = true;
-        return { ...block, props: { ...block.props, navConfig: { ...navConfig, buttons } } };
+        return { ...block, props: updatedProps };
       });
 
       return changed ? next : prevBlocks;

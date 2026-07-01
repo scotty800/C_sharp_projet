@@ -76,6 +76,10 @@ export function parsePagesAndBlocks(blocksFromApi: any[]): {
             backgroundType: p.backgroundType,
             backgroundValue: p.backgroundValue,
             backgroundOpacity: p.backgroundOpacity,
+            canvasX: typeof p.canvasX === 'number' ? p.canvasX : idx * 1320,
+            canvasY: typeof p.canvasY === 'number' ? p.canvasY : 0,
+            // ⭐ Restauration de la liaison produit → page
+            linkedProductId: typeof p.linkedProductId === 'number' ? p.linkedProductId : null,
           }));
       }
     } catch {
@@ -101,8 +105,15 @@ export function parsePagesAndBlocks(blocksFromApi: any[]): {
     const pos = b.position || {};
     const isParent = !!b.parentId;
     const rawPageId = b.settings?.pageId;
+
+    // ⭐ Gestion du GLOBAL_BLOCK_PAGE_ID (navbars persistantes)
+    const GLOBAL_BLOCK_PAGE_ID = '__global__';
     const resolvedPageId =
-      typeof rawPageId === 'string' && validPageIds.has(rawPageId) ? rawPageId : fallbackPageId;
+      rawPageId === GLOBAL_BLOCK_PAGE_ID
+        ? GLOBAL_BLOCK_PAGE_ID
+        : typeof rawPageId === 'string' && validPageIds.has(rawPageId)
+        ? rawPageId
+        : fallbackPageId;
 
     return {
       id: b.id,
@@ -130,7 +141,11 @@ export function parsePagesAndBlocks(blocksFromApi: any[]): {
   return { pages, blocks, productCustomizations };
 }
 
-export function getCustomizationForPage(pages: StudioPage[], pageId: string, globalCustomization: any) {
+export function getCustomizationForPage(
+  pages: StudioPage[],
+  pageId: string,
+  globalCustomization: any
+) {
   const page = pages.find(p => p.id === pageId);
   return {
     ...globalCustomization,
