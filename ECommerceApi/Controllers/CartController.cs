@@ -60,7 +60,7 @@ public class CartController : ControllerBase
     }
 
     [HttpPut("item/{itemId}")]
-    public async Task<IActionResult> UpdateCarItem(int itemId, [FromBody] UpdateCartItemDto cartDto)
+    public async Task<IActionResult> UpdateCartItem(int itemId, [FromBody] UpdateCartItemDto cartDto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -72,6 +72,18 @@ public class CartController : ControllerBase
             return NotFound("Article non trouvé dans votre panier");
 
         return Ok(new { message = "Quantité mise à jour" });
+    }
+
+    [HttpPut("item/{itemId}/variant")]
+    public async Task<IActionResult> UpdateCartItemVariant(int itemId, [FromBody] UpdateCartItemVariantDto dto)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var updated = await _cartService.UpdateCartItemVariantAsync(userId, itemId, dto);
+
+        if (!updated)
+            return NotFound("Article non trouvé dans votre panier");
+
+        return Ok(new { message = "Variante mise à jour" });
     }
 
     [HttpDelete("item/{itemId}")]

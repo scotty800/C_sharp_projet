@@ -22,6 +22,7 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
   const tax = subtotal * 0.2; // TVA 20%
   const total = subtotal + shipping + tax;
 
+  // ⭐ MODIFICATION — Vérification des variantes avant le paiement
   const handleCheckout = () => {
     if (!user) {
       toast.error('Veuillez vous connecter pour finaliser votre commande');
@@ -31,6 +32,17 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
 
     if (cart.items.length === 0) {
       toast.error('Votre panier est vide');
+      return;
+    }
+
+    // ⭐ Vérifier si des articles nécessitent une variante (taille/couleur)
+    const missingVariant = cart.items.find(
+      (item) =>
+        ((item.size && item.size.length > 0) && !item.selectedSize) ||
+        ((item.color && item.color.length > 0) && !item.selectedColor)
+    );
+    if (missingVariant) {
+      toast.error(`Veuillez choisir une taille/couleur pour "${missingVariant.productName}"`);
       return;
     }
 
@@ -132,6 +144,19 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
           ))}
         </div>
       </div>
+
+      {/* ⭐ Affichage d'un avertissement si des variantes manquent */}
+      {cart.items.some(
+        (item) =>
+          ((item.size && item.size.length > 0) && !item.selectedSize) ||
+          ((item.color && item.color.length > 0) && !item.selectedColor)
+      ) && (
+        <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+          <p className="text-sm text-orange-600 dark:text-orange-400">
+            ⚠️ Certains articles nécessitent de choisir une taille ou une couleur.
+          </p>
+        </div>
+      )}
 
       {/* Bouton de paiement */}
       <button

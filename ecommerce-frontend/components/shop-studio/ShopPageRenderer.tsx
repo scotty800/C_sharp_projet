@@ -19,7 +19,8 @@ export default function ShopPageRenderer({
   onAddToCart,
 }: {
   data: ShopRenderData;
-  onAddToCart?: (product: StudioProduct) => void;
+  // ⭐ MODIFICATION — onAddToCart avec variante optionnelle
+  onAddToCart?: (product: StudioProduct, variant?: { size?: string; color?: string }) => void;
 }) {
   const sortedPages = [...data.pages].sort((a, b) => a.order - b.order);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -74,6 +75,18 @@ export default function ShopPageRenderer({
   const customization = getCustomizationForPage(data.pages, currentPage.id, data.customization);
   const hasGlobalNavbar = data.globalBlocks.length > 0;
 
+  // ⭐ AJOUT — Produit lié à la page courante (page générée depuis un template produit)
+  const pageProduct =
+    currentPage.linkedProductId != null
+      ? data.productsList.find((p) => p.id === currentPage.linkedProductId) ?? null
+      : null;
+
+  console.log('🔍 DEBUG pageProduct:', {
+    linkedProductId: currentPage.linkedProductId,
+    pageProduct,
+    productsListIds: data.productsList.map(p => p.id),
+  });
+
   return (
     <div className="w-full min-h-screen flex flex-col">
       <GoogleFontsLoader fonts={data.usedFonts} />
@@ -119,6 +132,7 @@ export default function ShopPageRenderer({
           hasProductPage={hasProductPage}
           onNavigateLink={resolveNavLink}
           isNavLinkActive={isLinkActive}
+          pageProduct={pageProduct} // ⭐ AJOUT
         />
       </div>
 
@@ -284,6 +298,7 @@ function PageSection({
   hasProductPage,
   onNavigateLink,
   isNavLinkActive,
+  pageProduct, // ⭐ AJOUT
 }: any) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [frameWidth, setFrameWidth] = useState(STUDIO_FRAME_WIDTH);
@@ -342,6 +357,7 @@ function PageSection({
         hasProductPage={hasProductPage}
         onNavigateLink={onNavigateLink}
         isNavLinkActive={isNavLinkActive}
+        pageProduct={pageProduct} // ⭐ AJOUT
       />
     </section>
   );

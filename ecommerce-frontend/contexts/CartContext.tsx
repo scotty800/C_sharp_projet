@@ -9,11 +9,19 @@ interface CartContextType {
   cart: Cart | null;
   itemCount: number;
   isLoading: boolean;
-  addToCart: (productId: number, quantity: number) => Promise<void>;
+  // ⭐ MODIFICATION — addToCart avec size et color optionnels
+  addToCart: (productId: number, quantity: number, size?: string, color?: string) => Promise<void>;
   updateQuantity: (itemId: number, quantity: number) => Promise<void>;
+  // ⭐ AJOUT — mise à jour de la variante
+  updateVariant: (itemId: number, size?: string, color?: string) => Promise<void>;
   removeFromCart: (itemId: number) => Promise<void>;
   clearCart: () => Promise<void>;
   refreshCart: () => Promise<void>;
+  // ⭐ AJOUT — pilotage du sidebar
+  isSidebarOpen: boolean;
+  openSidebar: () => void;
+  closeSidebar: () => void;
+  toggleSidebar: () => void;
 }
 
 export const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -21,11 +29,15 @@ export const CartContext = createContext<CartContextType | undefined>(undefined)
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cart, setCart] = useState<Cart | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // ⭐ AJOUT
   const { user, token } = useAuth();
 
   const itemCount = cart?.items?.reduce((total: number, item: CartItem) => total + item.quantity, 0) || 0;
 
-  // Charger le panier quand l'utilisateur se connecte
+  const openSidebar = () => setIsSidebarOpen(true);     // ⭐ AJOUT
+  const closeSidebar = () => setIsSidebarOpen(false);   // ⭐ AJOUT
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev); // ⭐ AJOUT
+
   useEffect(() => {
     if (user && token) {
       refreshCart();
@@ -36,7 +48,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshCart = async () => {
     if (!user) return;
-    
+
     try {
       setIsLoading(true);
       const { data } = await api.get('/cart');
@@ -48,14 +60,15 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addToCart = async (productId: number, quantity: number) => {
+  // ⭐ MODIFICATION — addToCart avec size et color
+  const addToCart = async (productId: number, quantity: number, size?: string, color?: string) => {
     try {
       setIsLoading(true);
-      const { data } = await api.post('/cart/add', { productId, quantity });
-      
-      // Mettre à jour le panier avec la réponse
+      const { data } = await api.post('/cart/add', { productId, quantity, size, color });
+
       await refreshCart();
-      
+      setIsSidebarOpen(true); // ⭐ AJOUT — feedback visuel immédiat
+
       return data;
     } catch (error) {
       console.error('Erreur lors de l\'ajout au panier:', error);
@@ -69,13 +82,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       await api.put(`/cart/item/${itemId}`, { quantity });
-      
-      // ✅ CORRECTION : Utiliser CartItem pour le type du paramètre
+
       setCart((prev: Cart | null) => {
         if (!prev) return null;
         return {
           ...prev,
-          items: prev.items.map((item: CartItem) => // ← Type CartItem, pas Cart
+          items: prev.items.map((item: CartItem) =>
             item.id === itemId ? { ...item, quantity } : item
           ),
         };
@@ -88,17 +100,30 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // ⭐ AJOUT — mise à jour de la variante d'un article
+  const updateVariant = async (itemId: number, size?: string, color?: string) => {
+    try {
+      setIsLoading(true);
+      await api.put(`/cart/item/${itemId}/variant`, { size, color });
+      await refreshCart();
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la variante:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const removeFromCart = async (itemId: number) => {
     try {
       setIsLoading(true);
       await api.delete(`/cart/item/${itemId}`);
-      
-      // ✅ CORRECTION : Utiliser CartItem pour le type du paramètre
+
       setCart((prev: Cart | null) => {
         if (!prev) return null;
         return {
           ...prev,
-          items: prev.items.filter((item: CartItem) => item.id !== itemId), // ← Type CartItem
+          items: prev.items.filter((item: CartItem) => item.id !== itemId),
         };
       });
     } catch (error) {
@@ -113,7 +138,6 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     try {
       setIsLoading(true);
       await api.delete('/cart/clear');
-      // ✅ CORRECTION : Vérifier que cart existe
       setCart((prev: Cart | null) => {
         if (!prev) return null;
         return { ...prev, items: [] };
@@ -133,9 +157,14 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       addToCart,
       updateQuantity,
+      updateVariant,    // ⭐ AJOUT
       removeFromCart,
       clearCart,
       refreshCart,
+      isSidebarOpen,   // ⭐ AJOUT
+      openSidebar,     // ⭐ AJOUT
+      closeSidebar,    // ⭐ AJOUT
+      toggleSidebar,   // ⭐ AJOUT
     }}>
       {children}
     </CartContext.Provider>

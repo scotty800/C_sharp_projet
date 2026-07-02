@@ -9,7 +9,7 @@ import { ImageBlock } from '@/components/shop-studio/blocks/ImageBlock';
 import { ButtonBlock } from '@/components/shop-studio/blocks/ButtonBlock';
 import { SpacerBlock } from '@/components/shop-studio/blocks/SpacerBlock';
 import { ShapeBlock } from '@/components/shop-studio/blocks/ShapeBlock';
-import { FrameBlock } from '@/components/shop-studio/blocks/FrameBlock'; // ⭐ AJOUT
+import { FrameBlock } from '@/components/shop-studio/blocks/FrameBlock';
 import { ScreenBannerBlock } from '@/components/shop-studio/blocks/ScreenBannerBlock';
 import { CarouselBannerBlock } from '@/components/shop-studio/blocks/CarouselBannerBlock';
 import ShopProductGrid from './blocks/ShopProductGrid';
@@ -43,7 +43,15 @@ function AnimatedBlock({
   });
 
   return (
-    <div ref={setRef as any} style={style} className={className} onClick={onClick}>
+    <div 
+      ref={setRef as any} 
+      style={style} 
+      className={className} 
+      onClick={(e) => {
+        console.log('🖱️ AnimatedBlock onClick - blockId:', blockId);
+        onClick?.(e);
+      }}
+    >
       {children}
     </div>
   );
@@ -57,13 +65,12 @@ interface Props {
   globalProductCustomizations: Map<number, ProductCustomization>;
   frameWidth: number;
   onHeightChange?: (height: number) => void;
-  onAddToCart?: (product: StudioProduct) => void;
-  // ⭐ Navigation produit → page produit
+  onAddToCart?: (product: StudioProduct, variant?: { size?: string; color?: string }) => void;
   onNavigateToProduct?: (productId: number) => void;
   hasProductPage?: (productId: number) => boolean;
-  // ⭐ Navigation par lien (Navbar, boutons, blocs cliquables)
   onNavigateLink?: (link: NavLinkTarget | null | undefined) => void;
   isNavLinkActive?: (link: NavLinkTarget | null | undefined) => boolean;
+  pageProduct?: StudioProduct | null;
 }
 
 export default function ShopCanvas({
@@ -79,13 +86,19 @@ export default function ShopCanvas({
   hasProductPage,
   onNavigateLink,
   isNavLinkActive,
+  pageProduct,
 }: Props) {
+  console.log('📦 ShopCanvas - pageProduct reçu:', pageProduct?.id, pageProduct?.name);
+
   const [carouselIndices, setCarouselIndices] = useState<Record<string, number>>({});
   const [productHeights, setProductHeights] = useState<Record<string, number>>({});
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, { size?: string; color?: string }>>({});
 
   const ratio = frameWidth > 0 ? frameWidth / STUDIO_FRAME_WIDTH : 1;
+  const variantKey = pageProduct ? String(pageProduct.id) : 'default';
 
-  // ⭐ Résout le lien de navigation d'UN bloc, peu importe son type.
+  console.log('🔑 variantKey:', variantKey);
+
   const getNavLinkProps = useCallback(
     (linkBlock: BlockUI) => {
       const link = linkBlock.props?.navigationLink as NavLinkTarget | undefined;
@@ -101,6 +114,82 @@ export default function ShopCanvas({
       };
     },
     [onNavigateLink, isNavLinkActive]
+  );
+
+  const getInteractionProps = useCallback(
+    (block: BlockUI) => {
+      const action = block.props?.action;
+      const blockType = block.type;
+      const variantValue = block.props?.variantValue;
+
+      // ⭐ LOG — Tous les blocs avec action
+      if (action) {
+        console.log(`🎯 Action détectée - blockId: ${block.id}, type: ${blockType}, action: ${action}, variantValue: ${variantValue}`);
+      }
+
+      // ── selectSize ou selectColor ──
+      if (action === 'selectSize' || action === 'selectColor') {
+        const field = action === 'selectSize' ? 'size' : 'color';
+        const value = variantValue;
+        const currentVariant = selectedVariants[variantKey] || {};
+        const isSelected = currentVariant[field] === value;
+
+        console.log(`🔵 ${field} - valeur: ${value}, sélectionné: ${isSelected}, état actuel:`, currentVariant);
+
+        return {
+          onClick: (e: React.MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            console.log(`👆 Clic sur ${field}: ${value}`);
+            
+            setSelectedVariants((prev) => {
+              const current = prev[variantKey] || {};
+              const nextValue = current[field] === value ? undefined : value;
+              const next = { 
+                ...prev, 
+                [variantKey]: { 
+                  ...current, 
+                  [field]: nextValue 
+                } 
+              };
+              console.log(`📦 Nouvel état des variantes:`, next);
+              return next;
+            });
+          },
+          style: {
+            cursor: 'pointer',
+            ...(isSelected
+              ? {
+                  boxShadow: '0 0 0 2px #ffffff, 0 0 0 4px #111111',
+                  ...(block.type === 'shape' ? { borderRadius: '50%' } : {}),
+                }
+              : {
+                  ...(block.type === 'button' 
+                    ? { border: `1px solid ${block.props?.textColor}40` }
+                    : {}
+                  ),
+                }),
+          } as React.CSSProperties,
+        };
+      }
+
+      // ── addToCart ──
+      if (action === 'addToCart' && pageProduct && onAddToCart) {
+        console.log('🛒 addToCart - variante sélectionnée:', selectedVariants[variantKey]);
+        return {
+          onClick: (e: React.MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            console.log('🛒 Clic sur CTA avec variante:', selectedVariants[variantKey]);
+            onAddToCart(pageProduct, selectedVariants[variantKey]);
+          },
+          style: { cursor: 'pointer' } as React.CSSProperties,
+        };
+      }
+
+      return getNavLinkProps(block);
+    },
+    [pageProduct, onAddToCart, getNavLinkProps, selectedVariants, variantKey]
   );
 
   const visibleBlocks = blocks.filter((b) => b.isVisible !== false && b.type !== 'group');
@@ -162,7 +251,7 @@ export default function ShopCanvas({
     return (
       <div className="absolute inset-0" style={{ pointerEvents: 'none' }}>
         {children.map((child) => {
-          const navProps = getNavLinkProps(child);
+          const navProps = getInteractionProps(child);
           return (
             <AnimatedBlock
               key={`child-${child.id}`}
@@ -197,6 +286,14 @@ export default function ShopCanvas({
       block.props?.textOpacity !== undefined ? block.props.textOpacity / 100 : 1;
     const isParentBlock = ['banner', 'screen-banner', 'carousel-banner'].includes(block.type);
 
+    // ⭐ LOG — Blocs de sélection
+    if (block.type === 'shape' || block.type === 'button') {
+      const action = block.props?.action;
+      if (action === 'selectColor' || action === 'selectSize') {
+        console.log(`🎨 Bloc de sélection rendu - id: ${block.id}, type: ${block.type}, action: ${action}, valeur: ${block.props?.variantValue}`);
+      }
+    }
+
     const commonProps = {
       shop,
       block,
@@ -224,7 +321,7 @@ export default function ShopCanvas({
       : scalePosition(block);
 
     if (isParentBlock) {
-      const navProps = getNavLinkProps(block);
+      const navProps = getInteractionProps(block);
       const slideBlocks =
         block.type === 'carousel-banner'
           ? children
@@ -283,7 +380,7 @@ export default function ShopCanvas({
         case 'button': return <ButtonBlock {...commonProps} />;
         case 'spacer': return <SpacerBlock {...commonProps} />;
         case 'shape':  return <ShapeBlock {...commonProps} />;
-        case 'frame':  return <FrameBlock {...commonProps} />; // ⭐ AJOUT
+        case 'frame':  return <FrameBlock {...commonProps} />;
         case 'products':
           return (
             <ShopProductGrid
@@ -300,7 +397,6 @@ export default function ShopCanvas({
                     : prev
                 );
               }}
-              // ⭐ Navigation produit propagée au grid
               onNavigateToProduct={onNavigateToProduct}
               hasProductPage={hasProductPage}
             />
@@ -322,7 +418,7 @@ export default function ShopCanvas({
       );
     }
 
-    const navProps = getNavLinkProps(block);
+    const navProps = getInteractionProps(block);
 
     return (
       <AnimatedBlock

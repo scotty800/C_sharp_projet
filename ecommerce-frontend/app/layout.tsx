@@ -9,6 +9,7 @@ import { NotificationProvider } from '@/contexts/NotificationContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import { CartSidebar } from '@/components/cart'; // ⭐ AJOUT
 import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -22,7 +23,6 @@ export default function RootLayout({
   const isAuthPage = pathname?.startsWith('/auth/');
   const isHomePage = pathname === '/';
   const isStudioPage = pathname?.includes('/studio');
-  // ⭐ AJOUT : détection des pages boutique (shop/[slug])
   const isShopPage = pathname?.startsWith('/shop/');
 
   return (
@@ -32,18 +32,17 @@ export default function RootLayout({
           <NotificationProvider>
             <AuthProvider>
               <CartProvider>
-                {/* ⭐ Header caché sur les pages d'authentification, studio ET boutique */}
                 {!isAuthPage && !isStudioPage && !isShopPage && <Header />}
-                
-                {/* ⭐ Padding top seulement si le header est présent */}
+
                 <main className={`flex-grow ${!isAuthPage && !isStudioPage && !isShopPage ? 'pt-16' : ''}`}>
                   {children}
                 </main>
-                
-                {/* ⭐ Footer caché sur la page d'accueil, authentification, studio ET boutique */}
+
                 {!isHomePage && !isAuthPage && !isStudioPage && !isShopPage && <Footer />}
-                
-                <Toaster 
+
+                <CartSidebar /> {/* ⭐ AJOUT — dispo sur toutes les pages */}
+
+                <Toaster
                   position="top-right"
                   toastOptions={{
                     duration: 3000,

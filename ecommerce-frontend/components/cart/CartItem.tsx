@@ -2,14 +2,12 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FiTrash2, FiHeart, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 import { CartItem as CartItemType } from '@/types/cart';
-import { Product } from '@/types/product';
 import { formatPrice } from '@/services/utils/formatters';
 import { useCart } from '@/hooks/useCart';
-import { getProductImageUrl } from '@/utils/imageUtils';
-import { productService } from '@/services/api/products';
+import { getImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
 
 interface CartItemProps {
@@ -20,36 +18,14 @@ const CartItem = ({ item }: CartItemProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const [product, setProduct] = useState<Product | null>(item.product || null);
-  const [loadingProduct, setLoadingProduct] = useState(!item.product);
-  const { updateQuantity, removeFromCart } = useCart();
+  const { updateQuantity, removeFromCart, updateVariant } = useCart();
 
-  // Si le produit n'est pas inclus, le charger
-  useEffect(() => {
-    if (!item.product && item.productId) {
-      const fetchProduct = async () => {
-        try {
-          setLoadingProduct(true);
-          const data = await productService.getProductById(item.productId);
-          setProduct(data);
-        } catch (error) {
-          console.error('Erreur chargement produit:', error);
-        } finally {
-          setLoadingProduct(false);
-        }
-      };
-      fetchProduct();
-    }
-  }, [item.productId, item.product]);
-
-  const imageUrl = imgError 
-    ? '/images/product-placeholder.svg' 
-    : getProductImageUrl(product || item.product);
-
-  console.log('🛒 CartItem - produit:', product?.id || item.product?.id, 'imageUrl:', imageUrl);
+  const imageUrl = imgError || !item.productImage
+    ? '/images/product-placeholder.svg'
+    : getImageUrl(item.productImage);
 
   const handleUpdateQuantity = async (newQuantity: number) => {
-    if (newQuantity < 1 || newQuantity > ((product || item.product)?.stock || 99)) return;
+    if (newQuantity < 1 || newQuantity > (item.stock || 99)) return;
 
     try {
       setIsUpdating(true);
@@ -75,38 +51,12 @@ const CartItem = ({ item }: CartItemProps) => {
     toast.success(isFavorite ? 'Retiré des favoris' : 'Ajouté aux favoris');
   };
 
-  if (loadingProduct) {
-    return (
-      <div className="flex flex-col sm:flex-row gap-6 py-6 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
-        <div className="sm:w-32 h-32 bg-gray-200 dark:bg-gray-700 animate-pulse rounded-lg" />
-        <div className="flex-1 space-y-3">
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 animate-pulse rounded w-3/4" />
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 animate-pulse rounded w-1/2" />
-        </div>
-      </div>
-    );
-  }
-
-  const currentProduct = product || item.product;
-
-  if (!currentProduct) {
-    return (
-      <div className="flex flex-col sm:flex-row gap-6 py-6 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
-        <div className="sm:w-32 h-32 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-          <span className="text-gray-400 dark:text-gray-500">Produit introuvable</span>
-        </div>
-        <div className="flex-1">
-          <p className="text-gray-500 dark:text-gray-400">Ce produit n'est plus disponible</p>
-          <button
-            onClick={handleRemove}
-            className="mt-2 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-          >
-            Retirer du panier
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleVariantSelect = (size?: string, color?: string) => {
+    // Si la variante est déjà sélectionnée, on la désélectionne
+    const newSize = (size && item.selectedSize === size) ? undefined : size;
+    const newColor = (color && item.selectedColor === color) ? undefined : color;
+    updateVariant(item.id, newSize, newColor);
+  };
 
   return (
     <div className="flex flex-col sm:flex-row gap-6 py-6 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
@@ -115,7 +65,7 @@ const CartItem = ({ item }: CartItemProps) => {
         <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
           <Image
             src={imageUrl}
-            alt={currentProduct.name}
+            alt={item.productName}
             fill
             className="object-cover hover:scale-105 transition-transform duration-300"
             onError={() => setImgError(true)}
@@ -128,37 +78,85 @@ const CartItem = ({ item }: CartItemProps) => {
       <div className="flex-1">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
-            {/* Nom et boutique */}
-            <Link 
+            <Link
               href={`/product/${item.productId}`}
               className="text-lg font-semibold text-gray-900 dark:text-white hover:text-primary transition-colors"
             >
-              {currentProduct.name}
+              {item.productName}
             </Link>
-            
-            {currentProduct.shop && (
-              <Link 
-                href={`/shop/${currentProduct.shop.slug}`}
+
+            {item.shopSlug && (
+              <Link
+                href={`/shop/${item.shopSlug}`}
                 className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary block mt-1"
               >
-                Vendu par {currentProduct.shop.name}
+                Vendu par {item.shopName}
               </Link>
             )}
 
-            {/* Caractéristiques */}
-            {(currentProduct.size || currentProduct.color) && (
-              <div className="flex gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                {currentProduct.size && (
-                  <span>Taille: {currentProduct.size}</span>
+            {/* ⭐ Affichage de la variante sélectionnée */}
+            {item.selectedSize && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Taille : {item.selectedSize}
+                {item.selectedColor && ` · Couleur : ${item.selectedColor}`}
+              </p>
+            )}
+            {item.selectedColor && !item.selectedSize && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Couleur : {item.selectedColor}
+              </p>
+            )}
+
+            {/* ⭐ Sélecteurs taille/couleur — toujours visibles, modifiables à tout moment */}
+            {((item.size && item.size.length > 0) || (item.color && item.color.length > 0)) && (
+              <div className="mt-2 space-y-2">
+                {((item.size && item.size.length > 0 && !item.selectedSize) ||
+                  (item.color && item.color.length > 0 && !item.selectedColor)) && (
+                  <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                    ⚠️ Choisissez {item.size && item.size.length > 0 && !item.selectedSize && item.color && item.color.length > 0 && !item.selectedColor
+                      ? 'une taille et une couleur'
+                      : item.size && item.size.length > 0 && !item.selectedSize
+                      ? 'une taille'
+                      : 'une couleur'}
+                  </p>
                 )}
-                {currentProduct.color && (
-                  <span className="flex items-center gap-1">
-                    Couleur: 
-                    <span 
-                      className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-600"
-                      style={{ backgroundColor: currentProduct.color.toLowerCase() }}
-                    />
-                  </span>
+
+                {item.size && item.size.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Taille :</span>
+                    {item.size.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => handleVariantSelect(s, undefined)}
+                        className={`px-2.5 py-1 text-xs border rounded transition-colors ${
+                          item.selectedSize === s
+                            ? 'border-primary bg-primary text-white'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-primary hover:text-primary'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {item.color && item.color.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Couleur :</span>
+                    {item.color.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => handleVariantSelect(undefined, c)}
+                        className={`w-6 h-6 rounded-full border-2 transition-all ${
+                          item.selectedColor === c
+                            ? 'border-primary ring-2 ring-primary ring-offset-1'
+                            : 'border-white dark:border-gray-800 ring-1 ring-gray-300 hover:ring-primary'
+                        }`}
+                        style={{ backgroundColor: c.toLowerCase() }}
+                        title={c}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -167,19 +165,13 @@ const CartItem = ({ item }: CartItemProps) => {
           {/* Prix unitaire */}
           <div className="text-right">
             <div className="text-lg font-bold text-primary">
-              {formatPrice(item.unitPrice)}
+              {formatPrice(item.productPrice)}
             </div>
-            {item.unitPrice !== currentProduct.price && (
-              <div className="text-sm text-gray-400 dark:text-gray-500 line-through">
-                {formatPrice(currentProduct.price || 0)}
-              </div>
-            )}
           </div>
         </div>
 
         {/* Actions et quantité */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4">
-          {/* Sélecteur de quantité */}
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600 dark:text-gray-400">Quantité:</span>
             <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg">
@@ -195,18 +187,17 @@ const CartItem = ({ item }: CartItemProps) => {
               </span>
               <button
                 onClick={() => handleUpdateQuantity(item.quantity + 1)}
-                disabled={item.quantity >= (currentProduct.stock || 99) || isUpdating}
+                disabled={item.quantity >= (item.stock || 99) || isUpdating}
                 className="px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
               >
                 <FiChevronUp size={16} />
               </button>
             </div>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              max {currentProduct.stock}
+              max {item.stock}
             </span>
           </div>
 
-          {/* Prix total */}
           <div className="flex items-center gap-4">
             <div className="text-right">
               <span className="text-sm text-gray-500 dark:text-gray-400">Total:</span>
@@ -215,13 +206,12 @@ const CartItem = ({ item }: CartItemProps) => {
               </span>
             </div>
 
-            {/* Boutons d'action */}
             <div className="flex gap-2">
               <button
                 onClick={handleToggleFavorite}
                 className={`p-2 rounded-lg transition-colors ${
-                  isFavorite 
-                    ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20' 
+                  isFavorite
+                    ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'
                     : 'text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
                 title="Ajouter aux favoris"

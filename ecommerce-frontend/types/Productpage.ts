@@ -172,6 +172,7 @@ export function resolveColorValue(raw: string): string {
   return trimmed;
 }
 
+// ⭐ MODIFICATION — generateSizeAndColorBlocks avec boutons interactifs
 function generateSizeAndColorBlocks(
   product: StudioProduct,
   startX: number,
@@ -180,7 +181,8 @@ function generateSizeAndColorBlocks(
   z: number,
   textColor: string,
   labelColor: string,
-  width: number = 380
+  width: number = 380,
+  accentColor: string = '#111111'
 ): { blocks: BlockUI[]; endY: number } {
   const blocks: BlockUI[] = [];
   let y = startY;
@@ -188,30 +190,12 @@ function generateSizeAndColorBlocks(
   if (product.sizes && product.sizes.length > 0) {
     blocks.push({
       ...base,
-      id: uid('sizes'),
+      id: uid('sizelabel'),
       type: 'text',
       order: 500,
-      position: { x: startX, y, width, height: 18, zIndex: z, rotation: 0, positionType: 'absolute' },
-      props: {
-        content: `Tailles : ${product.sizes.join(' · ')}`,
-        fontSize: 10,
-        fontFamily: 'Inter',
-        fontWeight: '400',
-        textColor,
-      },
-    });
-    y += 26;
-  }
-
-  if (product.colors && product.colors.length > 0) {
-    blocks.push({
-      ...base,
-      id: uid('colorlabel'),
-      type: 'text',
-      order: 501,
       position: { x: startX, y, width, height: 14, zIndex: z, rotation: 0, positionType: 'absolute' },
       props: {
-        content: 'Couleurs',
+        content: 'Taille',
         fontSize: 9,
         fontFamily: 'Inter',
         fontWeight: '600',
@@ -221,14 +205,66 @@ function generateSizeAndColorBlocks(
     });
     y += 20;
 
-    const swatchSize = 16;
-    const gapPx = 6;
+    const btnSize = 34;
+    const gapPx = 8;
+    product.sizes.slice(0, 8).forEach((size, i) => {
+      blocks.push({
+        ...base,
+        id: uid('sizebtn'),
+        type: 'button',
+        order: 501 + i,
+        position: {
+          x: startX + i * (btnSize + gapPx),
+          y,
+          width: btnSize,
+          height: btnSize,
+          zIndex: z + 1,
+          rotation: 0,
+          positionType: 'absolute',
+        },
+        props: {
+          text: size,
+          action: 'selectSize',
+          variantValue: size,
+          backgroundColor: 'transparent',
+          textColor,
+          fontSize: 11,
+          fontFamily: 'Inter',
+          fontWeight: '600',
+          borderRadius: 4,
+          border: `1px solid ${textColor}40`,
+        },
+      });
+    });
+    y += btnSize + 16;
+  }
+
+  if (product.colors && product.colors.length > 0) {
+    blocks.push({
+      ...base,
+      id: uid('colorlabel'),
+      type: 'text',
+      order: 520,
+      position: { x: startX, y, width, height: 14, zIndex: z, rotation: 0, positionType: 'absolute' },
+      props: {
+        content: 'Couleur',
+        fontSize: 9,
+        fontFamily: 'Inter',
+        fontWeight: '600',
+        textColor: labelColor,
+        letterSpacing: 0.8,
+      },
+    });
+    y += 20;
+
+    const swatchSize = 22;
+    const gapPx = 8;
     product.colors.slice(0, 10).forEach((color, i) => {
       blocks.push({
         ...base,
         id: uid('swatch'),
         type: 'shape',
-        order: 502 + i,
+        order: 521 + i,
         position: {
           x: startX + i * (swatchSize + gapPx),
           y,
@@ -243,11 +279,13 @@ function generateSizeAndColorBlocks(
           backgroundColor: resolveColorValue(color),
           opacity: 100,
           borderRadius: swatchSize / 2,
-          border: '1.5px solid #ffffff',
+          border: '2px solid #ffffff',
+          action: 'selectColor',
+          variantValue: color,
         },
       });
     });
-    y += swatchSize + 10;
+    y += swatchSize + 12;
   }
 
   return { blocks, endY: y };
@@ -376,8 +414,11 @@ function generateClassicBlocks(
     });
   }
 
-  // Tailles & couleurs
-  const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(product, 660, 302, base, z + 2, '#666666', '#888888', 400);
+  // ⭐ Tailles & couleurs — accent ajouté en dernier argument
+  const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(
+    product, 660, 302, base, z + 2,
+    '#666666', '#888888', 400, accent
+  );
   blocks.push(...extraBlocks);
 
   const ctaY = Math.max(endY + 8, 410);
@@ -386,7 +427,16 @@ function generateClassicBlocks(
   blocks.push({
     ...base, id: uid('cta'), type: 'button', order: next(),
     position: { x: 660, y: ctaY, width: 400, height: 42, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
-    props: { text: 'Ajouter au panier', backgroundColor: text, textColor: bg === '#ffffff' ? '#ffffff' : bg, fontSize: 12, fontFamily: 'Inter', fontWeight: '600', borderRadius: 4 },
+    props: {
+      text: 'Ajouter au panier',
+      action: 'addToCart',
+      backgroundColor: text,
+      textColor: bg === '#ffffff' ? '#ffffff' : bg,
+      fontSize: 12,
+      fontFamily: 'Inter',
+      fontWeight: '600',
+      borderRadius: 4,
+    },
   });
 
   // Favoris
@@ -489,7 +539,16 @@ function generateImmersiveBlocks(
     {
       ...base, id: uid('cta'), type: 'button', order: next(),
       position: { x: 64, y: 372, width: 200, height: 42, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
-      props: { text: 'Acheter', backgroundColor: accent, textColor: '#000000', fontSize: 12, fontFamily: 'Inter', fontWeight: '700', borderRadius: 2 },
+      props: {
+        text: 'Acheter',
+        action: 'addToCart',
+        backgroundColor: accent,
+        textColor: '#000000',
+        fontSize: 12,
+        fontFamily: 'Inter',
+        fontWeight: '700',
+        borderRadius: 2,
+      },
     },
     // Stock
     {
@@ -529,7 +588,11 @@ function generateImmersiveBlocks(
     });
   }
 
-  const { blocks: extraBlocks } = generateSizeAndColorBlocks(product, 64, 454, base, z + 2, 'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.5)', 320);
+  // ⭐ Tailles & couleurs — accent ajouté en dernier argument
+  const { blocks: extraBlocks } = generateSizeAndColorBlocks(
+    product, 64, 454, base, z + 2,
+    'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.5)', 320, accent
+  );
   blocks.push(...extraBlocks);
 
   return blocks;
@@ -666,8 +729,11 @@ function generateGalleryBlocks(
     },
   });
 
-  // Tailles & couleurs
-  const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(product, 710, 298, base, z + 2, '#888888', '#888888', 360);
+  // ⭐ Tailles & couleurs — accent ajouté en dernier argument
+  const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(
+    product, 710, 298, base, z + 2,
+    '#888888', '#888888', 360, accent
+  );
   blocks.push(...extraBlocks);
 
   const ctaY = Math.max(endY + 8, 430);
@@ -676,7 +742,16 @@ function generateGalleryBlocks(
   blocks.push({
     ...base, id: uid('cta'), type: 'button', order: next(),
     position: { x: 710, y: ctaY, width: 360, height: 42, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
-    props: { text: 'Ajouter au panier', backgroundColor: accent, textColor: '#ffffff', fontSize: 12, fontFamily: 'Inter', fontWeight: '600', borderRadius: 4 },
+    props: {
+      text: 'Ajouter au panier',
+      action: 'addToCart',
+      backgroundColor: accent,
+      textColor: '#ffffff',
+      fontSize: 12,
+      fontFamily: 'Inter',
+      fontWeight: '600',
+      borderRadius: 4,
+    },
   });
 
   // Stock
@@ -791,8 +866,11 @@ function generateMinimalBlocks(
     },
   });
 
-  // Tailles & couleurs
-  const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(product, 590, 370, base, z + 1, '#aaaaaa', '#999999', 460);
+  // ⭐ Tailles & couleurs — accent ajouté en dernier argument
+  const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(
+    product, 590, 370, base, z + 1,
+    '#aaaaaa', '#999999', 460, accent
+  );
   blocks.push(...extraBlocks);
 
   const ctaY = Math.max(endY + 8, 480);
@@ -801,7 +879,17 @@ function generateMinimalBlocks(
   blocks.push({
     ...base, id: uid('cta'), type: 'button', order: next(),
     position: { x: 590, y: ctaY, width: 460, height: 42, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-    props: { text: 'Acheter', backgroundColor: accent, textColor: bg, fontSize: 11, fontFamily: 'Inter', fontWeight: '500', borderRadius: 0, letterSpacing: 1.5 },
+    props: {
+      text: 'Acheter',
+      action: 'addToCart',
+      backgroundColor: accent,
+      textColor: bg,
+      fontSize: 11,
+      fontFamily: 'Inter',
+      fontWeight: '500',
+      borderRadius: 0,
+      letterSpacing: 1.5,
+    },
   });
 
   // Stock

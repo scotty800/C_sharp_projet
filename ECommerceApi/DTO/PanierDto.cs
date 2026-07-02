@@ -15,6 +15,10 @@ namespace ECommerceApi.DTO
         [Required]
         [Range(1, 100)]
         public int Quantity { get; set; }
+
+        // ⭐ AJOUT — variante du produit
+        public string? Size { get; set; }
+        public string? Color { get; set; }
     }
 
     public class UpdateCartItemDto
@@ -22,6 +26,12 @@ namespace ECommerceApi.DTO
         [Required]
         [Range(1, 100)]
         public int Quantity { get; set; }
+    }
+
+    public class UpdateCartItemVariantDto
+    {
+        public string? Size { get; set; }
+        public string? Color { get; set; }
     }
 
     public class CartItemDto
@@ -34,6 +44,20 @@ namespace ECommerceApi.DTO
         public decimal TotalPrice { get; set; }
         public string? ProductImage { get; set; }
         public int Stock { get; set; }
+
+        // ⭐ AJOUT — boutique d'origine
+        public int? ShopId { get; set; }
+        public string? ShopName { get; set; }
+        public string? ShopSlug { get; set; }
+        public string? ShopLogoUrl { get; set; }
+
+        // ⭐ AJOUT — caractéristiques produit (valeurs possibles)
+        public List<string>? Size { get; set; }
+        public List<string>? Color { get; set; }
+
+        // ⭐ AJOUT — variante sélectionnée
+        public string? SelectedSize { get; set; }
+        public string? SelectedColor { get; set; }
     }
 
     public class CartResponseDto
@@ -165,7 +189,6 @@ namespace ECommerceApi.DTO
     // REVIEW DTOs (Avis et Notes)
     // ============================================
 
-
     public class UpdateReviewDto
     {
         [Required]
@@ -175,7 +198,6 @@ namespace ECommerceApi.DTO
         [MaxLength(1000)]
         public string? Comment { get; set; }
     }
-
 
     public class ProductRatingDto
     {

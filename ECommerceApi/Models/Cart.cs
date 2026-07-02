@@ -36,6 +36,9 @@ namespace ECommerceApi.Models
         [Range(1, 100)]
         public int Quantity { get; set; }
 
+        public string? SelectedSize { get; set; }
+        public string? SelectedColor { get; set; }
+
         public DateTime AddedAt { get; set; } = DateTime.UtcNow;
     }
 }
