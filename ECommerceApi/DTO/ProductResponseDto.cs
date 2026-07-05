@@ -22,6 +22,8 @@ namespace ECommerceApi.DTO
         public string? ImageUrl2 { get; set; }
         public string? ImageUrl3 { get; set; }
 
+        public List<ProductColorVariantDto>? Variants { get; set; }
+
         public DateTime CreatedAt { get; set; }
     }
 }

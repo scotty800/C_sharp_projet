@@ -13,6 +13,13 @@ export function normalizeStudioProduct(p: any): StudioProduct {
   const imageUrl2 = p.imageUrl2 || '';
   const imageUrl3 = p.imageUrl3 || '';
 
+  // ⭐ NOUVEAU : normaliser les variantes de couleur
+  const rawVariants = p.colorVariants || p.variants || [];
+  const colorVariants = rawVariants.map((v: any) => ({
+    ...v,
+    sizes: toArray(v.sizes, v.size),
+  }));
+
   return {
     id: p.id,
     name: p.name,
@@ -26,6 +33,7 @@ export function normalizeStudioProduct(p: any): StudioProduct {
     imageUrl1,
     imageUrl2,
     imageUrl3,
+    colorVariants, // ⭐ NOUVEAU
     isInStock: (p.stock || 0) > 0,
     createdAt: p.createdAt,
   };

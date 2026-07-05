@@ -34,10 +34,45 @@ public class ProductController : ControllerBase
         return Ok(products);
     }
 
+    // ⭐⭐⭐ GetById AVEC Sizes ⭐⭐⭐
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var product = await _productService.GetProductByIdAsync(id);
+        var product = await _context.Products
+            .Include(p => p.Shop)
+            .Include(p => p.ColorVariants)
+            .Where(p => p.Id == id)
+            .Select(p => new ProductResponseDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                Price = p.Price,
+                Stock = p.Stock,
+                Size = p.Size,
+                Color = p.Color,
+                Category = p.Category,
+                ShopId = p.ShopId,
+                ShopName = p.Shop != null ? p.Shop.Name : null,
+                ImageUrl = p.ImageUrl,
+                ImageUrl1 = p.ImageUrl1,
+                ImageUrl2 = p.ImageUrl2,
+                ImageUrl3 = p.ImageUrl3,
+                CreatedAt = p.CreatedAt,
+                Variants = p.ColorVariants.Select(v => new ProductColorVariantDto
+                {
+                    Id = v.Id,
+                    Color = v.Color,
+                    CustomName = v.CustomName,
+                    Stock = v.Stock,
+                    Sizes = v.Size,
+                    ImageUrl1 = v.ImageUrl1,
+                    ImageUrl2 = v.ImageUrl2,
+                    ImageUrl3 = v.ImageUrl3
+                }).ToList()
+            })
+            .FirstOrDefaultAsync();
+
         if (product == null)
             return NotFound("Produit introuvable");
 
@@ -89,7 +124,8 @@ public class ProductController : ControllerBase
             Color = createdProduct.Color,
             Category = createdProduct.Category,
             ShopId = createdProduct.ShopId,
-            CreatedAt = createdProduct.CreatedAt
+            CreatedAt = createdProduct.CreatedAt,
+            Variants = new List<ProductColorVariantDto>()
         };
 
         return CreatedAtAction(
@@ -99,7 +135,6 @@ public class ProductController : ControllerBase
         );
     }
 
-    // ⚠️ IMPORTANT: Cette route DOIT être AVANT "shop/{shopId}" pour éviter les conflits
     [HttpPost("update/{id}")]
     [Authorize]
     public async Task<IActionResult> UpdateProductPost(int id, [FromBody] UpdateProductDto productDto)
@@ -116,6 +151,7 @@ public class ProductController : ControllerBase
 
             var existingProduct = await _context.Products
                 .Include(p => p.Shop)
+                .Include(p => p.ColorVariants)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (existingProduct == null)
@@ -138,7 +174,7 @@ public class ProductController : ControllerBase
 
             await _context.SaveChangesAsync();
 
-            var updatedProduct = await _productService.GetProductByIdAsync(id);
+            var updatedProduct = await GetProductByIdResponse(id);
             Console.WriteLine($"✅ Produit {id} mis à jour avec succès (via POST)");
             return Ok(updatedProduct);
         }
@@ -149,11 +185,12 @@ public class ProductController : ControllerBase
         }
     }
 
+    // ⭐⭐⭐ CreateProductForShop AVEC rechargement du produit via GetProductByIdResponse ⭐⭐⭐
     [HttpPost("shop/{shopId}")]
     [Authorize]
     public async Task<IActionResult> CreateProductForShop(
-    int shopId,
-    [FromBody] CreateProductDto productDto)
+        int shopId,
+        [FromBody] CreateProductDto productDto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -163,19 +200,8 @@ public class ProductController : ControllerBase
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var createdProduct = await _productService.CreateForShopAsync(shopId, productDto, userId);
 
-            var responseDto = new ProductResponseDto
-            {
-                Id = createdProduct.Id,
-                Name = createdProduct.Name,
-                Description = createdProduct.Description,
-                Price = createdProduct.Price,
-                Stock = createdProduct.Stock,
-                Size = createdProduct.Size,
-                Color = createdProduct.Color,
-                Category = createdProduct.Category,
-                ShopId = createdProduct.ShopId,
-                CreatedAt = createdProduct.CreatedAt
-            };
+            // ⭐ Recharger le produit avec ses variantes fraîchement persistées
+            var responseDto = await GetProductByIdResponse(createdProduct.Id);
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -214,6 +240,7 @@ public class ProductController : ControllerBase
 
             var existingProduct = await _context.Products
                 .Include(p => p.Shop)
+                .Include(p => p.ColorVariants)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (existingProduct == null)
@@ -236,7 +263,7 @@ public class ProductController : ControllerBase
 
             await _context.SaveChangesAsync();
 
-            var updatedProduct = await _productService.GetProductByIdAsync(id);
+            var updatedProduct = await GetProductByIdResponse(id);
             Console.WriteLine($"✅ Produit {id} mis à jour avec succès");
             return Ok(updatedProduct);
         }
@@ -336,7 +363,7 @@ public class ProductController : ControllerBase
             return NotFound("Shop non trouvé");
 
         var products = await _productService.GetProductsByShopIdAsync(shopId);
-    
+
         return Ok(new
         {
             shop = new { shop.Id, shop.Name, shop.Slug, shop.ProductCount },
@@ -366,125 +393,118 @@ public class ProductController : ControllerBase
     }
 
     [HttpDelete("{productId}/image/{imageNumber}")]
-[Authorize]
-public async Task<IActionResult> DeleteProductImage(int productId, int imageNumber)
-{
-    if (imageNumber < 1 || imageNumber > 3)
-        return BadRequest("Le numéro d'image doit être entre 1 et 3");
-
-    try
+    [Authorize]
+    public async Task<IActionResult> DeleteProductImage(int productId, int imageNumber)
     {
-        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        if (imageNumber < 1 || imageNumber > 3)
+            return BadRequest("Le numéro d'image doit être entre 1 et 3");
 
-        var product = await _context.Products
-            .Include(p => p.Shop)
-            .FirstOrDefaultAsync(p => p.Id == productId);
-
-        if (product == null)
-            return NotFound("Produit non trouvé");
-
-        if (product.ShopId.HasValue)
+        try
         {
-            if (product.Shop == null || product.Shop.OwnerId != userId)
-                return Unauthorized("Vous n'êtes pas autorisé");
-        }
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
-        // ⭐⭐ RÉCUPÉRER LES IMAGES ACTUELLES ⭐⭐
-        string? currentImage1 = product.ImageUrl1;
-        string? currentImage2 = product.ImageUrl2;
-        string? currentImage3 = product.ImageUrl3;
+            var product = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == productId);
 
-        Console.WriteLine($"📸 Images avant suppression: Image1={currentImage1}, Image2={currentImage2}, Image3={currentImage3}");
+            if (product == null)
+                return NotFound("Produit non trouvé");
 
-        // ⭐⭐ SUPPRIMER LE FICHIER PHYSIQUE SI NÉCESSAIRE ⭐⭐
-        string? imageUrlToDelete = null;
-        switch (imageNumber)
-        {
-            case 1: imageUrlToDelete = product.ImageUrl1; break;
-            case 2: imageUrlToDelete = product.ImageUrl2; break;
-            case 3: imageUrlToDelete = product.ImageUrl3; break;
-        }
-
-        if (!string.IsNullOrEmpty(imageUrlToDelete))
-        {
-            var filePath = Path.Combine(_environment.WebRootPath, imageUrlToDelete.TrimStart('/'));
-            if (System.IO.File.Exists(filePath))
+            if (product.ShopId.HasValue)
             {
-                System.IO.File.Delete(filePath);
-                Console.WriteLine($"🗑️ Fichier supprimé: {filePath}");
+                if (product.Shop == null || product.Shop.OwnerId != userId)
+                    return Unauthorized("Vous n'êtes pas autorisé");
             }
+
+            string? currentImage1 = product.ImageUrl1;
+            string? currentImage2 = product.ImageUrl2;
+            string? currentImage3 = product.ImageUrl3;
+
+            Console.WriteLine($"📸 Images avant suppression: Image1={currentImage1}, Image2={currentImage2}, Image3={currentImage3}");
+
+            string? imageUrlToDelete = null;
+            switch (imageNumber)
+            {
+                case 1: imageUrlToDelete = product.ImageUrl1; break;
+                case 2: imageUrlToDelete = product.ImageUrl2; break;
+                case 3: imageUrlToDelete = product.ImageUrl3; break;
+            }
+
+            if (!string.IsNullOrEmpty(imageUrlToDelete))
+            {
+                var filePath = Path.Combine(_environment.WebRootPath, imageUrlToDelete.TrimStart('/'));
+                if (System.IO.File.Exists(filePath))
+                {
+                    System.IO.File.Delete(filePath);
+                    Console.WriteLine($"🗑️ Fichier supprimé: {filePath}");
+                }
+            }
+
+            string? newImageUrl1 = currentImage1;
+            string? newImageUrl2 = currentImage2;
+            string? newImageUrl3 = currentImage3;
+
+            if (imageNumber == 1)
+            {
+                newImageUrl1 = currentImage2;
+                newImageUrl2 = currentImage3;
+                newImageUrl3 = null;
+                Console.WriteLine("🔄 Réorganisation après suppression Image1");
+            }
+            else if (imageNumber == 2)
+            {
+                newImageUrl1 = currentImage1;
+                newImageUrl2 = currentImage3;
+                newImageUrl3 = null;
+                Console.WriteLine("🔄 Réorganisation après suppression Image2");
+            }
+            else if (imageNumber == 3)
+            {
+                newImageUrl1 = currentImage1;
+                newImageUrl2 = currentImage2;
+                newImageUrl3 = null;
+                Console.WriteLine("🔄 Réorganisation après suppression Image3");
+            }
+
+            product.ImageUrl1 = newImageUrl1;
+            product.ImageUrl2 = newImageUrl2;
+            product.ImageUrl3 = newImageUrl3;
+            product.ImageUrl = newImageUrl1 ?? newImageUrl2 ?? newImageUrl3;
+            product.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            Console.WriteLine($"📸 Images après réorganisation: Image1={product.ImageUrl1}, Image2={product.ImageUrl2}, Image3={product.ImageUrl3}");
+
+            var updatedProduct = new
+            {
+                product.Id,
+                product.Name,
+                product.Description,
+                product.Price,
+                product.Stock,
+                product.Category,
+                product.ShopId,
+                ImageUrl1 = product.ImageUrl1,
+                ImageUrl2 = product.ImageUrl2,
+                ImageUrl3 = product.ImageUrl3,
+                ImageUrl = product.ImageUrl,
+                product.CreatedAt,
+                product.UpdatedAt
+            };
+
+            return Ok(new
+            {
+                message = $"Image {imageNumber} supprimée avec succès",
+                product = updatedProduct
+            });
         }
-
-        // ⭐⭐ RÉORGANISER LES IMAGES (DÉCALAGE VERS LE HAUT) ⭐⭐
-        string? newImageUrl1 = currentImage1;
-        string? newImageUrl2 = currentImage2;
-        string? newImageUrl3 = currentImage3;
-
-        if (imageNumber == 1)
+        catch (Exception ex)
         {
-            // Suppression de l'image principale → Image2 devient Image1, Image3 devient Image2
-            newImageUrl1 = currentImage2;
-            newImageUrl2 = currentImage3;
-            newImageUrl3 = null;
-            Console.WriteLine("🔄 Réorganisation après suppression Image1");
+            Console.WriteLine($"❌ Erreur suppression image: {ex.Message}");
+            return BadRequest(new { message = ex.Message });
         }
-        else if (imageNumber == 2)
-        {
-            // Suppression de l'image 2 → Image1 reste Image1, Image3 devient Image2
-            newImageUrl1 = currentImage1;
-            newImageUrl2 = currentImage3;
-            newImageUrl3 = null;
-            Console.WriteLine("🔄 Réorganisation après suppression Image2");
-        }
-        else if (imageNumber == 3)
-        {
-            // Suppression de l'image 3 → Image1 reste Image1, Image2 reste Image2
-            newImageUrl1 = currentImage1;
-            newImageUrl2 = currentImage2;
-            newImageUrl3 = null;
-            Console.WriteLine("🔄 Réorganisation après suppression Image3");
-        }
-
-        // ⭐⭐ APPLIQUER LES MODIFICATIONS ⭐⭐
-        product.ImageUrl1 = newImageUrl1;
-        product.ImageUrl2 = newImageUrl2;
-        product.ImageUrl3 = newImageUrl3;
-        product.ImageUrl = newImageUrl1 ?? newImageUrl2 ?? newImageUrl3;
-        product.UpdatedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync();
-
-        Console.WriteLine($"📸 Images après réorganisation: Image1={product.ImageUrl1}, Image2={product.ImageUrl2}, Image3={product.ImageUrl3}");
-
-        // ⭐⭐ RETOURNER LE PRODUIT MIS À JOUR ⭐⭐
-        var updatedProduct = new
-        {
-            product.Id,
-            product.Name,
-            product.Description,
-            product.Price,
-            product.Stock,
-            product.Category,
-            product.ShopId,
-            ImageUrl1 = product.ImageUrl1,
-            ImageUrl2 = product.ImageUrl2,
-            ImageUrl3 = product.ImageUrl3,
-            ImageUrl = product.ImageUrl,
-            product.CreatedAt,
-            product.UpdatedAt
-        };
-
-        return Ok(new { 
-            message = $"Image {imageNumber} supprimée avec succès",
-            product = updatedProduct
-        });
     }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"❌ Erreur suppression image: {ex.Message}");
-        return BadRequest(new { message = ex.Message });
-    }
-}
 
     [HttpGet("{productId}/images")]
     public async Task<IActionResult> GetProductImages(int productId)
@@ -506,5 +526,173 @@ public async Task<IActionResult> DeleteProductImage(int productId, int imageNumb
             images = images,
             count = images.Count
         });
+    }
+
+    // ============ NOUVELLES MÉTHODES POUR LES VARIANTES DE COULEUR ============
+
+    [HttpPost("{id}/variants")]
+    [Authorize]
+    public async Task<IActionResult> UpsertVariant(int id, [FromBody] UpsertColorVariantDto dto)
+    {
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var result = await _productService.UpsertColorVariantAsync(id, userId, dto);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id}/variants/{color}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteVariant(int id, string color)
+    {
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var result = await _productService.DeleteColorVariantAsync(id, userId, color);
+            if (!result)
+                return NotFound(new { message = "Variante non trouvée" });
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ⭐⭐⭐ NOUVELLE ROUTE : Supprimer une image spécifique d'une variante ⭐⭐⭐
+    [HttpDelete("{id}/variants/{color}/image/{imageNumber}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteVariantImage(int id, string color, int imageNumber)
+    {
+        if (imageNumber < 1 || imageNumber > 3)
+            return BadRequest(new { message = "Le numéro d'image doit être entre 1 et 3" });
+
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var result = await _productService.DeleteVariantImageAsync(id, color, imageNumber, userId);
+
+            if (result == null)
+                return NotFound(new { message = "Variante non trouvée" });
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/variants/{color}/upload-images")]
+    [Authorize]
+    public async Task<IActionResult> UploadVariantImages(int id, string color, [FromForm] ProductImageUploadDto images)
+    {
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            await _productService.UploadVariantImagesAsync(id, color, userId, images);
+            return Ok(new { message = "Images de variante uploadées avec succès" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ⭐⭐⭐ GetVariants AVEC Sizes ⭐⭐⭐
+    [HttpGet("{id}/variants")]
+    public async Task<IActionResult> GetVariants(int id)
+    {
+        var product = await _context.Products
+            .Include(p => p.ColorVariants)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (product == null)
+            return NotFound("Produit non trouvé");
+
+        var variants = product.ColorVariants.Select(v => new ProductColorVariantDto
+        {
+            Id = v.Id,
+            Color = v.Color,
+            CustomName = v.CustomName,
+            Stock = v.Stock,
+            Sizes = v.Size,
+            ImageUrl1 = v.ImageUrl1,
+            ImageUrl2 = v.ImageUrl2,
+            ImageUrl3 = v.ImageUrl3
+        }).ToList();
+
+        return Ok(variants);
+    }
+
+    // ⭐⭐⭐ GetVariant AVEC Sizes ⭐⭐⭐
+    [HttpGet("{id}/variants/{color}")]
+    public async Task<IActionResult> GetVariant(int id, string color)
+    {
+        var variant = await _context.ProductColorVariants
+            .FirstOrDefaultAsync(v => v.ProductId == id && v.Color == color);
+
+        if (variant == null)
+            return NotFound("Variante non trouvée");
+
+        var dto = new ProductColorVariantDto
+        {
+            Id = variant.Id,
+            Color = variant.Color,
+            CustomName = variant.CustomName,
+            Stock = variant.Stock,
+            Sizes = variant.Size,
+            ImageUrl1 = variant.ImageUrl1,
+            ImageUrl2 = variant.ImageUrl2,
+            ImageUrl3 = variant.ImageUrl3
+        };
+
+        return Ok(dto);
+    }
+
+    // ============ MÉTHODE PRIVÉE POUR RÉCUPÉRER UN PRODUIT AVEC SES VARIANTES ============
+
+    // ⭐⭐⭐ GetProductByIdResponse AVEC Sizes ⭐⭐⭐
+    private async Task<ProductResponseDto?> GetProductByIdResponse(int id)
+    {
+        return await _context.Products
+            .Include(p => p.Shop)
+            .Include(p => p.ColorVariants)
+            .Where(p => p.Id == id)
+            .Select(p => new ProductResponseDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Description = p.Description,
+                Price = p.Price,
+                Stock = p.Stock,
+                Size = p.Size,
+                Color = p.Color,
+                Category = p.Category,
+                ShopId = p.ShopId,
+                ShopName = p.Shop != null ? p.Shop.Name : null,
+                ImageUrl = p.ImageUrl,
+                ImageUrl1 = p.ImageUrl1,
+                ImageUrl2 = p.ImageUrl2,
+                ImageUrl3 = p.ImageUrl3,
+                CreatedAt = p.CreatedAt,
+                Variants = p.ColorVariants.Select(v => new ProductColorVariantDto
+                {
+                    Id = v.Id,
+                    Color = v.Color,
+                    CustomName = v.CustomName,
+                    Stock = v.Stock,
+                    Sizes = v.Size,
+                    ImageUrl1 = v.ImageUrl1,
+                    ImageUrl2 = v.ImageUrl2,
+                    ImageUrl3 = v.ImageUrl3
+                }).ToList()
+            })
+            .FirstOrDefaultAsync();
     }
 }

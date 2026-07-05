@@ -84,6 +84,7 @@ namespace ECommerceApi.Services
             return product;
         }
 
+        // ⭐⭐⭐ CreateForShopAsync AVEC VARIANTES ⭐⭐⭐
         public async Task<Product> CreateForShopAsync(int shopId, CreateProductDto productDto, int userId)
         {
             var shop = await _shopService.GetShopByIdAsync(shopId);
@@ -105,6 +106,22 @@ namespace ECommerceApi.Services
                 ShopId = shopId,
                 CreatedAt = DateTime.UtcNow
             };
+
+            // ⭐ NOUVEAU : persister les variantes de couleur dès la création
+            if (productDto.ColorVariants != null)
+            {
+                foreach (var v in productDto.ColorVariants)
+                {
+                    product.ColorVariants.Add(new ProductColorVariant
+                    {
+                        Color = v.Color,
+                        CustomName = v.CustomName,
+                        Stock = v.Stock,
+                        Size = v.Sizes,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
 
             _context.Products.Add(product);
             await _context.SaveChangesAsync();
@@ -189,7 +206,6 @@ namespace ECommerceApi.Services
 
             var query = _context.Products.AsQueryable();
 
-            // ✅ Filtre par catégorie
             if (!string.IsNullOrWhiteSpace(category))
             {
                 query = query.Where(p => p.Category.ToLower() == category.ToLower());
@@ -245,9 +261,11 @@ namespace ECommerceApi.Services
             };
         }
 
+        // ⭐⭐⭐ GetProductsByShopIdAsync AVEC VARIANTES ⭐⭐⭐
         public async Task<List<ProductResponseDto>> GetProductsByShopIdAsync(int shopId)
         {
             return await _context.Products
+                .Include(p => p.ColorVariants)
                 .Where(p => p.ShopId == shopId)
                 .Select(p => new ProductResponseDto
                 {
@@ -265,7 +283,18 @@ namespace ECommerceApi.Services
                     ImageUrl1 = p.ImageUrl1,
                     ImageUrl2 = p.ImageUrl2,
                     ImageUrl3 = p.ImageUrl3,
-                    CreatedAt = p.CreatedAt
+                    CreatedAt = p.CreatedAt,
+                    Variants = p.ColorVariants.Select(v => new ProductColorVariantDto
+                    {
+                        Id = v.Id,
+                        Color = v.Color,
+                        CustomName = v.CustomName,
+                        Stock = v.Stock,
+                        Sizes = v.Size,
+                        ImageUrl1 = v.ImageUrl1,
+                        ImageUrl2 = v.ImageUrl2,
+                        ImageUrl3 = v.ImageUrl3
+                    }).ToList()
                 })
                 .ToListAsync();
         }
@@ -415,6 +444,261 @@ namespace ECommerceApi.Services
             var baseUrl = $"{request?.Scheme}://{request?.Host}";
 
             return $"/uploads/products/{productId}/{fileName}";
+        }
+
+        // ============ NOUVELLES MÉTHODES POUR LES VARIANTES DE COULEUR ============
+
+        // ⭐⭐⭐ UpsertColorVariantAsync AVEC LE BON MAPPING ⭐⭐⭐
+        public async Task<ProductColorVariantDto> UpsertColorVariantAsync(int productId, int userId, UpsertColorVariantDto dto)
+        {
+            var product = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == productId);
+            
+            if (product == null) 
+                throw new Exception("Produit non trouvé");
+            
+            if (product.ShopId.HasValue && (product.Shop == null || product.Shop.OwnerId != userId))
+                throw new Exception("Non autorisé");
+
+            var variant = await _context.ProductColorVariants
+                .FirstOrDefaultAsync(v => v.ProductId == productId && v.Color == dto.Color);
+
+            if (variant == null)
+            {
+                variant = new ProductColorVariant 
+                { 
+                    ProductId = productId, 
+                    Color = dto.Color, 
+                    CreatedAt = DateTime.UtcNow 
+                };
+                _context.ProductColorVariants.Add(variant);
+            }
+
+            variant.CustomName = dto.CustomName;
+            variant.Stock = dto.Stock;
+            variant.Size = dto.Sizes;      // ⭐ ÉTAIT dto.Size → maintenant dto.Sizes
+            variant.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return new ProductColorVariantDto
+            {
+                Id = variant.Id,
+                Color = variant.Color,
+                CustomName = variant.CustomName,
+                Stock = variant.Stock,
+                Sizes = variant.Size,      // ⭐ ÉTAIT Size = variant.Size → maintenant Sizes = variant.Size
+                ImageUrl1 = variant.ImageUrl1,
+                ImageUrl2 = variant.ImageUrl2,
+                ImageUrl3 = variant.ImageUrl3
+            };
+        }
+
+        public async Task<bool> DeleteColorVariantAsync(int productId, int userId, string color)
+        {
+            var product = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == productId);
+            
+            if (product == null) 
+                throw new Exception("Produit non trouvé");
+            
+            if (product.ShopId.HasValue && (product.Shop == null || product.Shop.OwnerId != userId))
+                throw new Exception("Non autorisé");
+
+            var variant = await _context.ProductColorVariants
+                .FirstOrDefaultAsync(v => v.ProductId == productId && v.Color == color);
+            
+            if (variant == null)
+                return false;
+
+            // Supprimer les images physiques
+            if (!string.IsNullOrEmpty(variant.ImageUrl1))
+                DeleteVariantImage(variant.ImageUrl1);
+            if (!string.IsNullOrEmpty(variant.ImageUrl2))
+                DeleteVariantImage(variant.ImageUrl2);
+            if (!string.IsNullOrEmpty(variant.ImageUrl3))
+                DeleteVariantImage(variant.ImageUrl3);
+
+            _context.ProductColorVariants.Remove(variant);
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<bool> UploadVariantImagesAsync(int productId, string color, int userId, ProductImageUploadDto images)
+        {
+            var product = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == productId);
+            
+            if (product == null) 
+                throw new Exception("Produit non trouvé");
+            
+            if (product.ShopId.HasValue && (product.Shop == null || product.Shop.OwnerId != userId))
+                throw new Exception("Non autorisé");
+
+            var variant = await _context.ProductColorVariants
+                .FirstOrDefaultAsync(v => v.ProductId == productId && v.Color == color);
+            
+            if (variant == null)
+            {
+                variant = new ProductColorVariant 
+                { 
+                    ProductId = productId, 
+                    Color = color,
+                    CreatedAt = DateTime.UtcNow 
+                };
+                _context.ProductColorVariants.Add(variant);
+            }
+
+            // Supprimer les anciennes images si elles existent
+            if (!string.IsNullOrEmpty(variant.ImageUrl1))
+                DeleteVariantImage(variant.ImageUrl1);
+            if (!string.IsNullOrEmpty(variant.ImageUrl2))
+                DeleteVariantImage(variant.ImageUrl2);
+            if (!string.IsNullOrEmpty(variant.ImageUrl3))
+                DeleteVariantImage(variant.ImageUrl3);
+
+            // Sauvegarder les nouvelles images
+            if (images.Image1 != null) 
+                variant.ImageUrl1 = await SaveVariantImage(productId, color, images.Image1, 1);
+            if (images.Image2 != null) 
+                variant.ImageUrl2 = await SaveVariantImage(productId, color, images.Image2, 2);
+            if (images.Image3 != null) 
+                variant.ImageUrl3 = await SaveVariantImage(productId, color, images.Image3, 3);
+
+            variant.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        // ⭐⭐⭐ NOUVELLE MÉTHODE : Supprimer une image spécifique d'une variante ⭐⭐⭐
+        public async Task<ProductColorVariantDto?> DeleteVariantImageAsync(int productId, string color, int imageNumber, int userId)
+        {
+            var product = await _context.Products
+                .Include(p => p.Shop)
+                .FirstOrDefaultAsync(p => p.Id == productId);
+
+            if (product == null)
+                throw new Exception("Produit non trouvé");
+
+            if (product.ShopId.HasValue && (product.Shop == null || product.Shop.OwnerId != userId))
+                throw new Exception("Non autorisé");
+
+            var variant = await _context.ProductColorVariants
+                .FirstOrDefaultAsync(v => v.ProductId == productId && v.Color == color);
+
+            if (variant == null)
+                return null;
+
+            string? currentImage1 = variant.ImageUrl1;
+            string? currentImage2 = variant.ImageUrl2;
+            string? currentImage3 = variant.ImageUrl3;
+
+            string? imageUrlToDelete = imageNumber switch
+            {
+                1 => currentImage1,
+                2 => currentImage2,
+                3 => currentImage3,
+                _ => null
+            };
+
+            if (!string.IsNullOrEmpty(imageUrlToDelete))
+            {
+                DeleteVariantImage(imageUrlToDelete);
+            }
+
+            // Réorganisation des slots (même logique que pour les images produit)
+            string? newImageUrl1 = currentImage1;
+            string? newImageUrl2 = currentImage2;
+            string? newImageUrl3 = currentImage3;
+
+            if (imageNumber == 1)
+            {
+                newImageUrl1 = currentImage2;
+                newImageUrl2 = currentImage3;
+                newImageUrl3 = null;
+            }
+            else if (imageNumber == 2)
+            {
+                newImageUrl1 = currentImage1;
+                newImageUrl2 = currentImage3;
+                newImageUrl3 = null;
+            }
+            else if (imageNumber == 3)
+            {
+                newImageUrl1 = currentImage1;
+                newImageUrl2 = currentImage2;
+                newImageUrl3 = null;
+            }
+
+            variant.ImageUrl1 = newImageUrl1;
+            variant.ImageUrl2 = newImageUrl2;
+            variant.ImageUrl3 = newImageUrl3;
+            variant.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return new ProductColorVariantDto
+            {
+                Id = variant.Id,
+                Color = variant.Color,
+                CustomName = variant.CustomName,
+                Stock = variant.Stock,
+                Sizes = variant.Size,
+                ImageUrl1 = variant.ImageUrl1,
+                ImageUrl2 = variant.ImageUrl2,
+                ImageUrl3 = variant.ImageUrl3
+            };
+        }
+
+        private async Task<string> SaveVariantImage(int productId, string color, IFormFile file, int n)
+        {
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
+            var extension = Path.GetExtension(file.FileName).ToLower();
+
+            if (!allowedExtensions.Contains(extension))
+                throw new Exception("Format de fichier non autorisé. Utilisez JPG, PNG, WEBP ou GIF");
+
+            if (file.Length > 5 * 1024 * 1024)
+                throw new Exception("Fichier trop volumineux (max 5MB)");
+
+            var safeColor = string.Concat(color.Where(char.IsLetterOrDigit)).ToLower();
+            var uploadsPath = Path.Combine(_environment.WebRootPath, "uploads", "products", 
+                productId.ToString(), "variants", safeColor);
+            
+            Directory.CreateDirectory(uploadsPath);
+            
+            var fileName = $"image_{n}_{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(uploadsPath, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            return $"/uploads/products/{productId}/variants/{safeColor}/{fileName}";
+        }
+
+        private void DeleteVariantImage(string imageUrl)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(imageUrl)) return;
+                
+                var filePath = Path.Combine(_environment.WebRootPath, imageUrl.TrimStart('/'));
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log l'erreur mais continue
+                Console.WriteLine($"Erreur lors de la suppression de l'image: {ex.Message}");
+            }
         }
     }
 }

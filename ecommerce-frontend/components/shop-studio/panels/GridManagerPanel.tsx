@@ -7,7 +7,8 @@ import {
   FiAlignLeft, FiType, FiImage, FiX, FiSave, FiUpload,
   FiFolder, FiExternalLink, FiMaximize2
 } from 'react-icons/fi';
-import { ProductGridConfig, ProductGridSlot, StudioProduct, CreateStudioProduct } from '@/types/studio';
+import { ProductGridConfig, ProductGridSlot, StudioProduct, CreateStudioProduct, ColorVariant } from '@/types/studio';
+import { productService } from '@/services/api/products';
 
 interface Props {
   gridConfig: ProductGridConfig;
@@ -420,7 +421,11 @@ export default function GridManagerPanel({
   // ⭐⭐⭐ Version des produits pour forcer le re-render ⭐⭐⭐
   const [productsVersion, setProductsVersion] = useState(0);
 
-  // ⭐ État newProduct avec imageUrl1 comme image principale
+  // ⭐ NOUVEAU: États pour les variantes de couleur
+  const [editingVariantColor, setEditingVariantColor] = useState<string | null>(null);
+  const [variantFiles, setVariantFiles] = useState<Record<string, { imageUrl1?: File; imageUrl2?: File; imageUrl3?: File }>>({});
+
+  // ⭐ État newProduct avec imageUrl1 comme image principale et colorVariants
   const [newProduct, setNewProduct] = useState({
     name: '', description: '', price: 0, stock: 0, category: '',
     sizes: [] as string[],
@@ -429,6 +434,8 @@ export default function GridManagerPanel({
     imageUrl2: '',
     imageUrl3: '',
     isInStock: true,
+    // ⭐ NOUVEAU: Variantes de couleur
+    colorVariants: {} as Record<string, ColorVariant>,
   });
 
   // ⭐⭐⭐ FORCER LA RÉHYDRATATION DES SLOTS QUAND products CHANGE ⭐⭐⭐
@@ -639,6 +646,66 @@ export default function GridManagerPanel({
     });
   };
 
+  // ⭐ NOUVEAU: Gestion des variantes de couleur
+  const getColorVariant = (colorValue: string): ColorVariant | undefined => {
+    return newProduct.colorVariants[colorValue];
+  };
+
+  const updateColorVariant = (colorValue: string, updates: Partial<ColorVariant>) => {
+    setNewProduct(p => ({
+      ...p,
+      colorVariants: {
+        ...p.colorVariants,
+        [colorValue]: {
+          ...p.colorVariants[colorValue],
+          ...updates,
+          color: colorValue,
+        },
+      },
+    }));
+  };
+
+  const handleVariantImageUpload = (color: string, field: 'imageUrl1' | 'imageUrl2' | 'imageUrl3', file: File) => {
+    setVariantFiles(prev => {
+      const colorFiles = prev[color] || {};
+      return {
+        ...prev,
+        [color]: {
+          ...colorFiles,
+          [field]: file,
+        },
+      };
+    });
+    const url = URL.createObjectURL(file);
+    updateColorVariant(color, { [field]: url });
+  };
+
+  const triggerVariantFileUpload = (color: string, field: 'imageUrl1' | 'imageUrl2' | 'imageUrl3') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        handleVariantImageUpload(color, field, file);
+      }
+    };
+    input.click();
+  };
+
+  const removeVariantImage = (color: string, field: 'imageUrl1' | 'imageUrl2' | 'imageUrl3') => {
+    setVariantFiles(prev => {
+      const colorFiles = prev[color] || {};
+      const newColorFiles = { ...colorFiles };
+      delete newColorFiles[field];
+      return {
+        ...prev,
+        [color]: newColorFiles,
+      };
+    });
+    updateColorVariant(color, { [field]: null });
+  };
+
   const removeImage = (idx: number) => {
     if (idx === 0) {
       setNewProduct(p => ({ ...p, imageUrl1: '' }));
@@ -694,8 +761,19 @@ export default function GridManagerPanel({
       ...p,
       colors: c.find(x => x.name === name) ? c.filter(x => x.name !== name) : [...c, { name, value }],
     }));
+    // ⭐ Si on ajoute une couleur, initialiser une variante vide
+    if (!c.find(x => x.name === name)) {
+      setNewProduct(prev => ({
+        ...prev,
+        colorVariants: {
+          ...prev.colorVariants,
+          [value]: { color: value, sizes: [] },
+        },
+      }));
+    }
   };
 
+  // ⭐⭐⭐ handleCreateProduct AVEC GESTION DES VARIANTES ⭐⭐⭐
   const handleCreateProduct = async () => {
     if (!newProduct.name || newProduct.price <= 0) { alert("Nom et prix requis"); return; }
     setIsCreating(true);
@@ -719,6 +797,8 @@ export default function GridManagerPanel({
         imageUrl2: secondaryImages[0] || '',
         imageUrl3: secondaryImages[1] || '',
         isInStock: newProduct.stock > 0,
+        // ⭐ NOUVEAU: Envoyer les variantes de couleur
+        colorVariants: Object.values(newProduct.colorVariants).filter(v => v.color),
       };
       
       console.log('📦 Création produit - Images:', {
@@ -726,15 +806,44 @@ export default function GridManagerPanel({
         imageUrl2: toCreate.imageUrl2,
         imageUrl3: toCreate.imageUrl3,
       });
+      console.log('📦 Création produit - Variantes:', toCreate.colorVariants);
       
       const created: StudioProduct = onCreateProduct ? await onCreateProduct(toCreate) : {
         id: Date.now(), name: toCreate.name, description: toCreate.description || '',
         price: toCreate.price, stock: toCreate.stock || 0, category: toCreate.category || '',
         sizes: toCreate.sizes, colors: toCreate.colors,
+        colorVariants: toCreate.colorVariants || [],
         imageUrl: toCreate.imageUrl, imageUrl1: toCreate.imageUrl1,
         imageUrl2: toCreate.imageUrl2, imageUrl3: toCreate.imageUrl3,
         isInStock: toCreate.isInStock || false, createdAt: new Date().toISOString(),
       } as StudioProduct;
+      
+      // ⭐ Upload des images des variantes
+      if (created.id) {
+        for (const variant of Object.values(newProduct.colorVariants)) {
+          if (variant.color) {
+            const files = variantFiles[variant.color];
+            if (files && Object.values(files).some(f => f)) {
+              try {
+                // ⭐ Conversion : imageUrl1 → image1, etc.
+                const uploadData = {
+                  image1: files.imageUrl1,
+                  image2: files.imageUrl2,
+                  image3: files.imageUrl3,
+                };
+                await productService.uploadVariantImages(
+                  created.id,
+                  variant.color,
+                  uploadData
+                );
+                console.log(`✅ Images uploadées pour la variante ${variant.color}`);
+              } catch (error) {
+                console.error(`❌ Erreur upload images pour ${variant.color}:`, error);
+              }
+            }
+          }
+        }
+      }
       
       if (currentSlotId) {
         const currentSlot = gridConfig.slots.find(s => s.id === currentSlotId);
@@ -753,8 +862,10 @@ export default function GridManagerPanel({
         name: '', description: '', price: 0, stock: 0, category: '', 
         sizes: [], colors: [], 
         imageUrl1: '', imageUrl2: '', imageUrl3: '', 
-        isInStock: true 
+        isInStock: true,
+        colorVariants: {},
       });
+      setVariantFiles({});
       setShowCreateProduct(false); 
       setCurrentSlotId(null);
       
@@ -945,6 +1056,7 @@ export default function GridManagerPanel({
                           {product && (
                             <span className="text-[9px] text-gray-600 ml-2">
                               🏷️{product.sizes?.length || 0} | 🎨{product.colors?.length || 0}
+                              {product.colorVariants && product.colorVariants.length > 0 && ` | 🌈${product.colorVariants.length}`}
                             </span>
                           )}
                         </div>
@@ -1801,6 +1913,9 @@ export default function GridManagerPanel({
                   <div className="text-[9px] text-gray-500 mt-0.5">
                     🏷️ Tailles: {selectedSlot.linkedProduct.sizes?.length || 0} | 
                     🎨 Couleurs: {selectedSlot.linkedProduct.colors?.length || 0}
+                    {selectedSlot.linkedProduct.colorVariants && selectedSlot.linkedProduct.colorVariants.length > 0 && (
+                      <span className="ml-1">| 🌈 {selectedSlot.linkedProduct.colorVariants.length} variantes</span>
+                    )}
                   </div>
                 </div>
                 <button onClick={() => onUnlinkProduct(selectedSlot.id)}
@@ -1885,6 +2000,7 @@ export default function GridManagerPanel({
                         <div className="text-primary text-sm">{p.price}€</div>
                         <div className="text-[9px] text-gray-500">
                           🏷️{p.sizes?.length || 0} | 🎨{p.colors?.length || 0}
+                          {p.colorVariants && p.colorVariants.length > 0 && ` | 🌈${p.colorVariants.length}`}
                         </div>
                       </div>
                     </button>
@@ -1895,7 +2011,7 @@ export default function GridManagerPanel({
         </div>
       )}
 
-      {/* Créer un produit */}
+      {/* ══ MODAL CRÉATION PRODUIT AVEC VARIANTES ════════════════════════════════ */}
       {showCreateProduct && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50">
           <div className="bg-gray-900 rounded-xl w-full max-w-lg max-h-[85vh] flex flex-col">
@@ -1991,18 +2107,169 @@ export default function GridManagerPanel({
                 </div>
               </div>
 
-              {/* Couleurs */}
+              {/* ⭐ COULEURS AVEC VARIANTES */}
               <div>
                 <label className="text-white text-sm block mb-2">Couleurs</label>
-                <div className="flex flex-wrap gap-2">
-                  {PREDEFINED_COLORS.map(c => (
-                    <button key={c.name} type="button" onClick={() => toggleColor(c.name, c.value)}
-                      className={`w-8 h-8 rounded-full transition-all ${newProduct.colors.some(x => x.name === c.name) ? 'ring-2 ring-primary ring-offset-2 ring-offset-gray-900 scale-110' : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c.value, border: c.value === '#FFFFFF' ? '1px solid #555' : 'none' }}
-                      title={c.name} />
-                  ))}
+                <div className="flex flex-wrap gap-3">
+                  {PREDEFINED_COLORS.map(c => {
+                    const variant = getColorVariant(c.value);
+                    const isSelected = newProduct.colors.some(x => x.name === c.name);
+                    return (
+                      <div key={c.name} className="relative group">
+                        <button 
+                          type="button" 
+                          onClick={() => toggleColor(c.name, c.value)}
+                          className={`w-10 h-10 rounded-full transition-all ${isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-gray-900 scale-110' : 'hover:scale-105'}`}
+                          style={{ backgroundColor: c.value, border: c.value === '#FFFFFF' ? '1px solid #555' : 'none' }}
+                          title={c.name} 
+                        />
+                        {isSelected && (
+                          <button
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setEditingVariantColor(c.value);
+                            }}
+                            className="absolute -bottom-1 -right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center text-[10px] text-white hover:bg-primary/80 transition-colors shadow-lg"
+                            title={`Configurer ${c.name}`}
+                          >
+                            <FiPlus size={12} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Cliquez sur <FiPlus className="inline" size={10} /> pour configurer les détails d'une couleur
+                </p>
               </div>
+
+              {/* ⭐ MODALE DE CONFIGURATION DE VARIANTE DE COULEUR */}
+              {editingVariantColor && (
+                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/50" onClick={() => setEditingVariantColor(null)}>
+                  <div className="bg-gray-900 rounded-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between p-4 border-b border-gray-700">
+                      <h3 className="text-white font-semibold">
+                        Configurer la variante
+                        <span className="block text-sm font-normal text-gray-400">
+                          {PREDEFINED_COLORS.find(c => c.value === editingVariantColor)?.name}
+                        </span>
+                      </h3>
+                      <button onClick={() => setEditingVariantColor(null)}><FiX size={20} /></button>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      <div>
+                        <label className="text-white text-sm block mb-1">Nom personnalisé</label>
+                        <input 
+                          type="text" 
+                          value={getColorVariant(editingVariantColor)?.customName || ''}
+                          onChange={(e) => updateColorVariant(editingVariantColor, { customName: e.target.value })}
+                          placeholder="Ex: Rouge foncé"
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-white text-sm block mb-1">Stock</label>
+                        <input 
+                          type="number" 
+                          value={getColorVariant(editingVariantColor)?.stock || 0}
+                          onChange={(e) => updateColorVariant(editingVariantColor, { stock: parseInt(e.target.value) || 0 })}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-white text-sm block mb-1">Tailles</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PREDEFINED_SIZES.map(s => {
+                            const currentSizes = getColorVariant(editingVariantColor)?.sizes || [];
+                            const isSelected = currentSizes.includes(s);
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => {
+                                  const current = getColorVariant(editingVariantColor)?.sizes || [];
+                                  const newSizes = isSelected 
+                                    ? current.filter(x => x !== s)
+                                    : [...current, s];
+                                  updateColorVariant(editingVariantColor, { sizes: newSizes });
+                                }}
+                                className={`px-2 py-1 rounded text-xs transition-colors ${
+                                  isSelected 
+                                    ? 'bg-primary text-white' 
+                                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                                }`}
+                              >
+                                {s}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-white text-sm block mb-2">Images de la variante</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['imageUrl1', 'imageUrl2', 'imageUrl3'].map((field) => {
+                            const variant = getColorVariant(editingVariantColor);
+                            const imageUrl = variant?.[field as keyof ColorVariant] as string || '';
+                            const colorFiles = variantFiles[editingVariantColor] || {};
+                            const file = colorFiles[field as 'imageUrl1' | 'imageUrl2' | 'imageUrl3'];
+                            return (
+                              <div key={field} className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                                {imageUrl ? (
+                                  <>
+                                    <img src={imageUrl} className="w-full h-full object-cover" />
+                                    <button 
+                                      onClick={() => {
+                                        removeVariantImage(editingVariantColor, field as 'imageUrl1' | 'imageUrl2' | 'imageUrl3');
+                                      }}
+                                      className="absolute top-1 right-1 p-0.5 bg-red-500 rounded-full"
+                                    >
+                                      <FiX size={10} />
+                                    </button>
+                                    {file && (
+                                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-green-500/80 text-white text-[8px] rounded">
+                                        Nouveau
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <button 
+                                    onClick={() => triggerVariantFileUpload(editingVariantColor, field as 'imageUrl1' | 'imageUrl2' | 'imageUrl3')}
+                                    className="w-full h-full flex items-center justify-center text-gray-400 hover:bg-gray-700 transition-colors"
+                                  >
+                                    <FiUpload size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Images spécifiques à cette couleur</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 p-4 border-t border-gray-700">
+                      <button 
+                        onClick={() => {
+                          const newVariants = { ...newProduct.colorVariants };
+                          delete newVariants[editingVariantColor];
+                          setNewProduct(p => ({ ...p, colorVariants: newVariants }));
+                          setEditingVariantColor(null);
+                        }}
+                        className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+                      >
+                        Supprimer
+                      </button>
+                      <button 
+                        onClick={() => setEditingVariantColor(null)}
+                        className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                      >
+                        OK
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 p-4 border-t border-gray-700 sticky bottom-0 bg-gray-900">

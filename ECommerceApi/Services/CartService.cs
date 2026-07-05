@@ -17,12 +17,16 @@ namespace ECommerceApi.Services
             _productService = productService;
         }
 
+        // ⭐ 1. GetOrCreateCartAsync — inclut ColorVariants
         public async Task<Cart> GetOrCreateCartAsync(int userId)
         {
             var cart = await _context.Carts
                 .Include(c => c.Items)
                     .ThenInclude(i => i.Product)
                         .ThenInclude(p => p!.Shop)
+                .Include(c => c.Items)
+                    .ThenInclude(i => i.Product)
+                        .ThenInclude(p => p!.ColorVariants) // ⭐ AJOUT
                 .FirstOrDefaultAsync(c => c.UserId == userId);
 
             if (cart == null)
@@ -40,15 +44,33 @@ namespace ECommerceApi.Services
             return cart;
         }
 
+        // ⭐ 2. Méthode privée de résolution de variante
+        private ProductColorVariant? ResolveVariant(Product product, string? selectedColor)
+        {
+            if (string.IsNullOrEmpty(selectedColor))
+                return null;
+
+            return product.ColorVariants?.FirstOrDefault(
+                v => v.Color.Equals(selectedColor, StringComparison.OrdinalIgnoreCase)
+            );
+        }
+
+        // ⭐ 3. AddToCartAsync — avec vérification du stock de la variante
         public async Task<CartItem> AddToCartAsync(int userId, AddToCartDto cartDto)
         {
-            var product = await _productService.GetProductByIdAsync(cartDto.ProductId);
+            // ⭐ On doit charger le produit AVEC ses variantes pour vérifier le bon stock
+            var fullProduct = await _context.Products
+                .Include(p => p.ColorVariants)
+                .FirstOrDefaultAsync(p => p.Id == cartDto.ProductId);
 
-            if (product == null)
+            if (fullProduct == null)
                 throw new Exception("Produit non trouvé");
 
-            if (product.Stock < cartDto.Quantity)
-                throw new Exception($"Stock insuffisant. Disponible: {product.Stock}");
+            var variant = ResolveVariant(fullProduct, cartDto.Color);
+            var availableStock = variant?.Stock ?? fullProduct.Stock;
+
+            if (availableStock < cartDto.Quantity)
+                throw new Exception($"Stock insuffisant. Disponible: {availableStock}");
 
             var cart = await GetOrCreateCartAsync(userId);
 
@@ -60,8 +82,8 @@ namespace ECommerceApi.Services
             if (existingItem != null)
             {
                 existingItem.Quantity += cartDto.Quantity;
-                if (existingItem.Quantity > product.Stock)
-                    throw new Exception($"Quantité totale ({existingItem.Quantity}) dépasse le stock disponible ({product.Stock})");
+                if (existingItem.Quantity > availableStock)
+                    throw new Exception($"Quantité totale ({existingItem.Quantity}) dépasse le stock disponible ({availableStock})");
             }
             else
             {
@@ -83,6 +105,7 @@ namespace ECommerceApi.Services
             return existingItem;
         }
 
+        // ⭐ 4. UpdateCartItemAsync — avec vérification du stock de la variante
         public async Task<bool> UpdateCartItemAsync(int userId, int itemId, UpdateCartItemDto cartDto)
         {
             var cart = await GetOrCreateCartAsync(userId);
@@ -91,8 +114,17 @@ namespace ECommerceApi.Services
             if (item == null)
                 return false;
 
-            var product = await _productService.GetProductByIdAsync(item.ProductId);
-            if (product == null || cartDto.Quantity > product.Stock)
+            var fullProduct = await _context.Products
+                .Include(p => p.ColorVariants)
+                .FirstOrDefaultAsync(p => p.Id == item.ProductId);
+
+            if (fullProduct == null)
+                return false;
+
+            var variant = ResolveVariant(fullProduct, item.SelectedColor);
+            var availableStock = variant?.Stock ?? fullProduct.Stock;
+
+            if (cartDto.Quantity > availableStock)
                 return false;
 
             item.Quantity = cartDto.Quantity;
@@ -109,7 +141,6 @@ namespace ECommerceApi.Services
             if (item == null) return false;
 
             // ⭐ On ne touche QUE le champ transmis ; l'autre reste celui déjà en base
-            //    (le serveur est la source de vérité, plus besoin que le front le renvoie)
             var newSize = dto.Size ?? item.SelectedSize;
             var newColor = dto.Color ?? item.SelectedColor;
 
@@ -164,31 +195,44 @@ namespace ECommerceApi.Services
             return true;
         }
 
+        // ⭐ 5. GetCartDetailsAsync — avec résolution des variantes
         public async Task<CartResponseDto> GetCartDetailsAsync(int userId)
         {
             var cart = await GetOrCreateCartAsync(userId);
 
-            var items = cart.Items.Select(i => new CartItemDto
+            var items = cart.Items.Select(i =>
             {
-                Id = i.Id,
-                ProductId = i.ProductId,
-                ProductName = i.Product.Name,
-                ProductPrice = i.Product.Price,
-                Quantity = i.Quantity,
-                TotalPrice = i.Quantity * i.Product.Price,
-                ProductImage = i.Product.ImageUrl1 ?? i.Product.ImageUrl,
-                Stock = i.Product.Stock,
+                var variant = ResolveVariant(i.Product, i.SelectedColor);
 
-                ShopId = i.Product.ShopId,
-                ShopName = i.Product.Shop?.Name,
-                ShopSlug = i.Product.Shop?.Slug,
-                ShopLogoUrl = i.Product.Shop?.LogoUrl,
-                
-                Size = i.Product.Size,
-                Color = i.Product.Color,
+                var resolvedName = variant?.CustomName ?? i.Product.Name;
+                var resolvedImage = variant?.ImageUrl1 ?? i.Product.ImageUrl1 ?? i.Product.ImageUrl;
+                var resolvedStock = variant?.Stock ?? i.Product.Stock;
+                var resolvedSizes = (variant?.Size != null && variant.Size.Count > 0)
+                    ? variant.Size
+                    : i.Product.Size;
 
-                SelectedSize = i.SelectedSize,
-                SelectedColor = i.SelectedColor,
+                return new CartItemDto
+                {
+                    Id = i.Id,
+                    ProductId = i.ProductId,
+                    ProductName = resolvedName,
+                    ProductPrice = i.Product.Price,
+                    Quantity = i.Quantity,
+                    TotalPrice = i.Quantity * i.Product.Price,
+                    ProductImage = resolvedImage,
+                    Stock = resolvedStock,
+
+                    ShopId = i.Product.ShopId,
+                    ShopName = i.Product.Shop?.Name,
+                    ShopSlug = i.Product.Shop?.Slug,
+                    ShopLogoUrl = i.Product.Shop?.LogoUrl,
+
+                    Size = resolvedSizes,
+                    Color = i.Product.Color,
+
+                    SelectedSize = i.SelectedSize,
+                    SelectedColor = i.SelectedColor,
+                };
             }).ToList();
 
             return new CartResponseDto

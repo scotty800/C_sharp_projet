@@ -35,6 +35,8 @@ namespace ECommerceApi.Data
         public DbSet<ProductImageFilter> ProductImageFilters { get; set; }
         public DbSet<ShopFilter> ShopFilters { get; set; }
 
+        public DbSet<ProductColorVariant> ProductColorVariants { get; set; }
+
         // ❌ SUPPRIMÉ - ImageSelection pour la bibliothèque d'images
         // public DbSet<ImageSelection> ImageSelections { get; set; }
 
@@ -130,6 +132,18 @@ namespace ECommerceApi.Data
             modelBuilder.Entity<ProductImageFilter>()
                 .HasIndex(pf => new { pf.ShopId, pf.ProductId, pf.ImageIndex })
                 .IsUnique();
+
+            // Configuration de ProductColorVariant
+            modelBuilder.Entity<ProductColorVariant>()
+                .HasOne(v => v.Product)
+                .WithMany(p => p.ColorVariants)
+                .HasForeignKey(v => v.ProductId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProductColorVariant>()
+                .HasIndex(v => new { v.ProductId, v.Color })
+                .IsUnique(); // une seule config par couleur et par produit
         }
+
     }
 }

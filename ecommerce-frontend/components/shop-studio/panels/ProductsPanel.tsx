@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { productService } from '@/services/api/products';
 import { Product } from '@/types/product';
-import { CreateStudioProduct, StudioProduct } from '@/types/studio';
+import { CreateStudioProduct, StudioProduct, ColorVariant } from '@/types/studio';
 import Image from 'next/image';
-import { FiStar, FiTrash2, FiMove, FiSave, FiX, FiUpload, FiFolder, FiExternalLink, FiImage } from 'react-icons/fi';
+import { FiStar, FiTrash2, FiMove, FiSave, FiX, FiUpload, FiFolder, FiExternalLink, FiImage, FiPlus, FiEdit2 } from 'react-icons/fi';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 interface Props {
@@ -38,25 +38,27 @@ export default function ProductsPanel({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   
-  // États pour la création de produit
   const [showCreateProduct, setShowCreateProduct] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [showImageSelector, setShowImageSelector] = useState(false);
   const [uploadingImageIndex, setUploadingImageIndex] = useState<number | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState<number>(0);
   
-  // ⭐ MODIFICATION: stocker l'image principale dans imageUrl1 (comme le backend l'attend)
+  const [editingVariantColor, setEditingVariantColor] = useState<string | null>(null);
+  const [variantImages, setVariantImages] = useState<Record<string, { image1?: File; image2?: File; image3?: File }>>({});
+  const [uploadingVariant, setUploadingVariant] = useState<string | null>(null);
+
   const [newProduct, setNewProduct] = useState({
     name: '', description: '', price: 0, stock: 0, category: '',
     sizes: [] as string[],
     colors: [] as { name: string; value: string }[],
-    imageUrl1: '',  // ⭐ Image principale (backend)
-    imageUrl2: '',  // Image secondaire 1
-    imageUrl3: '',  // Image secondaire 2
+    imageUrl1: '',
+    imageUrl2: '',
+    imageUrl3: '',
     isInStock: true,
+    colorVariants: {} as Record<string, ColorVariant>,
   });
 
-  // Charger les produits
   const fetchProducts = async () => {
     try {
       setLoading(true);
@@ -116,7 +118,6 @@ export default function ProductsPanel({
     onUpdateFeatured(reordered);
   };
 
-  // ⭐ removeImage corrigé pour les nouveaux index (0=imageUrl1, 1=imageUrl2, 2=imageUrl3)
   const removeImage = (idx: number) => {
     if (idx === 0) {
       setNewProduct(p => ({ ...p, imageUrl1: '' }));
@@ -174,7 +175,49 @@ export default function ProductsPanel({
     }));
   };
 
-  // ⭐⭐⭐ FONCTION CORRIGÉE - Stocke l'image principale dans imageUrl1 ⭐⭐⭐
+  const getColorVariant = (colorValue: string): ColorVariant | undefined => {
+    return newProduct.colorVariants[colorValue];
+  };
+
+  const updateColorVariant = (colorValue: string, updates: Partial<ColorVariant>) => {
+    setNewProduct(p => ({
+      ...p,
+      colorVariants: {
+        ...p.colorVariants,
+        [colorValue]: {
+          ...p.colorVariants[colorValue],
+          ...updates,
+          color: colorValue,
+        },
+      },
+    }));
+  };
+
+  const handleVariantImageUpload = (color: string, field: 'image1' | 'image2' | 'image3', file: File) => {
+    setVariantImages(prev => ({
+      ...prev,
+      [color]: {
+        ...prev[color],
+        [field]: file,
+      },
+    }));
+    const url = URL.createObjectURL(file);
+    updateColorVariant(color, { [`${field}`]: url });
+  };
+
+  const triggerVariantFileUpload = (color: string, field: 'image1' | 'image2' | 'image3') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        handleVariantImageUpload(color, field, file);
+      }
+    };
+    input.click();
+  };
+
   const handleCreateProduct = async () => {
     if (!newProduct.name || newProduct.price <= 0) { 
       alert("Nom et prix requis"); 
@@ -183,7 +226,6 @@ export default function ProductsPanel({
     
     setIsCreating(true);
     try {
-      // Récupérer l'image principale (imageUrl1) et les secondaires
       const mainImage = newProduct.imageUrl1 || '';
       const secondaryImages = [
         newProduct.imageUrl2,
@@ -198,22 +240,42 @@ export default function ProductsPanel({
         category: newProduct.category || '',
         sizes: newProduct.sizes.filter(Boolean),
         colors: newProduct.colors.map(c => c.value).filter(Boolean),
-        // ⭐ L'image principale est imageUrl1 pour le backend
-        imageUrl1: mainImage,               // ⭐ Image principale (backend)
+        imageUrl1: mainImage,
         imageUrl2: secondaryImages[0] || '',
         imageUrl3: secondaryImages[1] || '',
         isInStock: newProduct.stock > 0,
+        colorVariants: Object.values(newProduct.colorVariants).filter(v => v.color),
       };
       
       console.log('📤 Envoi au backend:', {
         imageUrl1: toCreate.imageUrl1,
         imageUrl2: toCreate.imageUrl2,
         imageUrl3: toCreate.imageUrl3,
+        colorVariants: toCreate.colorVariants,
       });
       
       if (onCreateProduct) {
-        const result = await onCreateProduct(toCreate);
-        console.log('✅ Produit créé:', result);
+        const created = await onCreateProduct(toCreate);
+        console.log('✅ Produit créé:', created);
+        
+        for (const variant of Object.values(newProduct.colorVariants)) {
+          if (variant.color) {
+            const files = variantImages[variant.color];
+            if (files && Object.values(files).some(f => f)) {
+              try {
+                await productService.uploadVariantImages(
+                  created.id,
+                  variant.color,
+                  files
+                );
+                console.log(`✅ Images uploadées pour la variante ${variant.color}`);
+              } catch (error) {
+                console.error(`❌ Erreur upload images pour ${variant.color}:`, error);
+              }
+            }
+          }
+        }
+        
         await fetchProducts();
       }
       
@@ -221,8 +283,10 @@ export default function ProductsPanel({
         name: '', description: '', price: 0, stock: 0, category: '', 
         sizes: [], colors: [], 
         imageUrl1: '', imageUrl2: '', imageUrl3: '', 
-        isInStock: true 
+        isInStock: true,
+        colorVariants: {},
       });
+      setVariantImages({});
       setShowCreateProduct(false);
       
     } catch (error) {
@@ -386,7 +450,7 @@ export default function ProductsPanel({
         </div>
       )}
 
-      {/* Modal de création de produit - CORRIGÉE */}
+      {/* Modal de création de produit */}
       {showCreateProduct && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50" onClick={() => setShowCreateProduct(false)}>
           <div className="bg-gray-900 rounded-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
@@ -428,7 +492,7 @@ export default function ProductsPanel({
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white resize-none" />
               </div>
 
-              {/* Images - L'image principale est imageUrl1 (index 0) */}
+              {/* Images */}
               <div>
                 <label className="text-white text-sm block mb-2">Images</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -482,18 +546,173 @@ export default function ProductsPanel({
                 </div>
               </div>
 
-              {/* Couleurs */}
+              {/* ⭐ COULEURS AVEC VARIANTES */}
               <div>
                 <label className="text-white text-sm block mb-2">Couleurs</label>
-                <div className="flex flex-wrap gap-2">
-                  {PREDEFINED_COLORS.map(c => (
-                    <button key={c.name} type="button" onClick={() => toggleColor(c.name, c.value)}
-                      className={`w-8 h-8 rounded-full transition-all ${newProduct.colors.some(x => x.name === c.name) ? 'ring-2 ring-primary ring-offset-2 ring-offset-gray-900 scale-110' : 'hover:scale-105'}`}
-                      style={{ backgroundColor: c.value, border: c.value === '#FFFFFF' ? '1px solid #555' : 'none' }}
-                      title={c.name} />
-                  ))}
+                <div className="flex flex-wrap gap-3">
+                  {PREDEFINED_COLORS.map(c => {
+                    const variant = getColorVariant(c.value);
+                    const isSelected = newProduct.colors.some(x => x.name === c.name);
+                    return (
+                      <div key={c.name} className="relative group">
+                        <button 
+                          type="button" 
+                          onClick={() => toggleColor(c.name, c.value)}
+                          className={`w-10 h-10 rounded-full transition-all ${isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-gray-900 scale-110' : 'hover:scale-105'}`}
+                          style={{ backgroundColor: c.value, border: c.value === '#FFFFFF' ? '1px solid #555' : 'none' }}
+                          title={c.name} 
+                        />
+                        {isSelected && (
+                          <button
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              setEditingVariantColor(c.value);
+                            }}
+                            className="absolute -bottom-1 -right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center text-[10px] text-white hover:bg-primary/80 transition-colors shadow-lg"
+                            title={`Configurer ${c.name}`}
+                          >
+                            <FiPlus size={12} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Cliquez sur <FiPlus className="inline" size={10} /> pour configurer les détails d'une couleur
+                </p>
               </div>
+
+              {/* ⭐ MODAL DE CONFIGURATION DE VARIANTE DE COULEUR */}
+              {editingVariantColor && (
+                <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/50" onClick={() => setEditingVariantColor(null)}>
+                  <div className="bg-gray-900 rounded-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-between p-4 border-b border-gray-700">
+                      <h3 className="text-white font-semibold">
+                        Configurer la variante
+                        <span className="block text-sm font-normal text-gray-400">
+                          {PREDEFINED_COLORS.find(c => c.value === editingVariantColor)?.name}
+                        </span>
+                      </h3>
+                      <button onClick={() => setEditingVariantColor(null)}><FiX size={20} /></button>
+                    </div>
+                    <div className="p-4 space-y-4">
+                      <div>
+                        <label className="text-white text-sm block mb-1">Nom personnalisé</label>
+                        <input 
+                          type="text" 
+                          value={getColorVariant(editingVariantColor)?.customName || ''}
+                          onChange={(e) => updateColorVariant(editingVariantColor, { customName: e.target.value })}
+                          placeholder="Ex: Rouge foncé"
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-white text-sm block mb-1">Stock</label>
+                        <input 
+                          type="number" 
+                          value={getColorVariant(editingVariantColor)?.stock || 0}
+                          onChange={(e) => updateColorVariant(editingVariantColor, { stock: parseInt(e.target.value) || 0 })}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-white text-sm block mb-1">Tailles</label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PREDEFINED_SIZES.map(s => {
+                            const currentSizes = getColorVariant(editingVariantColor)?.sizes || [];
+                            const isSelected = currentSizes.includes(s);
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => {
+                                  const current = getColorVariant(editingVariantColor)?.sizes || [];
+                                  const newSizes = isSelected 
+                                    ? current.filter(x => x !== s)
+                                    : [...current, s];
+                                  updateColorVariant(editingVariantColor, { sizes: newSizes });
+                                }}
+                                className={`px-2 py-1 rounded text-xs transition-colors ${
+                                  isSelected 
+                                    ? 'bg-primary text-white' 
+                                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                                }`}
+                              >
+                                {s}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-white text-sm block mb-2">Images de la variante</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['image1', 'image2', 'image3'].map((field) => {
+                            const variant = getColorVariant(editingVariantColor);
+                            const imageUrl = variant?.[field as keyof ColorVariant] as string || '';
+                            const file = variantImages[editingVariantColor]?.[field as keyof typeof variantImages[string]];
+                            return (
+                              <div key={field} className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                                {imageUrl ? (
+                                  <>
+                                    <img src={imageUrl} className="w-full h-full object-cover" />
+                                    <button 
+                                      onClick={() => {
+                                        updateColorVariant(editingVariantColor, { [field]: null });
+                                        setVariantImages(prev => {
+                                          const newFiles = { ...prev[editingVariantColor] };
+                                          delete newFiles[field as keyof typeof newFiles];
+                                          return { ...prev, [editingVariantColor]: newFiles };
+                                        });
+                                      }}
+                                      className="absolute top-1 right-1 p-0.5 bg-red-500 rounded-full"
+                                    >
+                                      <FiX size={10} />
+                                    </button>
+                                    {file && (
+                                      <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-green-500/80 text-white text-[8px] rounded">
+                                        Nouveau
+                                      </div>
+                                    )}
+                                  </>
+                                ) : (
+                                  <button 
+                                    onClick={() => triggerVariantFileUpload(editingVariantColor, field as 'image1' | 'image2' | 'image3')}
+                                    className="w-full h-full flex items-center justify-center text-gray-400 hover:bg-gray-700 transition-colors"
+                                  >
+                                    <FiUpload size={16} />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Images spécifiques à cette couleur</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 p-4 border-t border-gray-700">
+                      <button 
+                        onClick={() => {
+                          const newVariants = { ...newProduct.colorVariants };
+                          delete newVariants[editingVariantColor];
+                          setNewProduct(p => ({ ...p, colorVariants: newVariants }));
+                          setEditingVariantColor(null);
+                        }}
+                        className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+                      >
+                        Supprimer
+                      </button>
+                      <button 
+                        onClick={() => setEditingVariantColor(null)}
+                        className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                      >
+                        OK
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 p-4 border-t border-gray-700 sticky bottom-0 bg-gray-900">

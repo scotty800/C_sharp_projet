@@ -255,6 +255,7 @@ export default function ProductPageSidebar({ products, onClose, onGeneratePage, 
     frameBorderWidth: frameBorderColor ? frameBorderWidth : undefined,
   }), [imageFrameStyle, imageBorderRadius, imageBgColor, imageFit, frameBorderColor, frameBorderWidth]);
 
+  // ⭐ MODIFICATION — handleGenerate avec panelColor conditionnel pour Minimal
   const handleGenerate = useCallback(() => {
     if (!selectedProduct) return;
     const templateDef = PRODUCT_PAGE_TEMPLATES.find(t => t.id === selectedTemplate)!;
@@ -264,7 +265,8 @@ export default function ProductPageSidebar({ products, onClose, onGeneratePage, 
       accentColor: accentColor || templateDef.preview.accent,
       backgroundColor: bgColor || (selectedTemplate === 'classic' ? '#ffffff' : selectedTemplate === 'gallery' ? '#f8f5f0' : selectedTemplate === 'minimal' ? '#fafafa' : '#0f0f0f'),
       textColor: textColor || (selectedTemplate === 'immersive' ? '#ffffff' : '#111111'),
-      panelColor: panelColor || PANEL_COLOR_DEFAULTS[selectedTemplate],
+      // ⭐ MODIFICATION : le template Minimal n'a pas de panneau visible
+      panelColor: selectedTemplate === 'minimal' ? undefined : (panelColor || PANEL_COLOR_DEFAULTS[selectedTemplate]),
       imageStyle: buildImageStyle(),
     });
   }, [selectedProduct, selectedTemplate, accentColor, bgColor, textColor, panelColor, buildImageStyle, onGeneratePage]);

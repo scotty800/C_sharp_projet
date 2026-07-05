@@ -6,6 +6,8 @@ import { FiX, FiPackage, FiShoppingBag } from 'react-icons/fi';
 import { useCart } from '@/hooks/useCart';
 import { formatPrice } from '@/services/utils/formatters';
 import { getImageUrl } from '@/utils/imageUtils';
+import { useProductCardIdentity } from '@/hooks/useProductCardIdentity';
+import { CartItem as CartItemType } from '@/types/cart';
 
 const CartSidebar = () => {
   const { cart, isSidebarOpen, closeSidebar } = useCart();
@@ -51,75 +53,9 @@ const CartSidebar = () => {
               <p className="text-gray-500 dark:text-gray-400">Votre panier est vide</p>
             </div>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-3">
               {items.map((item) => (
-                <li
-                  key={item.id}
-                  className="flex gap-3 pb-4 border-b border-gray-100 dark:border-gray-800 last:border-b-0"
-                >
-                  <div className="relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
-                    <Image
-                      src={item.productImage ? getImageUrl(item.productImage) : '/images/product-placeholder.svg'}
-                      alt={item.productName}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    {item.shopSlug && (
-                      <Link
-                        href={`/shop/${item.shopSlug}`}
-                        onClick={closeSidebar}
-                        className="flex items-center gap-1.5 mb-1 group w-fit"
-                      >
-                        <div className="relative w-4 h-4 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
-                          {item.shopLogoUrl ? (
-                            <Image
-                              src={getImageUrl(item.shopLogoUrl)}
-                              alt={item.shopName || ''}
-                              fill
-                              className="object-cover"
-                              unoptimized
-                            />
-                          ) : (
-                            <FiPackage className="w-full h-full p-0.5 text-gray-400" />
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 group-hover:text-primary transition-colors truncate">
-                          {item.shopName}
-                        </span>
-                      </Link>
-                    )}
-
-                    <Link
-                      href={`/product/${item.productId}`}
-                      onClick={closeSidebar}
-                      className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary transition-colors line-clamp-2"
-                    >
-                      {item.productName}
-                    </Link>
-
-                    {/* ⭐ Affichage de la variante sélectionnée */}
-                    {(item.selectedSize || item.selectedColor) && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                        {item.selectedSize && `Taille: ${item.selectedSize}`}
-                        {item.selectedSize && item.selectedColor && ' · '}
-                        {item.selectedColor && `Couleur: ${item.selectedColor}`}
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        Qté : {item.quantity}
-                      </span>
-                      <span className="text-sm font-semibold text-primary">
-                        {formatPrice(item.totalPrice)}
-                      </span>
-                    </div>
-                  </div>
-                </li>
+                <SidebarCartItem key={item.id} item={item} onNavigate={closeSidebar} />
               ))}
             </ul>
           )}
@@ -157,5 +93,103 @@ const CartSidebar = () => {
     </>
   );
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Carte produit individuelle — identité visuelle résolue par produit
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SidebarCartItem({
+  item,
+  onNavigate,
+}: {
+  item: CartItemType;
+  onNavigate: () => void;
+}) {
+  const identity = useProductCardIdentity(item.shopId, item.productId);
+  const mutedColor = identity.mutedTextColor || identity.textColor + '80';
+
+  return (
+    <li
+      className="flex gap-3 p-3 transition-shadow"
+      style={{
+        backgroundColor: identity.panelColor,
+        borderRadius: `${identity.borderRadius}px`,
+        boxShadow: identity.boxShadow,
+        border: identity.source === 'product-page' ? `1px solid ${identity.borderColor}` : '1px solid #eeeeee',
+      }}
+    >
+      {/* Image — non cliquable */}
+      <div
+        className="relative w-16 h-16 flex-shrink-0 overflow-hidden bg-gray-100 dark:bg-gray-800"
+        style={{ borderRadius: `${Math.max(identity.borderRadius - 4, 0)}px` }}
+      >
+        <Image
+          src={item.productImage ? getImageUrl(item.productImage) : '/images/product-placeholder.svg'}
+          alt={item.productName}
+          fill
+          className="object-cover"
+          unoptimized
+        />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        {item.shopSlug && (
+          <Link
+            href={`/shop/${item.shopSlug}`}
+            onClick={onNavigate}
+            className="flex items-center gap-1.5 mb-1 group w-fit"
+          >
+            <div className="relative w-4 h-4 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
+              {item.shopLogoUrl ? (
+                <Image
+                  src={getImageUrl(item.shopLogoUrl)}
+                  alt={item.shopName || ''}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              ) : (
+                <FiPackage className="w-full h-full p-0.5 text-gray-400" />
+              )}
+            </div>
+            <span className="text-xs truncate transition-opacity hover:opacity-70" style={{ color: mutedColor }}>
+              {item.shopName}
+            </span>
+          </Link>
+        )}
+
+        {/* Nom du produit — non cliquable */}
+        <p
+          className="text-sm line-clamp-2"
+          style={{
+            fontFamily: identity.fontFamily,
+            fontWeight: identity.headingWeight,
+            color: identity.textColor,
+          }}
+        >
+          {item.productName}
+        </p>
+
+        {/* Variante sélectionnée */}
+        {(item.selectedSize || item.selectedColor) && (
+          <p className="text-xs mt-0.5" style={{ color: mutedColor }}>
+            {item.selectedSize && `Taille: ${item.selectedSize}`}
+            {item.selectedSize && item.selectedColor && ' · '}
+            {item.selectedColor && `Couleur: ${item.selectedColor}`}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-xs" style={{ color: mutedColor }}>
+            Qté : {item.quantity}
+          </span>
+          <span className="text-sm font-semibold" style={{ color: identity.textColor }}>
+            {formatPrice(item.totalPrice)}
+          </span>
+        </div>
+      </div>
+    </li>
+  );
+}
 
 export default CartSidebar;

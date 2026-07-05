@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { BannerBlock } from '@/components/shop-studio/blocks/BannerBlock';
 import { LogoBlock } from '@/components/shop-studio/blocks/LogoBlock';
 import { TitleBlock } from '@/components/shop-studio/blocks/TitleBlock';
@@ -16,6 +16,14 @@ import ShopProductGrid from './blocks/ShopProductGrid';
 import { BlockUI, ProductCustomization, StudioProduct, NavLinkTarget } from '@/types/studio';
 import { useBlockAnimation } from '@/hooks/useBlockAnimation';
 import type { BlockAnimationsConfig } from '@/types/animations';
+// ⭐ NOUVEAU IMPORT
+import {
+  resolveProductDisplay,
+  getResolvedImages,
+  getBoundFieldImageIndex,
+} from '@/components/shop-studio/lib/resolveProductVariant';
+// ⭐ NOUVEAU IMPORT
+import toast from 'react-hot-toast';
 
 const STUDIO_FRAME_WIDTH = 1200;
 const noop = () => {};
@@ -99,6 +107,71 @@ export default function ShopCanvas({
 
   console.log('🔑 variantKey:', variantKey);
 
+  // ⭐ NOUVEAU — résolution de l'affichage du produit selon la couleur choisie
+  const selectedColorForPage = pageProduct
+    ? selectedVariants[variantKey]?.color
+    : undefined;
+
+  const resolvedDisplay = useMemo(
+    () => (pageProduct ? resolveProductDisplay(pageProduct, selectedColorForPage) : null),
+    [pageProduct, selectedColorForPage]
+  );
+
+  // ⭐ NOUVEAU — si la taille sélectionnée n'existe plus pour la nouvelle couleur, on la vide
+  useEffect(() => {
+    if (!pageProduct || !resolvedDisplay) return;
+    const currentSize = selectedVariants[variantKey]?.size;
+    if (currentSize && !resolvedDisplay.sizes.includes(currentSize)) {
+      setSelectedVariants(prev => ({
+        ...prev,
+        [variantKey]: { ...prev[variantKey], size: undefined },
+      }));
+    }
+  }, [resolvedDisplay, variantKey, pageProduct, selectedVariants]);
+
+  // ⭐ NOUVEAU — résout les props effectives d'un bloc "lié" à une couleur
+  const getEffectiveBlockProps = useCallback(
+    (block: BlockUI): any => {
+      const bf: string | undefined = block.props?.boundField;
+      if (!pageProduct || !resolvedDisplay || !bf) return block.props;
+
+      const images = getResolvedImages(resolvedDisplay);
+
+      if (bf === 'mainImage') {
+        const src = images[0] || '';
+        return { ...block.props, src, url: src, imageUrl: src, image: src };
+      }
+      if (bf.startsWith('thumbImage:') || bf.startsWith('secondaryImage:')) {
+        const idx = parseInt(bf.split(':')[1], 10);
+        const src = images[idx + 1] || '';
+        return { ...block.props, src, url: src, imageUrl: src, image: src };
+      }
+      if (bf.startsWith('galleryImage:')) {
+        const idx = parseInt(bf.split(':')[1], 10);
+        const src = images[idx] || '';
+        return { ...block.props, src, url: src, imageUrl: src, image: src };
+      }
+      if (bf === 'productName') {
+        return { ...block.props, title: resolvedDisplay.name, text: resolvedDisplay.name, content: resolvedDisplay.name };
+      }
+      if (bf === 'stockStatus') {
+        const content = resolvedDisplay.stock > 0
+          ? `✓ En stock (${resolvedDisplay.stock})`
+          : 'Rupture de stock';
+        const textColor = resolvedDisplay.stock > 0 ? '#16a34a' : '#dc2626';
+        return { ...block.props, content, textColor };
+      }
+      // ⭐ CORRECTION — sizeButton utilise textOpacity, pas opacity
+      if (bf === 'sizeButton') {
+        const available = resolvedDisplay.sizes.includes(block.props.variantValue);
+        return { ...block.props, textOpacity: available ? 100 : 30 };
+      }
+
+      return block.props;
+    },
+    [pageProduct, resolvedDisplay]
+  );
+
   const getNavLinkProps = useCallback(
     (linkBlock: BlockUI) => {
       const link = linkBlock.props?.navigationLink as NavLinkTarget | undefined;
@@ -133,6 +206,14 @@ export default function ShopCanvas({
         const value = variantValue;
         const currentVariant = selectedVariants[variantKey] || {};
         const isSelected = currentVariant[field] === value;
+
+        // ⭐ CORRECTION — bloque le clic si la taille n'est pas disponible pour la couleur active
+        // (le grisé visuel est déjà géré par boundField 'sizeButton' → textOpacity)
+        if (field === 'size' && resolvedDisplay && !resolvedDisplay.sizes.includes(value)) {
+          return {
+            style: { cursor: 'not-allowed', pointerEvents: 'none' } as React.CSSProperties,
+          };
+        }
 
         console.log(`🔵 ${field} - valeur: ${value}, sélectionné: ${isSelected}, état actuel:`, currentVariant);
 
@@ -173,15 +254,28 @@ export default function ShopCanvas({
         };
       }
 
-      // ── addToCart ──
+      // ⭐ MODIFICATION — addToCart avec validation des variantes
       if (action === 'addToCart' && pageProduct && onAddToCart) {
-        console.log('🛒 addToCart - variante sélectionnée:', selectedVariants[variantKey]);
         return {
           onClick: (e: React.MouseEvent) => {
             e.stopPropagation();
             e.preventDefault();
-            console.log('🛒 Clic sur CTA avec variante:', selectedVariants[variantKey]);
-            onAddToCart(pageProduct, selectedVariants[variantKey]);
+
+            const variant = selectedVariants[variantKey] || {};
+            const needsSize = (resolvedDisplay?.sizes?.length ?? 0) > 0;
+            const needsColor = (pageProduct.colors?.length ?? 0) > 0;
+
+            // ⭐ Validation avant ajout au panier
+            if (needsSize && !variant.size) {
+              toast.error('Veuillez choisir une taille');
+              return;
+            }
+            if (needsColor && !variant.color) {
+              toast.error('Veuillez choisir une couleur');
+              return;
+            }
+
+            onAddToCart(pageProduct, variant);
           },
           style: { cursor: 'pointer' } as React.CSSProperties,
         };
@@ -189,7 +283,7 @@ export default function ShopCanvas({
 
       return getNavLinkProps(block);
     },
-    [pageProduct, onAddToCart, getNavLinkProps, selectedVariants, variantKey]
+    [pageProduct, onAddToCart, getNavLinkProps, selectedVariants, variantKey, resolvedDisplay]
   );
 
   const visibleBlocks = blocks.filter((b) => b.isVisible !== false && b.type !== 'group');
@@ -278,7 +372,22 @@ export default function ShopCanvas({
     );
   }
 
-  function renderBlock(block: BlockUI, isChild = false): React.ReactNode {
+  // ⭐ MODIFICATION — renderBlock avec résolution des props et cache des images sans contenu
+  function renderBlock(inputBlock: BlockUI, isChild = false): React.ReactNode {
+    // ⭐ Appliquer les props résolues avant tout rendu
+    const effectiveProps = getEffectiveBlockProps(inputBlock);
+    const block: BlockUI =
+      effectiveProps !== inputBlock.props ? { ...inputBlock, props: effectiveProps } : inputBlock;
+
+    // ⭐ NOUVEAU — cache les slots d'image sans contenu pour la couleur/variante active
+    if (pageProduct && resolvedDisplay) {
+      const imgIdx = getBoundFieldImageIndex(inputBlock.props?.boundField);
+      if (imgIdx !== null) {
+        const images = getResolvedImages(resolvedDisplay);
+        if (imgIdx >= images.length) return null;
+      }
+    }
+
     const children = getChildren(block.id);
     const blockFilter = block.props?.cssFilter || 'none';
     const blockOpacity = block.props?.opacity !== undefined ? block.props.opacity / 100 : 1;
@@ -444,8 +553,12 @@ export default function ShopCanvas({
     );
   }
 
+  // ⭐ MODIFICATION — retour avec isolation: 'isolate'
   return (
-    <div className="relative w-full" style={{ height: canvasHeightPx }}>
+    <div
+      className="relative w-full"
+      style={{ height: canvasHeightPx, isolation: 'isolate' }}
+    >
       {rootBlocks.map((block) => renderBlock(block))}
     </div>
   );

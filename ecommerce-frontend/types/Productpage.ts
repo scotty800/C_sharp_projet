@@ -172,7 +172,7 @@ export function resolveColorValue(raw: string): string {
   return trimmed;
 }
 
-// ⭐ MODIFICATION — generateSizeAndColorBlocks avec boutons interactifs
+// ⭐ MODIFICATION — generateSizeAndColorBlocks avec boutons interactifs ET boundField
 function generateSizeAndColorBlocks(
   product: StudioProduct,
   startX: number,
@@ -226,6 +226,7 @@ function generateSizeAndColorBlocks(
           text: size,
           action: 'selectSize',
           variantValue: size,
+          boundField: 'sizeButton',
           backgroundColor: 'transparent',
           textColor,
           fontSize: 11,
@@ -292,8 +293,8 @@ function generateSizeAndColorBlocks(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// TEMPLATE 1 — CLASSIQUE (version compacte)
-// Canvas : 1100 × 700 (réduit)
+// TEMPLATE 1 — CLASSIQUE
+// Canvas : 1100 × 700
 // ──────────────────────────────────────────────────────────────────────────
 
 function generateClassicBlocks(
@@ -318,23 +319,22 @@ function generateClassicBlocks(
       position: { x: 0, y: 0, width: 1100, height: 700, zIndex: z, rotation: 0, positionType: 'absolute' },
       props: { shapeType: 'rectangle', backgroundColor: bg, opacity: 100 },
     },
-    // Image principale
+    // ⭐ Image principale — boundField: 'mainImage'
     {
       ...base, id: uid('img-main'), type: 'image', order: next(),
       position: { x: 24, y: 24, width: 580, height: 580, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[0] || ''), ...getImageFrameProps(imgStyle, 0, '#f4f4f4'), ...getBorderStyle(imgStyle) },
+      props: { ...imgSrc(images[0] || ''), boundField: 'mainImage', ...getImageFrameProps(imgStyle, 0, '#f4f4f4'), ...getBorderStyle(imgStyle) },
     },
   ];
 
-  // Vignettes (3 max)
-  const thumbImages = images.slice(1, 4);
-  thumbImages.forEach((imgUrl, i) => {
+  // ⭐ Vignettes — TOUJOURS 2 SLOTS (plus conditionné)
+  for (let i = 0; i < 2; i++) {
     blocks.push({
       ...base, id: uid('thumb'), type: 'image', order: next(),
       position: { x: 24 + i * 194, y: 612, width: 184, height: 64, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(imgUrl), ...getImageFrameProps(imgStyle, 0, '#f4f4f4'), ...getBorderStyle(imgStyle, '1px solid #e5e5e5') },
+      props: { ...imgSrc(images[i + 1] || ''), boundField: `thumbImage:${i}`, ...getImageFrameProps(imgStyle, 0, '#f4f4f4'), ...getBorderStyle(imgStyle, '1px solid #e5e5e5') },
     });
-  });
+  }
 
   // Séparateur
   blocks.push({
@@ -364,11 +364,11 @@ function generateClassicBlocks(
     },
   });
 
-  // Titre
+  // ⭐ Titre — boundField: 'productName'
   blocks.push({
     ...base, id: uid('title'), type: 'title', order: next(),
     position: { x: 660, y: 62, width: 400, height: 70, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
-    props: { ...titleProps(product.name), fontSize: 22, fontFamily: 'Inter', fontWeight: '600', textColor: text, lineHeight: 1.25 },
+    props: { ...titleProps(product.name), boundField: 'productName', fontSize: 22, fontFamily: 'Inter', fontWeight: '600', textColor: text, lineHeight: 1.25 },
   });
 
   // Prix
@@ -399,13 +399,14 @@ function generateClassicBlocks(
     },
   });
 
-  // Stock
+  // ⭐ Stock — boundField: 'stockStatus'
   if (product.stock > 0) {
     blocks.push({
       ...base, id: uid('stock'), type: 'text', order: next(),
       position: { x: 660, y: 272, width: 200, height: 20, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
       props: {
         content: `✓ En stock (${product.stock})`,
+        boundField: 'stockStatus',
         fontSize: 10,
         fontFamily: 'Inter',
         fontWeight: '500',
@@ -414,7 +415,7 @@ function generateClassicBlocks(
     });
   }
 
-  // ⭐ Tailles & couleurs — accent ajouté en dernier argument
+  // ⭐ Tailles & couleurs
   const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(
     product, 660, 302, base, z + 2,
     '#666666', '#888888', 400, accent
@@ -463,7 +464,7 @@ function generateClassicBlocks(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// TEMPLATE 2 — IMMERSIF (version compacte)
+// TEMPLATE 2 — IMMERSIF
 // Canvas : 1100 × 700
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -482,11 +483,11 @@ function generateImmersiveBlocks(
   const next = () => order++;
 
   const blocks: BlockUI[] = [
-    // Image héro
+    // ⭐ Image héro — boundField: 'mainImage'
     {
       ...base, id: uid('hero'), type: 'image', order: next(),
       position: { x: 0, y: 0, width: 1100, height: 700, zIndex: z, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[0] || ''), ...getImageFrameProps(imgStyle, 0, panel), objectFit: 'cover', ...getBorderStyle(imgStyle) },
+      props: { ...imgSrc(images[0] || ''), boundField: 'mainImage', ...getImageFrameProps(imgStyle, 0, panel), objectFit: 'cover', ...getBorderStyle(imgStyle) },
     },
     // Overlay
     {
@@ -510,11 +511,11 @@ function generateImmersiveBlocks(
       position: { x: 64, y: 56, width: 240, height: 16, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
       props: { content: (product.category || 'Collection').toUpperCase(), fontSize: 9, fontFamily: 'Inter', fontWeight: '500', textColor: accent, letterSpacing: 3 },
     },
-    // Nom
+    // ⭐ Nom — boundField: 'productName'
     {
       ...base, id: uid('name'), type: 'title', order: next(),
       position: { x: 64, y: 82, width: 440, height: 160, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
-      props: { ...titleProps(product.name), fontSize: 42, fontFamily: 'Inter', fontWeight: '800', textColor: text, lineHeight: 1.05, letterSpacing: -1 },
+      props: { ...titleProps(product.name), boundField: 'productName', fontSize: 42, fontFamily: 'Inter', fontWeight: '800', textColor: text, lineHeight: 1.05, letterSpacing: -1 },
     },
     // Description
     {
@@ -550,12 +551,13 @@ function generateImmersiveBlocks(
         borderRadius: 2,
       },
     },
-    // Stock
+    // ⭐ Stock — boundField: 'stockStatus'
     {
       ...base, id: uid('stock'), type: 'text', order: next(),
       position: { x: 64, y: 424, width: 240, height: 16, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
       props: {
         content: product.stock > 0 ? `● En stock (${product.stock})` : '● Rupture',
+        boundField: 'stockStatus',
         fontSize: 10,
         fontFamily: 'Inter',
         fontWeight: '400',
@@ -564,31 +566,29 @@ function generateImmersiveBlocks(
     },
   ];
 
-  // Images secondaires
-  const secondary = images.slice(1, 3);
-  if (secondary.length > 0) {
-    blocks.push({
-      ...base, id: uid('rpanel'), type: 'shape', order: next(),
-      position: { x: 830, y: 0, width: 270, height: 700, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: {
-        shapeType: 'rectangle',
-        backgroundColor: hexToRgba(panel, 0.45),
-        opacity: 100,
-      },
-    });
+  // ⭐ Panneau droit — TOUJOURS PRÉSENT
+  blocks.push({
+    ...base, id: uid('rpanel'), type: 'shape', order: next(),
+    position: { x: 830, y: 0, width: 270, height: 700, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
+    props: {
+      shapeType: 'rectangle',
+      backgroundColor: hexToRgba(panel, 0.45),
+      opacity: 100,
+    },
+  });
 
-    secondary.forEach((img, i) => {
-      const h = secondary.length === 1 ? 480 : 300;
-      const yPos = secondary.length === 1 ? 110 : 50 + i * (h + 16);
-      blocks.push({
-        ...base, id: uid('img2'), type: 'image', order: next(),
-        position: { x: 840, y: yPos, width: 250, height: h, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
-        props: { ...imgSrc(img), opacity: 90, ...getImageFrameProps(imgStyle, 2, panel), ...getBorderStyle(imgStyle, `1px solid ${accent}25`) },
-      });
+  // ⭐ Images secondaires — TOUJOURS 2 SLOTS
+  for (let i = 0; i < 2; i++) {
+    const h = 300;
+    const yPos = 50 + i * (h + 16);
+    blocks.push({
+      ...base, id: uid('img2'), type: 'image', order: next(),
+      position: { x: 840, y: yPos, width: 250, height: h, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
+      props: { ...imgSrc(images[i + 1] || ''), boundField: `secondaryImage:${i}`, opacity: 90, ...getImageFrameProps(imgStyle, 2, panel), ...getBorderStyle(imgStyle, `1px solid ${accent}25`) },
     });
   }
 
-  // ⭐ Tailles & couleurs — accent ajouté en dernier argument
+  // ⭐ Tailles & couleurs
   const { blocks: extraBlocks } = generateSizeAndColorBlocks(
     product, 64, 454, base, z + 2,
     'rgba(255,255,255,0.8)', 'rgba(255,255,255,0.5)', 320, accent
@@ -599,7 +599,7 @@ function generateImmersiveBlocks(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// TEMPLATE 3 — GALERIE (version compacte)
+// TEMPLATE 3 — GALERIE
 // Canvas : 1100 × 700
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -631,47 +631,22 @@ function generateGalleryBlocks(
     ...getBorderStyle(imgStyle),
   });
 
-  // Layout images adaptatif
-  if (images.length === 0) {
-    blocks.push({
-      ...base, id: uid('noimg'), type: 'shape', order: next(),
-      position: { x: 20, y: 20, width: 640, height: 660, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { shapeType: 'rectangle', backgroundColor: '#e8e5e0', borderRadius: 8 },
-    });
-  } else if (images.length === 1) {
-    blocks.push({
-      ...base, id: uid('img1'), type: 'image', order: next(),
-      position: { x: 20, y: 20, width: 640, height: 660, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[0]), ...frame(8) },
-    });
-  } else if (images.length === 2) {
-    blocks.push({
-      ...base, id: uid('img1'), type: 'image', order: next(),
-      position: { x: 20, y: 20, width: 640, height: 400, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[0]), ...frame(8) },
-    });
-    blocks.push({
-      ...base, id: uid('img2'), type: 'image', order: next(),
-      position: { x: 20, y: 428, width: 640, height: 252, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[1]), ...frame(8) },
-    });
-  } else {
-    blocks.push({
-      ...base, id: uid('img1'), type: 'image', order: next(),
-      position: { x: 20, y: 20, width: 640, height: 400, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[0]), ...frame(8) },
-    });
-    blocks.push({
-      ...base, id: uid('img2'), type: 'image', order: next(),
-      position: { x: 20, y: 428, width: 310, height: 252, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[1]), ...frame(8) },
-    });
-    blocks.push({
-      ...base, id: uid('img3'), type: 'image', order: next(),
-      position: { x: 342, y: 428, width: 318, height: 252, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[2]), ...frame(8) },
-    });
-  }
+  // ⭐ DISPOSITION FIXE À 3 IMAGES — plus conditionné
+  blocks.push({
+    ...base, id: uid('img1'), type: 'image', order: next(),
+    position: { x: 20, y: 20, width: 640, height: 400, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
+    props: { ...imgSrc(images[0] || ''), boundField: 'galleryImage:0', ...frame(8) },
+  });
+  blocks.push({
+    ...base, id: uid('img2'), type: 'image', order: next(),
+    position: { x: 20, y: 428, width: 310, height: 252, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
+    props: { ...imgSrc(images[1] || ''), boundField: 'galleryImage:1', ...frame(8) },
+  });
+  blocks.push({
+    ...base, id: uid('img3'), type: 'image', order: next(),
+    position: { x: 342, y: 428, width: 318, height: 252, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
+    props: { ...imgSrc(images[2] || ''), boundField: 'galleryImage:2', ...frame(8) },
+  });
 
   // Fiche produit
   blocks.push({
@@ -694,11 +669,11 @@ function generateGalleryBlocks(
     props: { content: product.category || 'Collection', fontSize: 9, fontFamily: 'Inter', fontWeight: '500', textColor: accent, letterSpacing: 1.5 },
   });
 
-  // Nom
+  // ⭐ Nom — boundField: 'productName'
   blocks.push({
     ...base, id: uid('name'), type: 'title', order: next(),
     position: { x: 710, y: 64, width: 360, height: 80, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
-    props: { ...titleProps(product.name), fontSize: 20, fontFamily: 'Inter', fontWeight: '700', textColor: text, lineHeight: 1.2 },
+    props: { ...titleProps(product.name), boundField: 'productName', fontSize: 20, fontFamily: 'Inter', fontWeight: '700', textColor: text, lineHeight: 1.2 },
   });
 
   // Prix
@@ -729,7 +704,7 @@ function generateGalleryBlocks(
     },
   });
 
-  // ⭐ Tailles & couleurs — accent ajouté en dernier argument
+  // ⭐ Tailles & couleurs
   const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(
     product, 710, 298, base, z + 2,
     '#888888', '#888888', 360, accent
@@ -754,12 +729,13 @@ function generateGalleryBlocks(
     },
   });
 
-  // Stock
+  // ⭐ Stock — boundField: 'stockStatus'
   blocks.push({
     ...base, id: uid('stock'), type: 'text', order: next(),
     position: { x: 710, y: ctaY + 50, width: 360, height: 16, zIndex: z + 2, rotation: 0, positionType: 'absolute' },
     props: {
       content: product.stock > 0 ? `✓ ${product.stock} en stock` : 'Rupture',
+      boundField: 'stockStatus',
       fontSize: 10,
       fontFamily: 'Inter',
       fontWeight: '500',
@@ -772,7 +748,7 @@ function generateGalleryBlocks(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// TEMPLATE 4 — MINIMAL (version compacte)
+// TEMPLATE 4 — MINIMAL
 // Canvas : 1100 × 700
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -796,24 +772,21 @@ function generateMinimalBlocks(
       position: { x: 0, y: 0, width: 1100, height: 700, zIndex: z, rotation: 0, positionType: 'absolute' },
       props: { shapeType: 'rectangle', backgroundColor: bg, opacity: 100 },
     },
-    // Image
+    // ⭐ Image — boundField: 'mainImage'
     {
       ...base, id: uid('img'), type: 'image', order: next(),
       position: { x: 0, y: 0, width: 560, height: 700, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-      props: { ...imgSrc(images[0] || ''), ...getImageFrameProps(imgStyle, 0, '#f2f2f2'), ...getBorderStyle(imgStyle) },
+      props: { ...imgSrc(images[0] || ''), boundField: 'mainImage', ...getImageFrameProps(imgStyle, 0, '#f2f2f2'), ...getBorderStyle(imgStyle) },
     },
   ];
 
-  // Vignettes
-  if (images.length > 1) {
-    const extras = images.slice(1, 4);
-    const thumbW = Math.floor((560 - (extras.length - 1) * 6) / extras.length);
-    extras.forEach((img, i) => {
-      blocks.push({
-        ...base, id: uid('mthumb'), type: 'image', order: next(),
-        position: { x: i * (thumbW + 6), y: 714, width: thumbW, height: 58, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-        props: { ...imgSrc(img), ...getImageFrameProps(imgStyle, 0, '#f2f2f2'), ...getBorderStyle(imgStyle) },
-      });
+  // ⭐ Vignettes — TOUJOURS 2 SLOTS
+  const thumbW = Math.floor((560 - 6) / 2);
+  for (let i = 0; i < 2; i++) {
+    blocks.push({
+      ...base, id: uid('mthumb'), type: 'image', order: next(),
+      position: { x: i * (thumbW + 6), y: 714, width: thumbW, height: 58, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
+      props: { ...imgSrc(images[i + 1] || ''), boundField: `thumbImage:${i}`, ...getImageFrameProps(imgStyle, 0, '#f2f2f2'), ...getBorderStyle(imgStyle) },
     });
   }
 
@@ -831,11 +804,11 @@ function generateMinimalBlocks(
     props: { content: (product.category || 'Produit').toUpperCase(), fontSize: 8, fontFamily: 'Inter', fontWeight: '500', textColor: '#aaaaaa', letterSpacing: 2.5 },
   });
 
-  // Nom
+  // ⭐ Titre — boundField: 'productName'
   blocks.push({
     ...base, id: uid('title'), type: 'title', order: next(),
     position: { x: 590, y: 84, width: 460, height: 120, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
-    props: { ...titleProps(product.name), fontSize: 34, fontFamily: 'Inter', fontWeight: '200', textColor: text, lineHeight: 1.1, letterSpacing: -1.5 },
+    props: { ...titleProps(product.name), boundField: 'productName', fontSize: 34, fontFamily: 'Inter', fontWeight: '200', textColor: text, lineHeight: 1.1, letterSpacing: -1.5 },
   });
 
   // Ligne
@@ -866,7 +839,7 @@ function generateMinimalBlocks(
     },
   });
 
-  // ⭐ Tailles & couleurs — accent ajouté en dernier argument
+  // ⭐ Tailles & couleurs
   const { blocks: extraBlocks, endY } = generateSizeAndColorBlocks(
     product, 590, 370, base, z + 1,
     '#aaaaaa', '#999999', 460, accent
@@ -892,12 +865,13 @@ function generateMinimalBlocks(
     },
   });
 
-  // Stock
+  // ⭐ Stock — boundField: 'stockStatus'
   blocks.push({
     ...base, id: uid('stock'), type: 'text', order: next(),
     position: { x: 590, y: ctaY + 50, width: 460, height: 14, zIndex: z + 1, rotation: 0, positionType: 'absolute' },
     props: {
       content: product.stock > 0 ? `Disponible (${product.stock})` : 'Rupture',
+      boundField: 'stockStatus',
       fontSize: 9,
       fontFamily: 'Inter',
       fontWeight: '400',

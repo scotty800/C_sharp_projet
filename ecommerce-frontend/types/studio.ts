@@ -241,6 +241,7 @@ export interface BlockUI {
   gridConfig?: ProductGridConfig;
   pageId?: string;
   groupId?: string | null;
+  
 }
 
 // Interface principale SHOP CUSTOMIZATION (mise à jour avec blocks)
@@ -612,6 +613,7 @@ export interface StudioProduct {
   sizes?: string[];
   colors?: string[];
   variants?: ProductVariant[];
+  colorVariants?: ColorVariant[];
   isInStock: boolean;
   createdAt: string;
 }
@@ -629,6 +631,7 @@ export interface CreateStudioProduct {
   category?: string;
   sizes?: string[];
   colors?: string[];
+  colorVariants?: ColorVariant[];
   isInStock?: boolean;
 }
 
@@ -813,6 +816,15 @@ export interface StudioPage {
    *  template de page produit. Permet à la boutique de naviguer automatiquement
    *  vers cette page quand un visiteur clique sur ce produit. */
   linkedProductId?: number | null;
+
+  // ⭐ NOUVEAU — identité visuelle de la page produit, pour réutilisation ailleurs (panier, etc.)
+  productPageStyle?: {
+    template: 'classic' | 'immersive' | 'gallery' | 'minimal';
+    backgroundColor?: string;
+    accentColor?: string;
+    textColor?: string;
+    panelColor?: string;
+  };
 }
 // ⭐ Type pour la configuration d'une slide (tous les champs sont optionnels car une slide peut hériter du global)
 export interface SlideCustomization {
@@ -1037,4 +1049,26 @@ export interface NavbarConfig {
   mobileMenuStyle?: 'drawer' | 'fullscreen' | 'dropdown';
 
   pageTransition?: PageTransitionConfig;
+}
+
+// types/studio.ts - Interface ColorVariant corrigée
+
+export interface ColorVariant {
+  id?: number;
+  color: string;
+  customName?: string | null;
+  stock?: number | null;
+  sizes?: string[] | null;  // ⭐ Gardez "sizes" (pluriel)
+  imageUrl1?: string | null;  // ⭐ Utilisez "imageUrl1" (pas "image1")
+  imageUrl2?: string | null;  // ⭐ Utilisez "imageUrl2" (pas "image2")
+  imageUrl3?: string | null;  // ⭐ Utilisez "imageUrl3" (pas "image3")
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpsertColorVariantDto {
+  color: string;
+  customName?: string | null;
+  stock?: number;
+  sizes?: string[] | null;
 }

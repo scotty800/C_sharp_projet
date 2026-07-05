@@ -68,7 +68,7 @@ export interface StudioPage {
   backgroundOpacity?: number;
   canvasX?: number;
   canvasY?: number;
-  linkedProductId?: number | null; // ⭐ AJOUT
+  linkedProductId?: number | null;
 }
 
 export interface BlockUI {
@@ -1039,7 +1039,6 @@ export default function StudioLayout() {
     if (!shopId) return;
     try {
       const { logoUrl } = await shopService.uploadLogo(shopId, file);
-      // ⭐ Cache-bust : force le navigateur à re-télécharger même si le nom de fichier est identique
       const bustedUrl = logoUrl
         ? `${logoUrl}${logoUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
         : logoUrl;
@@ -1156,6 +1155,7 @@ export default function StudioLayout() {
     updateBlockGridConfig(activeProductsBlockIdRef.current, config);
   }, [updateBlockGridConfig]);
 
+  // ⭐⭐⭐ rehydrateAllProductBlocks AVEC colorVariants ⭐⭐⭐
   const rehydrateAllProductBlocks = useCallback((products: StudioProduct[]) => {
     setState(prev => {
       let anyChange = false;
@@ -1176,7 +1176,9 @@ export default function StudioLayout() {
           if (!cur ||
               cur.imageUrl1 !== product.imageUrl1 || cur.imageUrl2 !== product.imageUrl2 || cur.imageUrl3 !== product.imageUrl3 ||
               cur.price !== product.price || cur.name !== product.name || cur.stock !== product.stock ||
-              cur.sizes?.join(',') !== product.sizes?.join(',') || cur.colors?.join(',') !== product.colors?.join(',')) {
+              cur.sizes?.join(',') !== product.sizes?.join(',') || cur.colors?.join(',') !== product.colors?.join(',') ||
+              // ⭐ NOUVEAU: comparer les colorVariants
+              JSON.stringify(cur.colorVariants) !== JSON.stringify(product.colorVariants)) {
             blockChanged = true;
             return { ...slot, linkedProduct: product };
           }
@@ -1190,6 +1192,7 @@ export default function StudioLayout() {
     });
   }, []);
 
+  // ⭐⭐⭐ loadAllProducts AVEC colorVariants ⭐⭐⭐
   const loadAllProducts = useCallback(async () => {
     if (!id) return;
     setProductsLoading(true);
@@ -1238,6 +1241,11 @@ export default function StudioLayout() {
           imageUrl1: imageUrl1,
           imageUrl2: imageUrl2,
           imageUrl3: imageUrl3,
+          // ⭐ NOUVEAU: colorVariants
+          colorVariants: (p.colorVariants || p.variants || []).map((v: any) => ({
+            ...v,
+            sizes: Array.isArray(v.sizes) ? v.sizes : (Array.isArray(v.size) ? v.size : []),
+          })),
           isInStock: (p.stock || 0) > 0,
           createdAt: p.createdAt,
         };
@@ -1298,6 +1306,11 @@ export default function StudioLayout() {
             imageUrl1: imageUrl1,
             imageUrl2: imageUrl2,
             imageUrl3: imageUrl3,
+            // ⭐ NOUVEAU: colorVariants
+            colorVariants: (p.colorVariants || p.variants || []).map((v: any) => ({
+              ...v,
+              sizes: Array.isArray(v.sizes) ? v.sizes : (Array.isArray(v.size) ? v.size : []),
+            })),
             isInStock: (p.stock || 0) > 0,
             createdAt: p.createdAt,
           };
@@ -1320,6 +1333,7 @@ export default function StudioLayout() {
     await loadAllProducts();
   }, [loadAllProducts]);
 
+  // ⭐ handleProductUpdated — le spread { ...p, ...updates } passe correctement
   useEffect(() => {
     const handleProductUpdated = (event: CustomEvent) => {
       const { productId, updates, timestamp } = event.detail;
@@ -1367,6 +1381,7 @@ export default function StudioLayout() {
               }
             }
             
+            // ⭐ colorVariants est passé via le spread { ...p, ...updates }
             const updatedProduct: StudioProduct = { 
               ...p, 
               ...updates,
@@ -1865,7 +1880,7 @@ export default function StudioLayout() {
     return [...new Set(fonts.filter(f => f && f !== 'Inter'))];
   }, [state.customization, state.blocks]);
 
-  // ⭐ loadData
+  // ⭐ loadData AVEC colorVariants
   useEffect(() => {
     const loadData = async () => {
       if (!user) {
@@ -1915,14 +1930,13 @@ export default function StudioLayout() {
                   backgroundOpacity: p.backgroundOpacity,
                   canvasX: typeof p.canvasX === 'number' ? p.canvasX : idx * 1320,
                   canvasY: typeof p.canvasY === 'number' ? p.canvasY : 0,
-                  linkedProductId: typeof p.linkedProductId === 'number' ? p.linkedProductId : null, // ⭐ AJOUT
+                  linkedProductId: typeof p.linkedProductId === 'number' ? p.linkedProductId : null,
                 }));
             }
           } catch (e) {
             console.error('❌ Erreur parsing des pages:', e);
           }
 
-          // ⭐ AJOUT : chargement de pageAnimationsConfig
           try {
             const rawAnim = pagesMetaRaw.settings?.pageAnimationsConfig;
             if (rawAnim) {
@@ -2021,7 +2035,27 @@ export default function StudioLayout() {
           console.log(`📐 ${savedBlocks.length} blocs restaurés`);
         }
 
-        const normalizedProducts: StudioProduct[] = normalizeStudioProducts(rawProducts as any[]);
+        // ⭐ Normalisation des produits AVEC colorVariants
+        const normalizedProducts: StudioProduct[] = (rawProducts as any[]).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || '',
+          price: p.price,
+          stock: p.stock || 0,
+          category: p.category || '',
+          sizes: Array.isArray(p.sizes) ? p.sizes : (typeof p.sizes === 'string' ? p.sizes.split(',').filter(Boolean) : []),
+          colors: Array.isArray(p.colors) ? p.colors : (typeof p.colors === 'string' ? p.colors.split(',').filter(Boolean) : []),
+          imageUrl: p.imageUrl1 || p.imageUrl || '',
+          imageUrl1: p.imageUrl1 || p.imageUrl || '',
+          imageUrl2: p.imageUrl2 || '',
+          imageUrl3: p.imageUrl3 || '',
+          colorVariants: (p.colorVariants || p.variants || []).map((v: any) => ({
+            ...v,
+            sizes: Array.isArray(v.sizes) ? v.sizes : (Array.isArray(v.size) ? v.size : []),
+          })),
+          isInStock: (p.stock || 0) > 0,
+          createdAt: p.createdAt,
+        }));
 
         const hydratedBlocks = savedBlocks.map(block => {
           if (block.type !== 'products' || !block.gridConfig) return block;
@@ -2392,7 +2426,6 @@ export default function StudioLayout() {
     setState(prev => ({ ...prev, selectedBlockId: null, selectedTarget: 'background', isBackgroundSelected: true }));
   };
 
-  // ⭐ selectBlock — auto-ouverture du panneau Navigation au clic dans le canvas
   const selectBlock = (blockId: string | null, target?: 'text' | 'background') => {
     if (isCropperOpen && blockId !== null) return;
     setState(prev => {
@@ -2694,7 +2727,7 @@ export default function StudioLayout() {
                           onOpenProductCustomization={stableHandleOpenProductCustomization}
                           globalProductCustomizations={memoizedGlobalProductCustomizations}
                           onUpdateGlobalProductCustomization={stableHandleUpdateGlobalProductCustomization}
-                          onUploadLogo={handleUploadLogo} // ⭐ AJOUT
+                          onUploadLogo={handleUploadLogo}
                         />
                       </div>
                     </StudioAnimatedPageFrame>

@@ -76,6 +76,15 @@ export function useProductPageBuilder({
           backgroundOpacity: 100,
           // ⭐ Liaison produit → page (clé de toute la fonctionnalité)
           linkedProductId: config.product.id,
+
+          // ⭐ NOUVEAU — snapshot de l'identité visuelle choisie pour cette page produit
+        productPageStyle: {
+            template: config.template,
+            backgroundColor: config.backgroundColor,
+            accentColor: config.accentColor,
+            textColor: config.textColor,
+            panelColor: config.panelColor,
+          },
         };
 
         // ── Génère les blocs du template ─────────────────────────────────────

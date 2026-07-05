@@ -9,6 +9,8 @@ import { formatPrice } from '@/services/utils/formatters';
 import { useCart } from '@/hooks/useCart';
 import { getImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
+import { useProductCardIdentity } from '@/hooks/useProductCardIdentity';
+import ProductQuickEditModal from '@/components/cart/ProductQuickEditModal';
 
 interface CartItemProps {
   item: CartItemType;
@@ -18,7 +20,10 @@ const CartItem = ({ item }: CartItemProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [imgError, setImgError] = useState(false);
-  const { updateQuantity, removeFromCart, updateVariant } = useCart();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { updateQuantity, removeFromCart } = useCart();
+
+  const identity = useProductCardIdentity(item.shopId, item.productId);
 
   const imageUrl = imgError || !item.productImage
     ? '/images/product-placeholder.svg'
@@ -51,18 +56,28 @@ const CartItem = ({ item }: CartItemProps) => {
     toast.success(isFavorite ? 'Retiré des favoris' : 'Ajouté aux favoris');
   };
 
-  const handleVariantSelect = (size?: string, color?: string) => {
-    // Si la variante est déjà sélectionnée, on la désélectionne
-    const newSize = (size && item.selectedSize === size) ? undefined : size;
-    const newColor = (color && item.selectedColor === color) ? undefined : color;
-    updateVariant(item.id, newSize, newColor);
-  };
+  const mutedColor = identity.mutedTextColor || identity.textColor + '80';
 
   return (
-    <div className="flex flex-col sm:flex-row gap-6 py-6 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
-      {/* Image */}
-      <Link href={`/product/${item.productId}`} className="sm:w-32 flex-shrink-0">
-        <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+    <div
+      className="flex flex-col sm:flex-row gap-5 p-5 mb-4 last:mb-0 transition-shadow"
+      style={{
+        backgroundColor: identity.panelColor,
+        borderRadius: `${identity.borderRadius}px`,
+        boxShadow: identity.boxShadow,
+        border: identity.source === 'product-page' ? `1px solid ${identity.borderColor}` : '1px solid #eeeeee',
+      }}
+    >
+      {/* Image — ouvre le popup */}
+      <button
+        type="button"
+        onClick={() => setIsModalOpen(true)}
+        className="sm:w-32 flex-shrink-0 text-left"
+      >
+        <div
+          className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-700"
+          style={{ borderRadius: `${Math.max(identity.borderRadius - 2, 0)}px` }}
+        >
           <Image
             src={imageUrl}
             alt={item.productName}
@@ -72,99 +87,54 @@ const CartItem = ({ item }: CartItemProps) => {
             unoptimized
           />
         </div>
-      </Link>
+      </button>
 
       {/* Infos produit */}
       <div className="flex-1">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
-            <Link
-              href={`/product/${item.productId}`}
-              className="text-lg font-semibold text-gray-900 dark:text-white hover:text-primary transition-colors"
+            {/* Nom du produit — ouvre le popup */}
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="text-lg text-left hover:opacity-70 transition-opacity"
+              style={{
+                fontFamily: identity.fontFamily,
+                fontWeight: identity.headingWeight,
+                color: identity.textColor,
+              }}
             >
               {item.productName}
-            </Link>
+            </button>
 
+            {/* Vendu par */}
             {item.shopSlug && (
               <Link
                 href={`/shop/${item.shopSlug}`}
-                className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary block mt-1"
+                className="text-sm block mt-1 hover:opacity-70 transition-opacity"
+                style={{ color: mutedColor }}
               >
                 Vendu par {item.shopName}
               </Link>
             )}
 
-            {/* ⭐ Affichage de la variante sélectionnée */}
+            {/* Affichage en lecture seule de la variante sélectionnée */}
             {item.selectedSize && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm mt-1" style={{ color: mutedColor }}>
                 Taille : {item.selectedSize}
                 {item.selectedColor && ` · Couleur : ${item.selectedColor}`}
               </p>
             )}
             {item.selectedColor && !item.selectedSize && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm mt-1" style={{ color: mutedColor }}>
                 Couleur : {item.selectedColor}
               </p>
-            )}
-
-            {/* ⭐ Sélecteurs taille/couleur — toujours visibles, modifiables à tout moment */}
-            {((item.size && item.size.length > 0) || (item.color && item.color.length > 0)) && (
-              <div className="mt-2 space-y-2">
-                {((item.size && item.size.length > 0 && !item.selectedSize) ||
-                  (item.color && item.color.length > 0 && !item.selectedColor)) && (
-                  <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                    ⚠️ Choisissez {item.size && item.size.length > 0 && !item.selectedSize && item.color && item.color.length > 0 && !item.selectedColor
-                      ? 'une taille et une couleur'
-                      : item.size && item.size.length > 0 && !item.selectedSize
-                      ? 'une taille'
-                      : 'une couleur'}
-                  </p>
-                )}
-
-                {item.size && item.size.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Taille :</span>
-                    {item.size.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => handleVariantSelect(s, undefined)}
-                        className={`px-2.5 py-1 text-xs border rounded transition-colors ${
-                          item.selectedSize === s
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-gray-300 dark:border-gray-600 hover:border-primary hover:text-primary'
-                        }`}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {item.color && item.color.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Couleur :</span>
-                    {item.color.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => handleVariantSelect(undefined, c)}
-                        className={`w-6 h-6 rounded-full border-2 transition-all ${
-                          item.selectedColor === c
-                            ? 'border-primary ring-2 ring-primary ring-offset-1'
-                            : 'border-white dark:border-gray-800 ring-1 ring-gray-300 hover:ring-primary'
-                        }`}
-                        style={{ backgroundColor: c.toLowerCase() }}
-                        title={c}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
             )}
           </div>
 
           {/* Prix unitaire */}
           <div className="text-right">
-            <div className="text-lg font-bold text-primary">
+            <div className="text-lg font-bold" style={{ color: identity.textColor }}>
               {formatPrice(item.productPrice)}
             </div>
           </div>
@@ -173,7 +143,7 @@ const CartItem = ({ item }: CartItemProps) => {
         {/* Actions et quantité */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Quantité:</span>
+            <span className="text-sm" style={{ color: mutedColor }}>Quantité:</span>
             <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg">
               <button
                 onClick={() => handleUpdateQuantity(item.quantity - 1)}
@@ -193,15 +163,15 @@ const CartItem = ({ item }: CartItemProps) => {
                 <FiChevronUp size={16} />
               </button>
             </div>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="text-sm" style={{ color: mutedColor }}>
               max {item.stock}
             </span>
           </div>
 
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <span className="text-sm text-gray-500 dark:text-gray-400">Total:</span>
-              <span className="ml-2 text-xl font-bold text-primary">
+              <span className="text-sm" style={{ color: mutedColor }}>Total:</span>
+              <span className="ml-2 text-xl font-bold" style={{ color: identity.textColor }}>
                 {formatPrice(item.totalPrice)}
               </span>
             </div>
@@ -229,6 +199,12 @@ const CartItem = ({ item }: CartItemProps) => {
           </div>
         </div>
       </div>
+
+      <ProductQuickEditModal
+        item={item}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   );
 };

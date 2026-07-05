@@ -26,5 +26,8 @@ namespace ECommerceApi.DTO
         public string? Category { get; set; }
 
         public int? ShopId { get; set; }
+
+        // ⭐ NOUVEAU
+        public List<UpsertColorVariantDto>? ColorVariants { get; set; }
     }
 }

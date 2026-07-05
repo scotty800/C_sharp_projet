@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FiTrash2, FiPlus, FiArrowLeft, FiArrowRight, FiX, FiEdit2, FiCheck, FiPackage, FiInfo, FiGrid, FiDollarSign, FiTag, FiArchive, FiUpload } from 'react-icons/fi';
-import { StudioProduct, ProductCustomization } from '@/types/studio';
+import { FiTrash2, FiPlus, FiArrowLeft, FiArrowRight, FiX, FiEdit2, FiCheck, FiPackage, FiInfo, FiGrid, FiDollarSign, FiTag, FiArchive, FiUpload, FiEdit3 } from 'react-icons/fi';
+import { StudioProduct, ProductCustomization, ColorVariant } from '@/types/studio';
+import { productService } from '@/services/api/products';
 
 interface ProductDetailBarProps {
   product: StudioProduct;
@@ -43,6 +44,7 @@ export default function ProductDetailBar({
   
   useEffect(() => {
     console.log('🟢 ProductDetailBar MONTÉ pour le produit:', product?.name);
+    console.log('🟢 Variantes du produit:', product?.colorVariants);
     return () => {
       console.log('🔴 ProductDetailBar DÉMONTÉ');
     };
@@ -67,17 +69,24 @@ export default function ProductDetailBar({
   
   const [showColorPicker, setShowColorPicker] = useState(false);
   
-  // ⭐ États pour gérer les survols
+  // ⭐ États pour les survols
   const [hoveredColor, setHoveredColor] = useState<string | null>(null);
   const [hoveredSize, setHoveredSize] = useState<string | null>(null);
   const [hoveredImage, setHoveredImage] = useState<number | null>(null);
+  
+  // ⭐ États pour la modale de variante
+  const [showVariantModal, setShowVariantModal] = useState(false);
+  const [editingVariantColor, setEditingVariantColor] = useState<string | null>(null);
+  // ⭐ Stockage interne : imageUrl1, imageUrl2, imageUrl3
+  const [variantFiles, setVariantFiles] = useState<{ imageUrl1?: File; imageUrl2?: File; imageUrl3?: File }>({});
+  const [savingVariant, setSavingVariant] = useState(false);
   
   const availableSizes = product.sizes || ['S', 'M', 'L', 'XL'];
   const availableColors = product.colors || ['#FFFFFF', '#000000', '#EF4444'];
   const selectedSize = customization?.selectedSize || availableSizes[0] || 'M';
   const selectedColor = customization?.selectedColor || availableColors[0] || '#FFFFFF';
 
-  // ⭐ Les photos sont maintenant mises à jour dynamiquement via les props
+  // ⭐ Les photos
   const productPhotos = [
     { id: 1, url: product.imageUrl1, label: 'Principale' },
     { id: 2, url: product.imageUrl2, label: 'Image 2' },
@@ -120,7 +129,7 @@ export default function ProductDetailBar({
     setIsEditingDescription(false);
   };
 
-  // ⭐ WRAPPERS pour les boutons
+  // ⭐ WRAPPERS
   const handleSaveWrapper = () => {
     if (isEditingName) handleNameSave();
     if (isEditingPrice) handlePriceSave();
@@ -157,7 +166,6 @@ export default function ProductDetailBar({
       
       console.log(`📤 Upload image ${fieldName} pour le produit ${product.id}`);
       
-      const { productService } = await import('@/services/api/products');
       await productService.uploadImages({
         productId: product.id,
         [fieldName]: file
@@ -175,7 +183,6 @@ export default function ProductDetailBar({
         });
       }
       
-      // ⭐ Déclencher les événements pour mettre à jour tous les composants
       window.dispatchEvent(new CustomEvent('productUpdated', {
         detail: {
           productId: product.id,
@@ -199,43 +206,33 @@ export default function ProductDetailBar({
     }
   };
 
-  // ⭐⭐⭐ GESTION DES IMAGES - SUPPRESSION AVEC RÉORGANISATION (CORRIGÉE) ⭐⭐⭐
+  // ⭐⭐⭐ GESTION DES IMAGES - SUPPRESSION ⭐⭐⭐
   const handleDeleteImage = async (slot: 1 | 2 | 3) => {
     try {
       console.log(`🗑️ Suppression de l'image ${slot} pour le produit ${product.id}`);
       
-      // ⭐ Récupérer les images actuelles du produit
       const currentImage1 = product.imageUrl1;
       const currentImage2 = product.imageUrl2;
       const currentImage3 = product.imageUrl3;
       
-      console.log('📸 Images actuelles:', { currentImage1, currentImage2, currentImage3 });
-      
-      // ⭐ Déterminer les nouvelles images APRÈS suppression (réorganisation)
       let newImageUrl1: string | undefined = currentImage1 || undefined;
       let newImageUrl2: string | undefined = currentImage2 || undefined;
       let newImageUrl3: string | undefined = currentImage3 || undefined;
       
       if (slot === 1) {
-        // Suppression de l'image principale
-        newImageUrl1 = currentImage2 || undefined;  // Image 2 devient principale
-        newImageUrl2 = currentImage3 || undefined;  // Image 3 devient Image 2
-        newImageUrl3 = undefined;                   // Plus d'image 3
+        newImageUrl1 = currentImage2 || undefined;
+        newImageUrl2 = currentImage3 || undefined;
+        newImageUrl3 = undefined;
       } else if (slot === 2) {
-        // Suppression de l'image 2
-        newImageUrl1 = currentImage1 || undefined;  // Image 1 reste principale
-        newImageUrl2 = currentImage3 || undefined;  // Image 3 devient Image 2
-        newImageUrl3 = undefined;                   // Plus d'image 3
+        newImageUrl1 = currentImage1 || undefined;
+        newImageUrl2 = currentImage3 || undefined;
+        newImageUrl3 = undefined;
       } else if (slot === 3) {
-        // Suppression de l'image 3
-        newImageUrl1 = currentImage1 || undefined;  // Image 1 reste principale
-        newImageUrl2 = currentImage2 || undefined;  // Image 2 reste Image 2
-        newImageUrl3 = undefined;                   // Plus d'image 3
+        newImageUrl1 = currentImage1 || undefined;
+        newImageUrl2 = currentImage2 || undefined;
+        newImageUrl3 = undefined;
       }
       
-      console.log('🔄 Nouvelles images après réorganisation:', { newImageUrl1, newImageUrl2, newImageUrl3 });
-      
-      // ⭐ Mettre à jour localement IMMÉDIATEMENT (feedback instantané)
       if (onUpdateProduct) {
         onUpdateProduct(product.id, {
           imageUrl1: newImageUrl1,
@@ -244,29 +241,17 @@ export default function ProductDetailBar({
         });
       }
       
-      // ⭐ Appeler l'API pour supprimer l'image
-      const { productService } = await import('@/services/api/products');
       const response = await productService.deleteImage(product.id, slot);
       
-      console.log(`✅ Image ${slot} supprimée avec succès`, response);
-      
-      // ⭐⭐ RÉCUPÉRER LE PRODUIT DEPUIS LA RÉPONSE DE L'API ⭐⭐
-      // La réponse contient maintenant { message, product }
       let updatedProduct = null;
       if (response && (response as any).product) {
         updatedProduct = (response as any).product;
-        console.log('📦 Produit depuis la réponse API:', updatedProduct);
       }
       
-      // ⭐ Utiliser les données du backend (qui sont déjà réorganisées)
-      // ou garder notre réorganisation locale si le backend ne renvoie pas de produit
       const finalImageUrl1 = updatedProduct?.imageUrl1 || updatedProduct?.imageUrl || newImageUrl1;
       const finalImageUrl2 = updatedProduct?.imageUrl2 || newImageUrl2;
       const finalImageUrl3 = updatedProduct?.imageUrl3 || newImageUrl3;
       
-      console.log('📦 Images finales:', { finalImageUrl1, finalImageUrl2, finalImageUrl3 });
-      
-      // ⭐ Mettre à jour le produit avec les images réorganisées
       if (onUpdateProduct) {
         onUpdateProduct(product.id, {
           imageUrl1: finalImageUrl1,
@@ -275,41 +260,18 @@ export default function ProductDetailBar({
         });
       }
       
-      // ⭐⭐⭐ DÉCLENCHER LES ÉVÉNEMENTS AVEC LES IMAGES RÉORGANISÉES ⭐⭐⭐
-      const imageUpdates = {
-        imageUrl1: finalImageUrl1,
-        imageUrl2: finalImageUrl2,
-        imageUrl3: finalImageUrl3,
-      };
-      
       window.dispatchEvent(new CustomEvent('productUpdated', {
         detail: {
           productId: product.id,
-          updates: imageUpdates,
+          updates: { imageUrl1: finalImageUrl1, imageUrl2: finalImageUrl2, imageUrl3: finalImageUrl3 },
           timestamp: Date.now()
-        }
-      }));
-      
-      window.dispatchEvent(new CustomEvent('productsListChanged', {
-        detail: {
-          productId: product.id,
-          updates: imageUpdates
-        }
-      }));
-      
-      window.dispatchEvent(new CustomEvent('productDataChanged', {
-        detail: {
-          productId: product.id,
-          updates: imageUpdates
         }
       }));
       
       window.dispatchEvent(new CustomEvent('refreshProducts'));
       
-      console.log('✅ Images réorganisées avec succès:', imageUpdates);
-      
     } catch (error) {
-      console.error('❌ Erreur lors de la suppression de l\'image:', error);
+      console.error('❌ Erreur suppression image:', error);
       alert("Erreur lors de la suppression de l'image");
     }
   };
@@ -318,7 +280,6 @@ export default function ProductDetailBar({
   const handleAddColor = (colorHex: string) => {
     if (onUpdateProduct && !availableColors.includes(colorHex)) {
       const newColors = [...availableColors, colorHex];
-      console.log('🎨 Ajout couleur - envoi du tableau de strings HEX:', newColors);
       onUpdateProduct(product.id, { colors: newColors });
     }
     setShowColorPicker(false);
@@ -327,7 +288,6 @@ export default function ProductDetailBar({
   const handleRemoveColor = (colorHex: string) => {
     if (onUpdateProduct && availableColors.length > 1) {
       const newColors = availableColors.filter(c => c !== colorHex);
-      console.log('🎨 Suppression couleur - envoi du tableau de strings HEX:', newColors);
       onUpdateProduct(product.id, { colors: newColors });
       if (selectedColor === colorHex && newColors.length > 0) {
         onUpdateCustomization({ selectedColor: newColors[0] });
@@ -339,7 +299,6 @@ export default function ProductDetailBar({
   const handleAddSize = (size: string) => {
     if (onUpdateProduct && !availableSizes.includes(size)) {
       const newSizes = [...availableSizes, size];
-      console.log('📏 Ajout taille - envoi du tableau de strings:', newSizes);
       onUpdateProduct(product.id, { sizes: newSizes });
     }
   };
@@ -347,12 +306,191 @@ export default function ProductDetailBar({
   const handleRemoveSize = (size: string) => {
     if (onUpdateProduct && availableSizes.length > 1) {
       const newSizes = availableSizes.filter(s => s !== size);
-      console.log('📏 Suppression taille - envoi du tableau de strings:', newSizes);
       onUpdateProduct(product.id, { sizes: newSizes });
       if (selectedSize === size && newSizes.length > 0) {
         onUpdateCustomization({ selectedSize: newSizes[0] });
       }
     }
+  };
+
+  // ⭐⭐⭐ GESTION DES VARIANTES DE COULEUR ⭐⭐⭐
+  const getVariantForColor = (colorHex: string): ColorVariant | undefined => {
+    return product.colorVariants?.find(v => v.color?.toLowerCase() === colorHex.toLowerCase());
+  };
+
+  const openVariantModal = (colorHex: string) => {
+    setEditingVariantColor(colorHex);
+    setVariantFiles({});
+    setShowVariantModal(true);
+  };
+
+  const closeVariantModal = () => {
+    setShowVariantModal(false);
+    setEditingVariantColor(null);
+    setVariantFiles({});
+  };
+
+  // ⭐⭐⭐ handleSaveVariant CORRIGÉ — envoie sizes (tableau complet) ⭐⭐⭐
+  const handleSaveVariant = async () => {
+    if (!editingVariantColor) return;
+    
+    setSavingVariant(true);
+    try {
+      const variant = getVariantForColor(editingVariantColor);
+      
+      // ⭐ 1. Préparer les données pour l'upsert
+      // ⭐ ENVOI DE sizes (tableau complet) au lieu de size (élément unique)
+      const upsertData = {
+        color: editingVariantColor,
+        customName: variant?.customName || null,
+        stock: variant?.stock || 0,
+        sizes: variant?.sizes || [],   // ⭐ tableau complet, plus [0] uniquement
+      };
+      
+      console.log('📤 Upsert variante:', upsertData);
+      
+      // ⭐ 2. Upsert la variante
+      const updatedVariant = await productService.upsertColorVariant(product.id, upsertData);
+      console.log('✅ Variante upsertée:', updatedVariant);
+      
+      // ⭐ 3. Upload des images si présentes
+      const hasFiles = Object.values(variantFiles).some(f => f !== undefined);
+      if (hasFiles) {
+        // ⭐ Conversion : imageUrl1 → image1, imageUrl2 → image2, imageUrl3 → image3
+        const uploadData = {
+          image1: variantFiles.imageUrl1,
+          image2: variantFiles.imageUrl2,
+          image3: variantFiles.imageUrl3,
+        };
+        
+        console.log('📤 Upload images variante:', uploadData);
+        
+        await productService.uploadVariantImages(
+          product.id,
+          editingVariantColor,
+          uploadData
+        );
+        console.log('✅ Images uploadées avec succès');
+      }
+      
+      // ⭐ 4. Récupérer le produit mis à jour
+      const updatedProduct = await productService.getProductById(product.id);
+      console.log('✅ Produit mis à jour:', updatedProduct);
+      
+      // ⭐ 5. Mettre à jour le produit localement
+      if (onUpdateProduct) {
+        onUpdateProduct(product.id, {
+          colorVariants: updatedProduct.colorVariants || product.colorVariants,
+        });
+      }
+      
+      // ⭐ 6. Déclencher les événements
+      window.dispatchEvent(new CustomEvent('productUpdated', {
+        detail: {
+          productId: product.id,
+          updates: { colorVariants: updatedProduct.colorVariants || product.colorVariants },
+          timestamp: Date.now()
+        }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('refreshProducts'));
+      
+      closeVariantModal();
+      
+    } catch (error) {
+      console.error('❌ Erreur sauvegarde variante:', error);
+      alert('Erreur lors de la sauvegarde de la variante');
+    } finally {
+      setSavingVariant(false);
+    }
+  };
+
+  // ⭐ Fonction pour mettre à jour un champ de la variante
+  const updateVariantField = (field: keyof ColorVariant, value: any) => {
+    if (!editingVariantColor) return;
+    
+    const currentVariants = product.colorVariants || [];
+    const existingIndex = currentVariants.findIndex(v => v.color?.toLowerCase() === editingVariantColor.toLowerCase());
+    
+    let newVariants: ColorVariant[];
+    if (existingIndex >= 0) {
+      newVariants = [...currentVariants];
+      newVariants[existingIndex] = { ...newVariants[existingIndex], [field]: value };
+    } else {
+      newVariants = [...currentVariants, { color: editingVariantColor, [field]: value }];
+    }
+    
+    // Mettre à jour localement
+    if (onUpdateProduct) {
+      onUpdateProduct(product.id, { colorVariants: newVariants });
+    }
+  };
+
+  // ⭐ Gestion des images des variantes (stockage interne : imageUrl1, imageUrl2, imageUrl3)
+  const handleVariantImageUpload = (field: 'imageUrl1' | 'imageUrl2' | 'imageUrl3', file: File) => {
+    setVariantFiles(prev => ({ ...prev, [field]: file }));
+    // Mettre à jour l'aperçu
+    const url = URL.createObjectURL(file);
+    updateVariantField(field, url);
+  };
+
+  const triggerVariantFileUpload = (field: 'imageUrl1' | 'imageUrl2' | 'imageUrl3') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        handleVariantImageUpload(field, file);
+      }
+    };
+    input.click();
+  };
+
+  // ⭐⭐⭐ removeVariantImage — Appelle le backend puis synchronise l'état local ⭐⭐⭐
+  const removeVariantImage = async (field: 'imageUrl1' | 'imageUrl2' | 'imageUrl3') => {
+    if (!editingVariantColor) return;
+    
+    const imageNumber = field === 'imageUrl1' ? 1 : field === 'imageUrl2' ? 2 : 3;
+    
+    try {
+      await productService.deleteVariantImage(product.id, editingVariantColor, imageNumber);
+      
+      // Nettoyer le fichier en attente pour ce champ
+      setVariantFiles(prev => {
+        const newFiles = { ...prev };
+        delete newFiles[field];
+        return newFiles;
+      });
+      
+      // Recharger le produit à jour depuis le backend
+      const updatedProduct = await productService.getProductById(product.id);
+      
+      if (onUpdateProduct) {
+        onUpdateProduct(product.id, {
+          colorVariants: updatedProduct.colorVariants || product.colorVariants,
+        });
+      }
+      
+      window.dispatchEvent(new CustomEvent('productUpdated', {
+        detail: {
+          productId: product.id,
+          updates: { colorVariants: updatedProduct.colorVariants || product.colorVariants },
+          timestamp: Date.now()
+        }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('refreshProducts'));
+      
+    } catch (error) {
+      console.error('❌ Erreur suppression image variante:', error);
+      alert("Erreur lors de la suppression de l'image de la variante");
+    }
+  };
+
+  const getVariantImageUrl = (field: 'imageUrl1' | 'imageUrl2' | 'imageUrl3'): string | null => {
+    const variant = getVariantForColor(editingVariantColor || '');
+    return variant?.[field] || null;
   };
 
   const unusedSizes = ALL_SIZES.filter(size => !availableSizes.includes(size));
@@ -516,7 +654,7 @@ export default function ProductDetailBar({
               </div>
             </div>
 
-            {/* ⭐ SECTION 2 : Photos - AVEC CROIX ROUGE SUR LES IMAGES */}
+            {/* SECTION 2 : Photos */}
             <div className="col-span-5 flex flex-col justify-center px-4 gap-1 min-w-0">
               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Photos</span>
               <div className="flex items-center gap-2 overflow-x-auto">
@@ -627,7 +765,7 @@ export default function ProductDetailBar({
               </div>
             </div>
 
-            {/* ⭐ COULEURS - CROIX ROUGE AU SURVOL */}
+            {/* ⭐ COULEURS AVEC BOUTON CRAYON POUR LES VARIANTES */}
             <div className="col-span-4 flex flex-col justify-center px-4 gap-1 min-w-0">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Couleurs</span>
@@ -636,34 +774,59 @@ export default function ProductDetailBar({
                 </button>
               </div>
               <div className="flex flex-wrap items-center gap-2 max-w-full">
-                {availableColors.map((colorHex) => (
-                  <div 
-                    key={colorHex} 
-                    className="relative inline-block"
-                    onMouseEnter={() => setHoveredColor(colorHex)}
-                    onMouseLeave={() => setHoveredColor(null)}
-                  >
-                    <button
-                      onClick={() => onUpdateCustomization({ selectedColor: colorHex })}
-                      style={{ backgroundColor: colorHex }}
-                      className={`w-8 h-8 rounded-full border-2 border-white/20 flex-shrink-0 transition-all ${
-                        selectedColor.toLowerCase() === colorHex.toLowerCase() ? 'ring-2 ring-[#8b5cf6] ring-offset-2 ring-offset-[#11121a] scale-110' : ''
-                      } ${hoveredColor === colorHex ? 'scale-105' : ''}`}
-                    />
-                    {hoveredColor === colorHex && availableColors.length > 1 && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveColor(colorHex);
-                        }}
-                        className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-in zoom-in-95 duration-150"
-                        title="Supprimer cette couleur"
-                      >
-                        <FiX size={10} className="text-white" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                {availableColors.map((colorHex) => {
+                  const variant = getVariantForColor(colorHex);
+                  const hasVariant = !!variant;
+                  return (
+                    <div 
+                      key={colorHex} 
+                      className="relative inline-block"
+                      onMouseEnter={() => setHoveredColor(colorHex)}
+                      onMouseLeave={() => setHoveredColor(null)}
+                    >
+                      <button
+                        onClick={() => onUpdateCustomization({ selectedColor: colorHex })}
+                        style={{ backgroundColor: colorHex }}
+                        className={`w-8 h-8 rounded-full border-2 border-white/20 flex-shrink-0 transition-all ${
+                          selectedColor.toLowerCase() === colorHex.toLowerCase() ? 'ring-2 ring-[#8b5cf6] ring-offset-2 ring-offset-[#11121a] scale-110' : ''
+                        } ${hoveredColor === colorHex ? 'scale-105' : ''}`}
+                      />
+                      {hoveredColor === colorHex && (
+                        <div className="absolute -top-2 -right-2 flex gap-0.5">
+                          {/* Bouton crayon pour configurer la variante */}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openVariantModal(colorHex);
+                            }}
+                            className="bg-primary hover:bg-primary/80 rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-in zoom-in-95 duration-150"
+                            title={`Configurer la variante ${colorHex}`}
+                          >
+                            <FiEdit3 size={9} className="text-white" />
+                          </button>
+                          {/* Bouton supprimer la couleur */}
+                          {availableColors.length > 1 && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveColor(colorHex);
+                              }}
+                              className="bg-red-500 hover:bg-red-600 rounded-full w-5 h-5 flex items-center justify-center shadow-lg animate-in zoom-in-95 duration-150"
+                              title="Supprimer cette couleur"
+                            >
+                              <FiX size={9} className="text-white" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {/* Indicateur de variante existante */}
+                      {hasVariant && (
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-green-400 rounded-full shadow-lg" 
+                             title="Variante configurée" />
+                      )}
+                    </div>
+                  );
+                })}
                 {availableColors.length <= 1 && (
                   <span className="text-[9px] text-gray-500 italic">Ajoutez une couleur</span>
                 )}
@@ -695,7 +858,7 @@ export default function ProductDetailBar({
               )}
             </div>
 
-            {/* ⭐ TAILLES - CROIX ROUGE AU SURVOL */}
+            {/* TAILLES */}
             <div className="col-span-5 flex flex-col justify-center pl-4 gap-1 min-w-0">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Tailles</span>
@@ -754,6 +917,168 @@ export default function ProductDetailBar({
         )}
 
       </div>
+
+      {/* ⭐ MODALE DE CONFIGURATION DE VARIANTE DE COULEUR */}
+      {showVariantModal && editingVariantColor && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60" onClick={closeVariantModal}>
+          <div className="bg-[#11121a] rounded-xl w-full max-w-md border border-[#4c249f] shadow-[0_0_25px_rgba(139,92,246,0.3)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-4 border-b border-[#1b1c26]">
+              <div>
+                <h3 className="text-white font-semibold">Configurer la variante</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="w-4 h-4 rounded-full border border-white/20" 
+                        style={{ backgroundColor: editingVariantColor }} />
+                  <span className="text-sm text-gray-400">
+                    {PREDEFINED_COLORS.find(c => c.value === editingVariantColor)?.name || editingVariantColor}
+                  </span>
+                </div>
+              </div>
+              <button onClick={closeVariantModal} className="text-gray-400 hover:text-white transition-colors">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Nom personnalisé */}
+              <div>
+                <label className="text-white text-sm block mb-1">Nom personnalisé</label>
+                <input 
+                  type="text" 
+                  value={getVariantForColor(editingVariantColor)?.customName || ''}
+                  onChange={(e) => updateVariantField('customName', e.target.value)}
+                  placeholder="Ex: Rouge foncé"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm"
+                />
+              </div>
+
+              {/* Stock */}
+              <div>
+                <label className="text-white text-sm block mb-1">Stock</label>
+                <input 
+                  type="number" 
+                  value={getVariantForColor(editingVariantColor)?.stock || 0}
+                  onChange={(e) => updateVariantField('stock', parseInt(e.target.value) || 0)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm"
+                />
+              </div>
+
+              {/* Tailles */}
+              <div>
+                <label className="text-white text-sm block mb-2">Tailles disponibles</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {ALL_SIZES.map(s => {
+                    const currentSizes = getVariantForColor(editingVariantColor)?.sizes || [];
+                    const isSelected = currentSizes.includes(s);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => {
+                          const current = getVariantForColor(editingVariantColor)?.sizes || [];
+                          const newSizes = isSelected 
+                            ? current.filter(x => x !== s)
+                            : [...current, s];
+                          updateVariantField('sizes', newSizes);
+                        }}
+                        className={`px-2.5 py-1 rounded text-xs transition-colors ${
+                          isSelected 
+                            ? 'bg-primary text-white' 
+                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Images de la variante */}
+              <div>
+                <label className="text-white text-sm block mb-2">Images de la variante</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['imageUrl1', 'imageUrl2', 'imageUrl3'].map((field) => {
+                    const imageUrl = getVariantImageUrl(field as 'imageUrl1' | 'imageUrl2' | 'imageUrl3');
+                    const file = variantFiles[field as 'imageUrl1' | 'imageUrl2' | 'imageUrl3'];
+                    return (
+                      <div key={field} className="relative aspect-square bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                        {imageUrl ? (
+                          <>
+                            <img src={imageUrl} className="w-full h-full object-cover" />
+                            <button 
+                              onClick={() => removeVariantImage(field as 'imageUrl1' | 'imageUrl2' | 'imageUrl3')}
+                              className="absolute top-1 right-1 p-0.5 bg-red-500 rounded-full"
+                            >
+                              <FiX size={10} />
+                            </button>
+                            {file && (
+                              <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-green-500/80 text-white text-[8px] rounded">
+                                Nouveau
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <button 
+                            onClick={() => triggerVariantFileUpload(field as 'imageUrl1' | 'imageUrl2' | 'imageUrl3')}
+                            className="w-full h-full flex items-center justify-center text-gray-400 hover:bg-gray-700 transition-colors"
+                          >
+                            <FiUpload size={16} />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Images spécifiques à cette couleur</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-4 border-t border-[#1b1c26]">
+              {/* ⭐⭐⭐ Bouton Supprimer — Appelle le backend ⭐⭐⭐ */}
+              <button 
+                onClick={async () => {
+                  if (!editingVariantColor) return;
+                  try {
+                    await productService.deleteColorVariant(product.id, editingVariantColor);
+                    
+                    const currentVariants = product.colorVariants || [];
+                    const newVariants = currentVariants.filter(
+                      v => v.color?.toLowerCase() !== editingVariantColor.toLowerCase()
+                    );
+                    if (onUpdateProduct) {
+                      onUpdateProduct(product.id, { colorVariants: newVariants });
+                    }
+                    
+                    window.dispatchEvent(new CustomEvent('productUpdated', {
+                      detail: {
+                        productId: product.id,
+                        updates: { colorVariants: newVariants },
+                        timestamp: Date.now()
+                      }
+                    }));
+                    window.dispatchEvent(new CustomEvent('refreshProducts'));
+                    
+                    closeVariantModal();
+                  } catch (error) {
+                    console.error('❌ Erreur suppression variante:', error);
+                    alert('Erreur lors de la suppression de la variante');
+                  }
+                }}
+                className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors text-sm"
+              >
+                Supprimer
+              </button>
+              <button 
+                onClick={handleSaveVariant}
+                disabled={savingVariant}
+                className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {savingVariant ? 'Sauvegarde...' : 'Enregistrer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

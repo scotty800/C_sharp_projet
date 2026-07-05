@@ -39,6 +39,7 @@ namespace ECommerceApi.Models
 
         public ICollection<Review> Reviews { get; set; } = new List<Review>();
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+        public ICollection<ProductColorVariant> ColorVariants { get; set; } = new List<ProductColorVariant>();
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }

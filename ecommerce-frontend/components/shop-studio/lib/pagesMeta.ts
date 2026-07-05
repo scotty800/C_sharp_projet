@@ -80,6 +80,17 @@ export function parsePagesAndBlocks(blocksFromApi: any[]): {
             canvasY: typeof p.canvasY === 'number' ? p.canvasY : 0,
             // ⭐ Restauration de la liaison produit → page
             linkedProductId: typeof p.linkedProductId === 'number' ? p.linkedProductId : null,
+            // ⭐ NOUVEAU — restauration de l'identité visuelle de la page produit
+            productPageStyle:
+              p.productPageStyle && typeof p.productPageStyle === 'object'
+                ? {
+                    template: p.productPageStyle.template,
+                    backgroundColor: p.productPageStyle.backgroundColor,
+                    accentColor: p.productPageStyle.accentColor,
+                    textColor: p.productPageStyle.textColor,
+                    panelColor: p.productPageStyle.panelColor,
+                  }
+                : undefined,
           }));
       }
     } catch {

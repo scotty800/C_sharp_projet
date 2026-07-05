@@ -14,16 +14,28 @@ import type { BlockAnimationsConfig, PageTransitionConfig } from '@/types/animat
 
 const STUDIO_FRAME_WIDTH = 1200;
 
+// ⭐ MODIFICATION — Ajout de la prop initialProductId
 export default function ShopPageRenderer({
   data,
   onAddToCart,
+  initialProductId, // ⭐ AJOUT
 }: {
   data: ShopRenderData;
-  // ⭐ MODIFICATION — onAddToCart avec variante optionnelle
   onAddToCart?: (product: StudioProduct, variant?: { size?: string; color?: string }) => void;
+  initialProductId?: number | null; // ⭐ AJOUT
 }) {
   const sortedPages = [...data.pages].sort((a, b) => a.order - b.order);
-  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // ⭐ MODIFICATION — Fonction pour déterminer l'index initial
+  const getInitialIndex = () => {
+    if (initialProductId != null) {
+      const idx = sortedPages.findIndex((p) => p.linkedProductId === initialProductId);
+      if (idx !== -1) return idx;
+    }
+    return 0;
+  };
+
+  const [currentIndex, setCurrentIndex] = useState(getInitialIndex); // ⭐ MODIFIÉ
   const currentPage = sortedPages[currentIndex];
 
   const pageContainerRef = useRef<HTMLDivElement>(null);

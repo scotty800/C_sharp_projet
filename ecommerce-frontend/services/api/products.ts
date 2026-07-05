@@ -8,7 +8,7 @@ import {
   ProductFilterParams,
   ProductImageUploadDto
 } from '@/types';
-import { CreateStudioProduct, StudioProduct } from '@/types/studio';
+import { CreateStudioProduct, StudioProduct, ColorVariant, UpsertColorVariantDto } from '@/types/studio';
 
 export const productService = {
   // Récupérer tous les produits avec pagination et filtres
@@ -17,7 +17,7 @@ export const productService = {
     return response.data;
   },
 
-  // Récupérer un produit par ID
+  // ⭐⭐⭐ getProductById AVEC NORMALISATION DES colorVariants ⭐⭐⭐
   async getProductById(id: number): Promise<StudioProduct> {
     console.log('📦 getProductById:', id);
     const response = await api.get<any>(`/products/${id}`);
@@ -38,6 +38,11 @@ export const productService = {
       imageUrl1: data.imageUrl1 || data.imageUrl || '',
       imageUrl2: data.imageUrl2 || '',
       imageUrl3: data.imageUrl3 || '',
+      // ⭐ NOUVEAU : Récupérer les variantes de couleur avec normalisation
+      colorVariants: (data.variants || data.colorVariants || []).map((v: any) => ({
+        ...v,
+        sizes: v.sizes || v.size || [],   // ⭐ normalisation défensive
+      })),
       isInStock: (data.stock || 0) > 0,
       createdAt: data.createdAt,
     };
@@ -57,7 +62,7 @@ export const productService = {
     return response.data;
   },
 
-  // Récupérer TOUS les produits d'une boutique (sans pagination)
+  // ⭐⭐⭐ getProductsByShopAll AVEC NORMALISATION DES colorVariants ⭐⭐⭐
   async getProductsByShopAll(shopId: number): Promise<StudioProduct[]> {
     console.log('📦 Appel API getProductsByShopAll pour shopId:', shopId);
     try {
@@ -75,11 +80,16 @@ export const productService = {
         products = data.items;
       }
       
-      // ⭐ Normaliser les produits pour avoir sizes et colors en tableaux
+      // ⭐ Normaliser les produits pour avoir sizes, colors et colorVariants en tableaux
       const normalizedProducts = products.map(p => ({
         ...p,
         sizes: p.sizes || (p.size ? (typeof p.size === 'string' ? p.size.split(',') : p.size) : []),
         colors: p.colors || (p.color ? (typeof p.color === 'string' ? p.color.split(',') : p.color) : []),
+        // ⭐ NOUVEAU : normalisation des colorVariants avec sizes
+        colorVariants: (p.variants || p.colorVariants || []).map((v: any) => ({
+          ...v,
+          sizes: v.sizes || v.size || [],   // ⭐ normalisation défensive
+        })),
         imageUrl1: p.imageUrl1 || p.imageUrl || null,
         imageUrl2: p.imageUrl2 || null,
         imageUrl3: p.imageUrl3 || null,
@@ -104,6 +114,7 @@ export const productService = {
       imageUrl1: data.imageUrl1,
       imageUrl2: data.imageUrl2,
       imageUrl3: data.imageUrl3,
+      colorVariants: data.colorVariants,
     });
 
     // ⭐ Étape 1: Créer le produit avec les URLs d'images (si ce sont des URLs)
@@ -131,6 +142,8 @@ export const productService = {
         imageUrl1: data.imageUrl1 || null,
         imageUrl2: data.imageUrl2 || null,
         imageUrl3: data.imageUrl3 || null,
+        // ⭐ NOUVEAU : Envoyer les variantes de couleur
+        colorVariants: data.colorVariants || [],
       };
 
       console.log('📤 Création produit avec URLs d\'images:', backendData);
@@ -152,6 +165,8 @@ export const productService = {
       imageUrl1: null,
       imageUrl2: null,
       imageUrl3: null,
+      // ⭐ NOUVEAU : Envoyer les variantes de couleur
+      colorVariants: data.colorVariants || [],
     };
 
     console.log('📤 Création produit (sans images):', backendData);
@@ -222,6 +237,7 @@ export const productService = {
       imageUrl1: data.imageUrl1 || null,
       imageUrl2: data.imageUrl2 || null,
       imageUrl3: data.imageUrl3 || null,
+      colorVariants: data.colorVariants || [],
     };
     
     const response = await api.post<StudioProduct>(`/products/shop/${shopId}`, backendData);
@@ -290,6 +306,12 @@ export const productService = {
     if (data.imageUrl2 !== undefined) payload.imageUrl2 = data.imageUrl2;
     if (data.imageUrl3 !== undefined) payload.imageUrl3 = data.imageUrl3;
     
+    // ⭐ NOUVEAU : Gérer les variantes de couleur
+    if (data.colorVariants !== undefined) {
+      payload.colorVariants = data.colorVariants;
+      console.log('🎨 Variantes de couleur envoyées:', payload.colorVariants);
+    }
+    
     console.log('📤 Payload final envoyé au backend:', JSON.stringify(payload, null, 2));
     
     try {
@@ -307,6 +329,7 @@ export const productService = {
         category: updatedProduct.category || '',
         sizes: updatedProduct.size || updatedProduct.sizes || [],
         colors: updatedProduct.color || updatedProduct.colors || [],
+        colorVariants: updatedProduct.variants || updatedProduct.colorVariants || [],
         imageUrl: updatedProduct.imageUrl || updatedProduct.imageUrl1 || '',
         imageUrl1: updatedProduct.imageUrl1 || '',
         imageUrl2: updatedProduct.imageUrl2 || '',
@@ -375,5 +398,167 @@ export const productService = {
   }> {
     const response = await api.get(`/products/${productId}/images`);
     return response.data;
+  },
+
+  // ============ NOUVELLES MÉTHODES POUR LES VARIANTES DE COULEUR ============
+
+  /**
+   * Créer ou mettre à jour une variante de couleur
+   * ⭐ upsertColorVariant AVEC tableau complet pour sizes ⭐
+   */
+  async upsertColorVariant(productId: number, variant: Partial<ColorVariant>): Promise<ColorVariant> {
+    console.log(`🎨 Upsert variante de couleur pour le produit ${productId}:`, variant);
+    
+    try {
+      const response = await api.post(`/products/${productId}/variants`, {
+        color: variant.color,
+        customName: variant.customName || null,
+        stock: variant.stock || 0,
+        sizes: variant.sizes || [],   // ⭐ tableau complet, pas null
+      });
+      
+      const data = response.data;
+      console.log('✅ Réponse upsertColorVariant:', data);
+      
+      // ⭐ normalisation défensive
+      return {
+        ...data,
+        sizes: data.sizes || data.sizes || [],   // ⭐ normalisation défensive
+      } as ColorVariant;
+    } catch (error) {
+      console.error('❌ Erreur upsertColorVariant:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Supprimer une variante de couleur
+   */
+  async deleteColorVariant(productId: number, color: string): Promise<void> {
+    console.log(`🗑️ Suppression variante de couleur "${color}" du produit ${productId}`);
+    
+    try {
+      const safeColor = encodeURIComponent(color);
+      await api.delete(`/products/${productId}/variants/${safeColor}`);
+      console.log('✅ Variante supprimée avec succès');
+    } catch (error) {
+      console.error('❌ Erreur deleteColorVariant:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Uploader des images pour une variante de couleur
+   */
+  async uploadVariantImages(
+    productId: number, 
+    color: string, 
+    files: { image1?: File; image2?: File; image3?: File }
+  ): Promise<{ message: string }> {
+    console.log(`📤 Upload images pour variante "${color}" du produit ${productId}`);
+    
+    const formData = new FormData();
+    formData.append('productId', productId.toString());
+    
+    if (files.image1) {
+      formData.append('image1', files.image1);
+      console.log('📤 Image1 ajoutée:', files.image1.name);
+    }
+    if (files.image2) {
+      formData.append('image2', files.image2);
+      console.log('📤 Image2 ajoutée:', files.image2.name);
+    }
+    if (files.image3) {
+      formData.append('image3', files.image3);
+      console.log('📤 Image3 ajoutée:', files.image3.name);
+    }
+
+    try {
+      const safeColor = encodeURIComponent(color);
+      const response = await api.post<{ message: string }>(
+        `/products/${productId}/variants/${safeColor}/upload-images`,
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        }
+      );
+      
+      console.log('✅ Images de variante uploadées avec succès');
+      return response.data;
+    } catch (error) {
+      console.error('❌ Erreur uploadVariantImages:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * ⭐⭐⭐ NOUVELLE MÉTHODE : Supprimer une image spécifique d'une variante de couleur ⭐⭐⭐
+   */
+  async deleteVariantImage(productId: number, color: string, imageNumber: 1 | 2 | 3): Promise<ColorVariant> {
+    console.log(`🗑️ Suppression image ${imageNumber} de la variante "${color}" du produit ${productId}`);
+    
+    try {
+      const safeColor = encodeURIComponent(color);
+      const response = await api.delete<ColorVariant>(
+        `/products/${productId}/variants/${safeColor}/image/${imageNumber}`
+      );
+      
+      console.log('✅ Image de variante supprimée avec succès');
+      
+      return {
+        ...response.data,
+        sizes: response.data.sizes || response.data.sizes || [],
+      } as ColorVariant;
+    } catch (error) {
+      console.error('❌ Erreur deleteVariantImage:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Récupérer toutes les variantes d'un produit
+   */
+  async getVariants(productId: number): Promise<ColorVariant[]> {
+    console.log(`📦 Récupération des variantes du produit ${productId}`);
+    
+    try {
+      const response = await api.get<ColorVariant[]>(`/products/${productId}/variants`);
+      console.log('✅ Variantes récupérées:', response.data.length);
+      
+      // ⭐ normalisation défensive
+      return response.data.map(v => ({
+        ...v,
+        sizes: v.sizes || v.sizes || [],
+      }));
+    } catch (error) {
+      console.error('❌ Erreur getVariants:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Récupérer une variante spécifique d'un produit
+   */
+  async getVariant(productId: number, color: string): Promise<ColorVariant | null> {
+    console.log(`📦 Récupération variante "${color}" du produit ${productId}`);
+    
+    try {
+      const safeColor = encodeURIComponent(color);
+      const response = await api.get<ColorVariant>(`/products/${productId}/variants/${safeColor}`);
+      console.log('✅ Variante récupérée:', response.data);
+      
+      // ⭐ normalisation défensive
+      return {
+        ...response.data,
+        sizes: response.data.sizes || response.data.sizes || [],
+      };
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        console.log('⚠️ Variante non trouvée');
+        return null;
+      }
+      console.error('❌ Erreur getVariant:', error);
+      throw error;
+    }
   },
 };
