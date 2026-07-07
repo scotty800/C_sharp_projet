@@ -22,6 +22,8 @@ export default function OrderDetailPage() {
   const [cancelling, setCancelling] = useState(false);
   const [requestingReturn, setRequestingReturn] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  // ⭐ AJOUT — État pour les erreurs d'images
+  const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
 
   // ✅ Calculer si le délai de rétractation est dépassé (14 jours)
   const isReturnPeriodExpired = (orderDate: string): boolean => {
@@ -512,12 +514,18 @@ export default function OrderDetailPage() {
             {order.items.map((item) => (
               <div key={item.id} className="flex gap-4 pb-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
                 <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+                  {/* ⭐ MODIFICATION — Image avec gestion d'erreur */}
                   <Image
-                    src={getImageUrl(item.productImage) || '/images/product-placeholder.svg'}
+                    src={
+                      imageErrors[item.id] || !item.productImage
+                        ? '/images/product-placeholder.svg'
+                        : getImageUrl(item.productImage)
+                    }
                     alt={item.productName}
                     fill
                     className="object-cover"
                     unoptimized
+                    onError={() => setImageErrors(prev => ({ ...prev, [item.id]: true }))}
                   />
                 </div>
                 <div className="flex-1">
@@ -535,7 +543,7 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Récapitulatif */}
+        {/* ⭐ MODIFICATION — Récapitulatif avec bouton de téléchargement de facture */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Récapitulatif</h2>
           <div className="space-y-3">
@@ -556,6 +564,14 @@ export default function OrderDetailPage() {
               <span className="text-primary">{formatPrice(order.finalAmount)}</span>
             </div>
           </div>
+
+          {/* ⭐ AJOUT — Bouton de téléchargement de facture */}
+          <button
+            onClick={() => orderService.downloadInvoice(order.id, order.orderNumber)}
+            className="w-full mt-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors"
+          >
+            Télécharger la facture
+          </button>
         </div>
 
         {/* Adresses */}

@@ -11,15 +11,18 @@ public class OrderController : ControllerBase
 {
     private readonly IOrderService _orderService;
     private readonly ICartService _cartService;
+    private readonly IInvoiceService _invoiceService;   // ⭐ AJOUT
     private readonly ILogger<OrderController> _logger;
 
     public OrderController(
         IOrderService orderService,
         ICartService cartService,
+        IInvoiceService invoiceService,   // ⭐ AJOUT
         ILogger<OrderController> logger)
     {
         _orderService = orderService;
         _cartService = cartService;
+        _invoiceService = invoiceService;   // ⭐ AJOUT
         _logger = logger;
     }
 
@@ -55,6 +58,7 @@ public class OrderController : ControllerBase
         }
     }
 
+    // ⭐ MODIFICATION — GetMyOrders avec cascade sur les 4 champs d'image
     [HttpGet("my-orders")]
     [Authorize]
     public async Task<IActionResult> GetMyOrders()
@@ -95,24 +99,18 @@ public class OrderController : ControllerBase
             DeliveredAt = o.DeliveredAt,
             Items = o.Items.Select(i =>
             {
-                var imageUrl = i.Product?.ImageUrl;
-
-                // 🔍 LOG SI IMAGE MANQUANTE
-                if (string.IsNullOrEmpty(imageUrl))
-                {
-                    _logger.LogWarning($"⚠️ IMAGE MANQUANTE - ProductId: {i.ProductId}, ProductName: {i.Product?.Name ?? "UNKNOWN"}");
-                }
-                else
-                {
-                    _logger.LogInformation($"✅ Image trouvée - ProductId: {i.ProductId}, Image: {imageUrl}");
-                }
+                // ⭐ APRÈS — cascade sur les 4 champs d'image possibles
+                var imageUrl = i.Product?.ImageUrl 
+                    ?? i.Product?.ImageUrl1 
+                    ?? i.Product?.ImageUrl2 
+                    ?? i.Product?.ImageUrl3;
 
                 return new OrderItemDto
                 {
                     Id = i.Id,
                     ProductId = i.ProductId,
                     ProductName = i.Product?.Name ?? "",
-                    ProductImage = imageUrl,  // ✅ Retourner l'image du produit
+                    ProductImage = imageUrl,
                     Quantity = i.Quantity,
                     UnitPrice = i.UnitPrice,
                     TotalPrice = i.TotalPrice,
@@ -126,6 +124,7 @@ public class OrderController : ControllerBase
         return Ok(orderDtos);
     }
 
+    // ⭐ MODIFICATION — GetOrderById avec cascade sur les 4 champs d'image
     [HttpGet("{id}")]
     [Authorize]
     public async Task<IActionResult> GetOrderById(int id)
@@ -173,7 +172,11 @@ public class OrderController : ControllerBase
                 Id = i.Id,
                 ProductId = i.ProductId,
                 ProductName = i.Product?.Name ?? "",
-                ProductImage = i.Product?.ImageUrl,
+                // ⭐ APRÈS — cascade sur les 4 champs d'image
+                ProductImage = i.Product?.ImageUrl 
+                    ?? i.Product?.ImageUrl1 
+                    ?? i.Product?.ImageUrl2 
+                    ?? i.Product?.ImageUrl3,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
                 TotalPrice = i.TotalPrice,
@@ -203,26 +206,26 @@ public class OrderController : ControllerBase
     }
 
     [HttpPut("{id}/cancel")]
-[Authorize]
-public async Task<IActionResult> CancelOrder(int id)
-{
-    var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-    
-    try
+    [Authorize]
+    public async Task<IActionResult> CancelOrder(int id)
     {
-        var cancelled = await _orderService.CancelOrderAsync(id, userId);
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        
+        try
+        {
+            var cancelled = await _orderService.CancelOrderAsync(id, userId);
 
-        if (!cancelled)
-            return BadRequest(new { message = "Impossible d'annuler cette commande. Vérifiez que vous êtes dans le délai de rétractation de 14 jours." });
+            if (!cancelled)
+                return BadRequest(new { message = "Impossible d'annuler cette commande. Vérifiez que vous êtes dans le délai de rétractation de 14 jours." });
 
-        return Ok(new { message = "Commande annulée avec succès. Le remboursement sera effectué sous 3-5 jours ouvrés." });
+            return Ok(new { message = "Commande annulée avec succès. Le remboursement sera effectué sous 3-5 jours ouvrés." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"❌ Erreur annulation commande {id}: {ex.Message}");
+            return BadRequest(new { message = ex.Message });
+        }
     }
-    catch (Exception ex)
-    {
-        _logger.LogError($"❌ Erreur annulation commande {id}: {ex.Message}");
-        return BadRequest(new { message = ex.Message });
-    }
-}
 
     [HttpGet("shop/{shopId}")]
     [Authorize]
@@ -291,58 +294,79 @@ public async Task<IActionResult> CancelOrder(int id)
 
     // ==================== GESTION DES RETOURS ====================
 
-[HttpPost("{id}/return-request")]
-[Authorize]
-public async Task<IActionResult> RequestReturn(int id)
-{
-    var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-    var result = await _orderService.RequestReturnAsync(id, userId);
+    [HttpPost("{id}/return-request")]
+    [Authorize]
+    public async Task<IActionResult> RequestReturn(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var result = await _orderService.RequestReturnAsync(id, userId);
 
-    if (!result)
-        return BadRequest(new { message = "Impossible de demander un retour. Vérifiez que la commande est livrée et dans les 14 jours." });
+        if (!result)
+            return BadRequest(new { message = "Impossible de demander un retour. Vérifiez que la commande est livrée et dans les 14 jours." });
 
-    return Ok(new { message = "Demande de retour envoyée avec succès. Le vendeur va examiner votre demande." });
-}
+        return Ok(new { message = "Demande de retour envoyée avec succès. Le vendeur va examiner votre demande." });
+    }
 
-[HttpPost("{id}/return-approve")]
-[Authorize]
-public async Task<IActionResult> ApproveReturn(int id)
-{
-    var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-    
-    // Vérifier que l'utilisateur est admin ou propriétaire du shop
-    var isAdmin = User.IsInRole("Admin");
-    var isShopOwner = await _orderService.IsUserShopOwnerAsync(userId, id);
+    [HttpPost("{id}/return-approve")]
+    [Authorize]
+    public async Task<IActionResult> ApproveReturn(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        
+        var isAdmin = User.IsInRole("Admin");
+        var isShopOwner = await _orderService.IsUserShopOwnerAsync(userId, id);
 
-    if (!isAdmin && !isShopOwner)
-        return Unauthorized(new { message = "Vous n'êtes pas autorisé à approuver ce retour" });
+        if (!isAdmin && !isShopOwner)
+            return Unauthorized(new { message = "Vous n'êtes pas autorisé à approuver ce retour" });
 
-    var result = await _orderService.ApproveReturnAsync(id);
+        var result = await _orderService.ApproveReturnAsync(id);
 
-    if (!result)
-        return BadRequest(new { message = "Erreur lors du remboursement. Vérifiez les logs." });
+        if (!result)
+            return BadRequest(new { message = "Erreur lors du remboursement. Vérifiez les logs." });
 
-    return Ok(new { message = "Remboursement effectué avec succès. Le client sera notifié." });
-}
+        return Ok(new { message = "Remboursement effectué avec succès. Le client sera notifié." });
+    }
 
-[HttpPost("{id}/return-reject")]
-[Authorize]
-public async Task<IActionResult> RejectReturn(int id)
-{
-    var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-    
-    // Vérifier que l'utilisateur est admin ou propriétaire du shop
-    var isAdmin = User.IsInRole("Admin");
-    var isShopOwner = await _orderService.IsUserShopOwnerAsync(userId, id);
+    [HttpPost("{id}/return-reject")]
+    [Authorize]
+    public async Task<IActionResult> RejectReturn(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        
+        var isAdmin = User.IsInRole("Admin");
+        var isShopOwner = await _orderService.IsUserShopOwnerAsync(userId, id);
 
-    if (!isAdmin && !isShopOwner)
-        return Unauthorized(new { message = "Vous n'êtes pas autorisé à refuser ce retour" });
+        if (!isAdmin && !isShopOwner)
+            return Unauthorized(new { message = "Vous n'êtes pas autorisé à refuser ce retour" });
 
-    var result = await _orderService.RejectReturnAsync(id);
+        var result = await _orderService.RejectReturnAsync(id);
 
-    if (!result)
-        return BadRequest(new { message = "Erreur lors du refus de retour" });
+        if (!result)
+            return BadRequest(new { message = "Erreur lors du refus de retour" });
 
-    return Ok(new { message = "Demande de retour refusée. Le client sera notifié." });
-}
+        return Ok(new { message = "Demande de retour refusée. Le client sera notifié." });
+    }
+
+    // ⭐ NOUVEAU ENDPOINT — Téléchargement de la facture PDF
+    [HttpGet("{id}/invoice")]
+    [Authorize]
+    public async Task<IActionResult> DownloadInvoice(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        var order = await _orderService.GetOrderByIdAsync(id);
+        if (order == null)
+            return NotFound(new { message = "Commande non trouvée" });
+
+        if (order.UserId != userId && !User.IsInRole("Admin"))
+            return Unauthorized(new { message = "Vous n'êtes pas autorisé à accéder à cette facture" });
+
+        var orderDto = await _orderService.GetOrderByNumberAsync(order.OrderNumber);
+        if (orderDto == null)
+            return NotFound(new { message = "Commande non trouvée" });
+
+        var pdfBytes = _invoiceService.GenerateInvoicePdf(orderDto);
+
+        return File(pdfBytes, "application/pdf", $"facture-{orderDto.OrderNumber}.pdf");
+    }
 }

@@ -6,12 +6,27 @@ import { FiArrowLeft } from 'react-icons/fi';
 import Link from 'next/link';
 
 export default function CartPage() {
-  const { cart, isLoading } = useCart();
+  // ⭐ MODIFICATION — Ajout de isMutating
+  const { cart, isLoading, isMutating } = useCart();
 
+  // ⭐ MODIFICATION — Skeleton structurel au lieu du spinner
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+        <div className="container mx-auto px-4">
+          <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-4" />
+          <div className="h-8 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-8" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-4">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 h-32 animate-pulse" />
+              ))}
+            </div>
+            <div className="lg:col-span-1">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg h-80 animate-pulse" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -37,27 +52,29 @@ export default function CartPage() {
           </h1>
         </div>
 
-        {/* Contenu principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Liste des articles */}
-          <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-              {cart.items.map((item) => (
-                <CartItem key={item.id} item={item} />
-              ))}
+        {/* ⭐ AJOUT — wrapper avec effet visuel pendant une mutation */}
+        <div className={isMutating ? 'opacity-60 pointer-events-none transition-opacity' : 'transition-opacity'}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Liste des articles */}
+            <div className="lg:col-span-2">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                {cart.items.map((item) => (
+                  <CartItem key={item.id} item={item} />
+                ))}
+              </div>
+
+              {/* Recommandations */}
+              <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+                <CartRecommendations 
+                  currentItemIds={cart.items.map(item => item.productId)} 
+                />
+              </div>
             </div>
 
-            {/* Recommandations */}
-            <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-              <CartRecommendations 
-                currentItemIds={cart.items.map(item => item.productId)} 
-              />
+            {/* Résumé */}
+            <div className="lg:col-span-1">
+              <CartSummary cart={cart} />
             </div>
-          </div>
-
-          {/* Résumé */}
-          <div className="lg:col-span-1">
-            <CartSummary cart={cart} />
           </div>
         </div>
 

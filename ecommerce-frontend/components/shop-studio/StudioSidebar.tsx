@@ -6,7 +6,8 @@ import {
   FiPackage, FiSettings, FiCamera, FiPlusSquare, FiLayers, FiX,
   FiMenu, // ⭐ pour la navigation
   FiZap, // ⭐ NOUVEAU pour les animations
-  FiCreditCard // ⭐ AJOUTÉ pour les boutons
+  FiCreditCard, // ⭐ AJOUTÉ pour les boutons
+  FiTruck // ⭐ NOUVEAU pour la livraison
 } from 'react-icons/fi';
 import ColorsPanel from './panels/ColorsPanel';
 import FontsPanel from './panels/FontsPanel';
@@ -27,6 +28,8 @@ import NavbarPanel from './panels/NavbarPanel';
 import NavigationLinkPanel from './panels/NavigationLinkPanel';
 // ⭐ NOUVEAU : Panneau Animations
 import AnimationsPanel from './panels/AnimationsPanel';
+// ⭐ NOUVEAU : Panneau Livraison
+import ShippingSettingsPanel from './panels/ShippingSettingsPanel';
 import { ProductGridConfig, ProductGridSlot, StudioProduct, ProductCustomization, CreateStudioProduct } from '@/types/studio';
 import { StudioPage } from '@/types/studio';
 
@@ -82,22 +85,23 @@ interface Props {
   currentPageId?: string;
 }
 
-// ⭐ PANELS mis à jour avec l'ajout de 'buttons', 'navbar' et 'animations'
+// ⭐ PANELS mis à jour avec l'ajout de 'buttons', 'navbar', 'animations' et 'shipping'
 const PANELS = [
   { id: 'sections',   label: 'Sections',    icon: FiPlusSquare },
   { id: 'textes',     label: 'Textes',      icon: FiType },
-  { id: 'buttons',    label: 'Boutons',     icon: FiCreditCard }, // ⭐ NOUVEAU
+  { id: 'buttons',    label: 'Boutons',     icon: FiCreditCard },
   { id: 'colors',     label: 'Couleurs',    icon: FiDroplet },
   { id: 'fonts',      label: 'Polices',     icon: FiType },
   { id: 'filters',    label: 'Filtres',     icon: FiFilter },
   { id: 'assets',     label: 'Assets',      icon: FiImage },
   { id: 'templates',  label: 'Templates',   icon: FiLayout },
   { id: 'products',   label: 'Produits',    icon: FiPackage },
+  { id: 'shipping',   label: 'Livraison',   icon: FiTruck }, // ⭐ NOUVEAU
   { id: 'snapshots',  label: 'Versions',    icon: FiCamera },
   { id: 'settings',   label: 'Paramètres',  icon: FiSettings },
   { id: 'layers',     label: 'Calques',     icon: FiLayers },
   { id: 'navbar',     label: 'Navigation',  icon: FiMenu },
-  { id: 'animations', label: 'Animations',  icon: FiZap }, // ⭐ NOUVEAU
+  { id: 'animations', label: 'Animations',  icon: FiZap },
 ];
 
 export default function StudioSidebar({ 
@@ -111,8 +115,8 @@ export default function StudioSidebar({
   onCreateProduct, selectedProductForCustomization,
   onUpdateProductCustomization, onCloseProductCustomization,
   productsList = [],
-  pages = [], // ⭐ NOUVEAU : pages
-  currentPageId, // ⭐ NOUVEAU : ID de la page actuelle
+  pages = [],
+  currentPageId,
 }: Props) {
 
   // Panel ouvert (null = panneau droit fermé)
@@ -162,7 +166,6 @@ export default function StudioSidebar({
           }} />
         );
 
-      // ⭐ NOUVEAU : Panneau Boutons
       case 'buttons':
         return (
           <ButtonsPanel onAddButton={(buttonData) => {
@@ -249,6 +252,10 @@ export default function StudioSidebar({
           />
         );
 
+      // ⭐ NOUVEAU : Panneau Livraison
+      case 'shipping':
+        return <ShippingSettingsPanel shopId={shopId} />;
+
       case 'snapshots':
         return <SnapshotsPanel shopId={shopId} onRestore={() => {}} />;
 
@@ -273,7 +280,6 @@ export default function StudioSidebar({
           </div>
         );
 
-      // ⭐ Panneau Navigation — Navbar OU bloc lié à une page
       case 'navbar':
         if (selectedBlock?.type?.startsWith('navbar-')) {
           return (
@@ -301,7 +307,6 @@ export default function StudioSidebar({
           </div>
         );
 
-      // ⭐ NOUVEAU : Panneau Animations
       case 'animations':
         return selectedBlock ? (
           <AnimationsPanel
@@ -313,7 +318,6 @@ export default function StudioSidebar({
             }}
           />
         ) : (
-          // ⭐ REMPLACER le message vide par les animations de PAGE
           <AnimationsPanel
             blockId="__page__"
             blockType="page"
@@ -322,7 +326,7 @@ export default function StudioSidebar({
               onUpdateCustomization({ pageAnimationsConfig: config });
             }}
             isPageMode
-            pageId={currentPageId} // ⭐ AJOUT : passer l'ID de la page actuelle
+            pageId={currentPageId}
           />
         );
 

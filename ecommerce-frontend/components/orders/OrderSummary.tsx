@@ -3,23 +3,22 @@
 import { OrderResponseDto } from '@/types/order';
 import { formatPrice } from '@/services/utils/formatters';
 import { FiCreditCard, FiTruck, FiPackage, FiCalendar } from 'react-icons/fi';
+// ⭐ AJOUT
+import { orderService } from '@/services/api/orders';
 
 interface OrderSummaryProps {
   order: OrderResponseDto;
 }
 
 const OrderSummary = ({ order }: OrderSummaryProps) => {
+  // ⭐ MODIFICATION — Retrait de l'entrée Livraison
   const summaryItems = [
     {
       icon: FiPackage,
       label: 'Sous-total',
       value: formatPrice(order.totalAmount),
     },
-    {
-      icon: FiTruck,
-      label: 'Livraison',
-      value: formatPrice(order.shippingCost),
-    },
+    // ⭐ Supprimé : l'entrée Livraison est maintenant gérée dynamiquement
     {
       icon: FiCreditCard,
       label: 'TVA',
@@ -42,6 +41,48 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
             <span className="text-gray-900 dark:text-white">{item.value}</span>
           </div>
         ))}
+
+        {/* ⭐ NOUVEAU — Affichage dynamique des frais de livraison avec méthode et délai */}
+        {order.shippingBreakdown && order.shippingBreakdown.length > 1 ? (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+              <FiTruck className="text-primary" size={18} />
+              <span>Livraison ({order.shippingBreakdown.length} boutiques)</span>
+            </div>
+            {order.shippingBreakdown.map(s => (
+              <div key={s.shopId} className="flex justify-between text-sm pl-6 text-gray-500">
+                <div>
+                  <span>{s.shopName}</span>
+                  <span className="text-xs block text-gray-400">
+                    {s.shippingMethodName} · {s.minDays}-{s.maxDays} jours
+                  </span>
+                </div>
+                <span>{formatPrice(s.shippingCost)}</span>
+              </div>
+            ))}
+          </div>
+        ) : order.shippingBreakdown && order.shippingBreakdown.length === 1 ? (
+          <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2">
+              <FiTruck className="text-primary" size={18} />
+              <div>
+                <span>Livraison</span>
+                <span className="text-xs block text-gray-400">
+                  {order.shippingBreakdown[0].shippingMethodName} · {order.shippingBreakdown[0].minDays}-{order.shippingBreakdown[0].maxDays} jours
+                </span>
+              </div>
+            </div>
+            <span className="text-gray-900 dark:text-white">{formatPrice(order.shippingCost)}</span>
+          </div>
+        ) : (
+          <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
+            <div className="flex items-center gap-2">
+              <FiTruck className="text-primary" size={18} />
+              <span>Livraison</span>
+            </div>
+            <span className="text-gray-900 dark:text-white">{formatPrice(order.shippingCost)}</span>
+          </div>
+        )}
 
         {order.discountAmount > 0 && (
           <div className="flex justify-between items-center text-green-600 dark:text-green-400">
@@ -82,7 +123,7 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
         )}
       </div>
 
-      {/* Boutons d'action */}
+      {/* ⭐ MODIFICATION — Boutons d'action avec téléchargement de facture */}
       <div className="mt-6 space-y-3">
         {order.status === 'Delivered' && (
           <button className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors">
@@ -96,7 +137,11 @@ const OrderSummary = ({ order }: OrderSummaryProps) => {
           </button>
         )}
 
-        <button className="w-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors">
+        {/* ⭐ MODIFICATION — Bouton de téléchargement de facture avec onClick */}
+        <button
+          onClick={() => orderService.downloadInvoice(order.id, order.orderNumber)}
+          className="w-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors"
+        >
           Télécharger la facture
         </button>
       </div>

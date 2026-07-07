@@ -38,7 +38,6 @@ export const orderService = {
     return response.data;
   },
 
-  // ✅ AJOUTER CETTE MÉTHODE
   // Mettre à jour le statut d'une commande
   async updateOrderStatus(orderId: number, data: { status: OrderStatus }): Promise<{ message: string }> {
     console.log('📤 Mise à jour statut - OrderId:', orderId, 'Nouveau statut:', data.status);
@@ -81,22 +80,43 @@ export const orderService = {
 
   // ==================== GESTION DES RETOURS ====================
 
-// Demander un retour
-async requestReturn(orderId: number): Promise<{ message: string }> {
-  const response = await api.post(`/orders/${orderId}/return-request`, {});
-  return response.data;
-},
+  // Demander un retour
+  async requestReturn(orderId: number): Promise<{ message: string }> {
+    const response = await api.post(`/orders/${orderId}/return-request`, {});
+    return response.data;
+  },
 
-// Approuver un retour (vendeur)
-async approveReturn(orderId: number): Promise<{ message: string }> {
-  const response = await api.post(`/orders/${orderId}/return-approve`, {});
-  return response.data;
-},
+  // Approuver un retour (vendeur)
+  async approveReturn(orderId: number): Promise<{ message: string }> {
+    const response = await api.post(`/orders/${orderId}/return-approve`, {});
+    return response.data;
+  },
 
-// Refuser un retour (vendeur)
-async rejectReturn(orderId: number): Promise<{ message: string }> {
-  const response = await api.post(`/orders/${orderId}/return-reject`, {});
-  return response.data;
-},
+  // Refuser un retour (vendeur)
+  async rejectReturn(orderId: number): Promise<{ message: string }> {
+    const response = await api.post(`/orders/${orderId}/return-reject`, {});
+    return response.data;
+  },
 
+  // ⭐ NOUVEAU — Télécharger la facture PDF
+  async downloadInvoice(orderId: number, orderNumber: string): Promise<void> {
+    try {
+      const response = await api.get(`/orders/${orderId}/invoice`, { 
+        responseType: 'blob' 
+      });
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `facture-${orderNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('❌ Erreur lors du téléchargement de la facture:', error);
+      throw error;
+    }
+  },
 };

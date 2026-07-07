@@ -18,6 +18,9 @@ import { FiArrowLeft, FiCreditCard, FiTruck, FiMapPin, FiUser, FiMail } from 're
 import { formatPrice } from '@/services/utils/formatters';
 import { getProductImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
+// ⭐ AJOUT
+import { shippingService } from '@/services/api/shipping';
+import { CartShippingSummary } from '@/types/shipping';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -51,6 +54,9 @@ export default function CheckoutPage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<number | null>(null);
 
+  // ⭐ AJOUT
+  const [shippingSummary, setShippingSummary] = useState<CartShippingSummary | null>(null);
+
   // États du formulaire
   const [formData, setFormData] = useState({
     shippingAddress: '',
@@ -74,6 +80,13 @@ export default function CheckoutPage() {
       router.push('/cart');
     }
   }, [user, isLoading, cart, router]);
+
+  // ⭐ AJOUT — Chargement des frais de livraison
+  useEffect(() => {
+    if (cart && cart.items.length > 0) {
+      shippingService.getCartShippingSummary().then(setShippingSummary);
+    }
+  }, [cart]);
 
   // Charger les produits manquants
   useEffect(() => {
@@ -126,14 +139,23 @@ export default function CheckoutPage() {
     }
   };
 
+  // ⭐ MODIFICATION — handleSubmitOrder avec calcul de livraison depuis le serveur
   const handleSubmitOrder = async () => {
     if (!user || !cart || itemsWithProducts.length === 0) return;
+
+    // ⭐ Vérification que toutes les boutiques ont configuré leur livraison
+    if (!shippingSummary || !shippingSummary.allShopsConfigured) {
+      toast.error('Certaines boutiques n\'ont pas encore configuré de livraison.');
+      setProcessing(false);
+      return;
+    }
 
     try {
       setProcessing(true);
 
+      // ⭐ Utilisation des valeurs calculées par le serveur
       const subtotal = cart.totalAmount;
-      const shippingCost = subtotal > 50 ? 0 : 5.99;
+      const shippingCost = shippingSummary.totalShipping;
       const taxAmount = subtotal * 0.2;
 
       // Créer la commande
@@ -146,6 +168,7 @@ export default function CheckoutPage() {
         shippingCity: formData.shippingCity,
         shippingPostalCode: formData.shippingPostalCode,
         shippingCountry: formData.shippingCountry,
+        shippingCost: shippingCost,
       });
 
       const orderResponse = await orderService.createOrder({
@@ -211,8 +234,9 @@ export default function CheckoutPage() {
     );
   }
 
+  // ⭐ MODIFICATION — Utilisation de shippingSummary pour le calcul
   const subtotal = cart.totalAmount;
-  const shipping = subtotal > 50 ? 0 : 5.99;
+  const shipping = shippingSummary?.totalShipping ?? 0;
   const tax = subtotal * 0.2;
   const total = subtotal + shipping + tax;
 
@@ -415,14 +439,20 @@ export default function CheckoutPage() {
                   />
                 </div>
 
+                {/* ⭐ MODIFICATION — Bouton désactivé si livraison non configurée */}
                 <button
                   type="button"
                   onClick={handleSubmitOrder}
-                  disabled={processing}
+                  disabled={processing || (shippingSummary ? !shippingSummary.allShopsConfigured : false)}
                   className="w-full mt-6 bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-colors disabled:opacity-50"
                 >
                   {processing ? 'Traitement...' : 'Continuer vers le paiement'}
                 </button>
+                {shippingSummary && !shippingSummary.allShopsConfigured && (
+                  <p className="text-xs text-orange-500 mt-2 text-center">
+                    Certaines boutiques n'ont pas configuré leur livraison.
+                  </p>
+                )}
               </div>
             )}
 
@@ -483,14 +513,32 @@ export default function CheckoutPage() {
                   <span>Sous-total</span>
                   <span className="text-gray-900 dark:text-white">{formatPrice(subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                  <span>Livraison</span>
-                  {shipping === 0 ? (
-                    <span className="text-green-600 dark:text-green-400">Gratuite</span>
-                  ) : (
+
+                {/* ⭐ MODIFICATION — Affichage détaillé de la livraison par boutique */}
+                {shippingSummary && shippingSummary.breakdown.length > 0 ? (
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                      <span>Livraison</span>
+                      <span className="text-gray-900 dark:text-white">
+                        {shipping === 0 ? 'Gratuite' : formatPrice(shipping)}
+                      </span>
+                    </div>
+                    {shippingSummary.breakdown.length > 1 && shippingSummary.breakdown.map((item) => (
+                      <div key={item.shopId} className="flex justify-between text-xs pl-3 text-gray-400">
+                        <span>
+                          {item.shopName} · {item.shippingMethodName} · {item.minDays}-{item.maxDays}j
+                        </span>
+                        <span>{item.shippingCost === 0 ? 'Gratuit' : formatPrice(item.shippingCost)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>Livraison</span>
                     <span className="text-gray-900 dark:text-white">{formatPrice(shipping)}</span>
-                  )}
-                </div>
+                  </div>
+                )}
+
                 <div className="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>TVA (20%)</span>
                   <span className="text-gray-900 dark:text-white">{formatPrice(tax)}</span>

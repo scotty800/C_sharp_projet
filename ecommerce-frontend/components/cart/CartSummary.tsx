@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiTruck, FiShield, FiCreditCard, FiArrowRight } from 'react-icons/fi';
 import { Cart } from '@/types/cart';
 import { formatPrice } from '@/services/utils/formatters';
 import { useAuth } from '@/hooks/useAuth';
 import toast from 'react-hot-toast';
+// ⭐ NOUVEAUX IMPORTS
+import { shippingService } from '@/services/api/shipping';
+import { CartShippingSummary } from '@/types/shipping';
 
 interface CartSummaryProps {
   cart: Cart;
@@ -16,13 +19,24 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
   const router = useRouter();
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
+  // ⭐ NOUVEAU ÉTAT
+  const [shippingSummary, setShippingSummary] = useState<CartShippingSummary | null>(null);
+
+  // ⭐ MODIFICATION — clé stable qui change quand une quantité change
+  const cartSnapshotKey = cart.items.map(i => `${i.id}:${i.quantity}`).join(',');
+
+  // ⭐ MODIFICATION — se redéclenche aussi quand une quantité change (pas juste ajout/suppression)
+  useEffect(() => {
+    shippingService.getCartShippingSummary().then(setShippingSummary);
+  }, [cartSnapshotKey]);
 
   const subtotal = cart.totalAmount;
-  const shipping = subtotal > 50 ? 0 : 5.99;
+  // ⭐ MODIFICATION — Utilisation du total calculé par le backend
+  const shipping = shippingSummary?.totalShipping ?? 0;
   const tax = subtotal * 0.2; // TVA 20%
   const total = subtotal + shipping + tax;
 
-  // ⭐ MODIFICATION — handleCheckout simplifié (vérification supprimée)
+  // ⭐ MODIFICATION — handleCheckout avec vérification de la configuration des boutiques
   const handleCheckout = () => {
     if (!user) {
       toast.error('Veuillez vous connecter pour finaliser votre commande');
@@ -35,14 +49,14 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
       return;
     }
 
+    // ⭐ Vérification que toutes les boutiques ont configuré leur livraison
+    if (shippingSummary && !shippingSummary.allShopsConfigured) {
+      toast.error('Certaines boutiques n\'ont pas encore configuré de livraison. Contactez-les ou retirez leurs produits.');
+      return;
+    }
+
     router.push('/checkout');
   };
-
-  const shippingOptions = [
-    { id: 'standard', label: 'Standard', price: 5.99, days: '3-5 jours' },
-    { id: 'express', label: 'Express', price: 12.99, days: '1-2 jours' },
-    { id: 'free', label: 'Gratuit', price: 0, days: '5-7 jours', condition: '> 50€' },
-  ];
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 sticky top-24">
@@ -99,42 +113,42 @@ const CartSummary = ({ cart }: CartSummaryProps) => {
         </div>
       </div>
 
-      {/* Options de livraison */}
-      <div className="mb-6">
-        <h3 className="font-medium mb-3 text-gray-900 dark:text-white">Mode de livraison</h3>
-        <div className="space-y-2">
-          {shippingOptions.map(option => (
-            <label
-              key={option.id}
-              className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:border-primary transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <input
-                  type="radio"
-                  name="shipping"
-                  value={option.id}
-                  defaultChecked={option.id === 'standard'}
-                  className="text-primary focus:ring-primary"
-                />
+      {/* ⭐ MODIFIÉ — détail des frais de livraison par boutique avec méthode + délai */}
+      {shippingSummary && shippingSummary.breakdown.length > 0 && (
+        <div className="mb-6">
+          <h3 className="font-medium mb-2 text-sm text-gray-700 dark:text-gray-300">
+            Livraison par boutique
+          </h3>
+          <div className="space-y-2">
+            {shippingSummary.breakdown.map((item) => (
+              <div
+                key={item.shopId}
+                className="flex justify-between items-start text-sm border border-gray-200 dark:border-gray-700 rounded-lg p-3"
+              >
                 <div>
-                  <span className="font-medium text-gray-900 dark:text-white">{option.label}</span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">{option.days}</span>
-                  {option.condition && (
-                    <span className="text-xs text-green-600 dark:text-green-400 block">
-                      {option.condition}
-                    </span>
+                  <p className="text-gray-900 dark:text-white font-medium">
+                    {item.shopName || `Boutique #${item.shopId}`}
+                  </p>
+                  {item.hasShippingConfigured ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {item.shippingMethodName} · {item.minDays}-{item.maxDays} jours
+                    </p>
+                  ) : (
+                    <p className="text-xs text-orange-500 mt-0.5">
+                      Livraison non configurée
+                    </p>
                   )}
                 </div>
+                <span className="text-gray-900 dark:text-white font-medium whitespace-nowrap">
+                  {item.shippingCost === 0 ? 'Gratuit' : formatPrice(item.shippingCost)}
+                </span>
               </div>
-              <span className={option.price === 0 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-700 dark:text-gray-300'}>
-                {option.price === 0 ? 'Gratuit' : formatPrice(option.price)}
-              </span>
-            </label>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ⭐ BLOC SUPPRIMÉ — avertissement devenu inutile */}
+      {/* ⭐ BLOC SUPPRIMÉ — Mode de livraison et shippingOptions */}
 
       {/* Bouton de paiement */}
       <button

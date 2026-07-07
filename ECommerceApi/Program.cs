@@ -10,6 +10,9 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ⭐ AJOUT — Licence QuestPDF
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 // 🔑 Configuration JWT
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? throw new InvalidOperationException("JWT Issuer not configured");
@@ -77,6 +80,8 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IShopCustomizationService, ShopCustomizationService>();
 builder.Services.AddScoped<IFilterService, FilterService>();
+builder.Services.AddScoped<IShippingService, ShippingService>();
+builder.Services.AddScoped<IInvoiceService, InvoiceService>(); // ⭐ AJOUT
 builder.Services.AddScoped<AuthService>();
 
 // 🔐 Authentification JWT

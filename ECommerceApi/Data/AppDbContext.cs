@@ -37,6 +37,10 @@ namespace ECommerceApi.Data
 
         public DbSet<ProductColorVariant> ProductColorVariants { get; set; }
 
+        // ⭐ NOUVEAU — Méthodes de livraison par boutique
+        public DbSet<ShopShippingMethod> ShopShippingMethods { get; set; }
+        public DbSet<OrderShopShipping> OrderShopShippings { get; set; }
+
         // ❌ SUPPRIMÉ - ImageSelection pour la bibliothèque d'images
         // public DbSet<ImageSelection> ImageSelections { get; set; }
 
@@ -143,7 +147,34 @@ namespace ECommerceApi.Data
             modelBuilder.Entity<ProductColorVariant>()
                 .HasIndex(v => new { v.ProductId, v.Color })
                 .IsUnique(); // une seule config par couleur et par produit
-        }
 
+            // ⭐ NOUVEAU — CONFIGURATIONS POUR LES MÉTHODES DE LIVRAISON
+
+            // ShopShippingMethod
+            modelBuilder.Entity<ShopShippingMethod>()
+                .HasOne(s => s.Shop)
+                .WithMany()
+                .HasForeignKey(s => s.ShopId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ShopShippingMethod>()
+                .HasIndex(s => s.ShopId);
+
+            // OrderShopShipping
+            modelBuilder.Entity<OrderShopShipping>()
+                .HasOne(s => s.Order)
+                .WithMany(o => o.ShopShippings)
+                .HasForeignKey(s => s.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<OrderShopShipping>()
+                .HasOne(s => s.Shop)
+                .WithMany()
+                .HasForeignKey(s => s.ShopId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OrderShopShipping>()
+                .HasIndex(s => new { s.OrderId, s.ShopId });
+        }
     }
 }

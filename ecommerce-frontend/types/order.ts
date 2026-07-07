@@ -115,13 +115,25 @@ export interface CreateOrderDto {
   discountAmount?: number;
 }
 
+// ⭐ NOUVEAU — DTO pour le breakdown de livraison par boutique
+export interface OrderShopShippingDto {
+  shopId: number;
+  shopName?: string;
+  shippingMethodName: string;
+  shippingCost: number;
+  subtotal: number;
+  minDays: number;   // ⭐ AJOUT
+  maxDays: number;   // ⭐ AJOUT
+}
+
+// ⭐ MODIFICATION — Ajout de shippingBreakdown
 export interface OrderResponseDto {
   id: number;
   orderNumber: string;
   userId: number;
   username: string;
   userEmail?: string;
-  status: OrderStatus | string | number; // ✅ Support tous les formats
+  status: OrderStatus | string | number;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
   paymentIntentId?: string;
@@ -144,6 +156,8 @@ export interface OrderResponseDto {
   shippedAt?: string;
   deliveredAt?: string;
   items: OrderItemDto[];
+  // ⭐ NOUVEAU — Détail des frais de livraison par boutique
+  shippingBreakdown: OrderShopShippingDto[];
 }
 
 export interface OrderItemDto {
@@ -160,7 +174,7 @@ export interface OrderItemDto {
 }
 
 export interface UpdateOrderStatusDto {
-  status: OrderStatus | number | string; // ✅ Support tous les formats
+  status: OrderStatus | number | string;
 }
 
 export interface CreatePaymentIntentDto {

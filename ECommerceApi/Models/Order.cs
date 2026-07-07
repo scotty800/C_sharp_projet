@@ -70,6 +70,7 @@ namespace ECommerceApi.Models
         public string BillingCountry { get; set; } = string.Empty;
 
         public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
+        public ICollection<OrderShopShipping> ShopShippings { get; set; } = new List<OrderShopShipping>();
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }

@@ -162,6 +162,8 @@ namespace ECommerceApi.DTO
 
         // Items
         public List<OrderItemDto> Items { get; set; } = new();
+
+        public List<OrderShopShippingDto> ShippingBreakdown { get; set; } = new();
     }
 
     public class OrderStatsDto

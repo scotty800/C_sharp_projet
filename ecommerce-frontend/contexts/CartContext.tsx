@@ -9,15 +9,13 @@ interface CartContextType {
   cart: Cart | null;
   itemCount: number;
   isLoading: boolean;
-  // ⭐ MODIFICATION — addToCart avec size et color optionnels
+  isMutating: boolean;
   addToCart: (productId: number, quantity: number, size?: string, color?: string) => Promise<void>;
   updateQuantity: (itemId: number, quantity: number) => Promise<void>;
-  // ⭐ AJOUT — mise à jour de la variante
   updateVariant: (itemId: number, size?: string, color?: string) => Promise<void>;
   removeFromCart: (itemId: number) => Promise<void>;
   clearCart: () => Promise<void>;
   refreshCart: () => Promise<void>;
-  // ⭐ AJOUT — pilotage du sidebar
   isSidebarOpen: boolean;
   openSidebar: () => void;
   closeSidebar: () => void;
@@ -29,14 +27,15 @@ export const CartContext = createContext<CartContextType | undefined>(undefined)
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const [cart, setCart] = useState<Cart | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // ⭐ AJOUT
+  const [isMutating, setIsMutating] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { user, token } = useAuth();
 
   const itemCount = cart?.items?.reduce((total: number, item: CartItem) => total + item.quantity, 0) || 0;
 
-  const openSidebar = () => setIsSidebarOpen(true);     // ⭐ AJOUT
-  const closeSidebar = () => setIsSidebarOpen(false);   // ⭐ AJOUT
-  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev); // ⭐ AJOUT
+  const openSidebar = () => setIsSidebarOpen(true);
+  const closeSidebar = () => setIsSidebarOpen(false);
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   useEffect(() => {
     if (user && token) {
@@ -46,6 +45,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [user, token]);
 
+  // ⭐ refreshCart — inchangé, garde isLoading
   const refreshCart = async () => {
     if (!user) return;
 
@@ -60,83 +60,97 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // ⭐ MODIFICATION — addToCart avec size et color
+  // ⭐ addToCart — utilise isMutating
   const addToCart = async (productId: number, quantity: number, size?: string, color?: string) => {
     try {
-      setIsLoading(true);
+      setIsMutating(true);
       const { data } = await api.post('/cart/add', { productId, quantity, size, color });
 
       await refreshCart();
-      setIsSidebarOpen(true); // ⭐ AJOUT — feedback visuel immédiat
+      setIsSidebarOpen(true);
 
       return data;
     } catch (error) {
       console.error('Erreur lors de l\'ajout au panier:', error);
       throw error;
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
+  // ⭐ MODIFICATION — updateQuantity avec recalcul du totalPrice et totalAmount
   const updateQuantity = async (itemId: number, quantity: number) => {
-    try {
-      setIsLoading(true);
-      await api.put(`/cart/item/${itemId}`, { quantity });
+    const previousCart = cart;   // ⭐ AJOUT — pour rollback si erreur serveur
 
-      setCart((prev: Cart | null) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          items: prev.items.map((item: CartItem) =>
-            item.id === itemId ? { ...item, quantity } : item
-          ),
-        };
-      });
+    // ⭐ AJOUT — mise à jour optimiste complète, sans attendre le serveur
+    setCart((prev: Cart | null) => {
+      if (!prev) return null;
+      const updatedItems = prev.items.map((item: CartItem) =>
+        item.id === itemId
+          ? { ...item, quantity, totalPrice: item.productPrice * quantity }
+          : item
+      );
+      const updatedTotalAmount = updatedItems.reduce(
+        (sum, item) => sum + item.totalPrice,
+        0
+      );
+      return {
+        ...prev,
+        items: updatedItems,
+        totalAmount: updatedTotalAmount,
+      };
+    });
+
+    try {
+      setIsMutating(true);
+      await api.put(`/cart/item/${itemId}`, { quantity });
     } catch (error) {
       console.error('Erreur lors de la mise à jour:', error);
+      setCart(previousCart);   // ⭐ AJOUT — rollback si le serveur refuse (ex: stock insuffisant)
       throw error;
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
-  // ⭐ AJOUT — mise à jour de la variante d'un article
+  // ⭐ updateVariant — utilise isMutating
   const updateVariant = async (itemId: number, size?: string, color?: string) => {
     try {
-      setIsLoading(true);
+      setIsMutating(true);
       await api.put(`/cart/item/${itemId}/variant`, { size, color });
       await refreshCart();
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la variante:', error);
       throw error;
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
+  // ⭐ removeFromCart — utilise isMutating avec rollback
   const removeFromCart = async (itemId: number) => {
-    try {
-      setIsLoading(true);
-      await api.delete(`/cart/item/${itemId}`);
+    const previousCart = cart;
+    setCart((prev: Cart | null) => {
+      if (!prev) return null;
+      return { ...prev, items: prev.items.filter((item: CartItem) => item.id !== itemId) };
+    });
 
-      setCart((prev: Cart | null) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          items: prev.items.filter((item: CartItem) => item.id !== itemId),
-        };
-      });
+    try {
+      setIsMutating(true);
+      await api.delete(`/cart/item/${itemId}`);
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
+      setCart(previousCart);
       throw error;
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
+  // ⭐ clearCart — utilise isMutating
   const clearCart = async () => {
     try {
-      setIsLoading(true);
+      setIsMutating(true);
       await api.delete('/cart/clear');
       setCart((prev: Cart | null) => {
         if (!prev) return null;
@@ -146,7 +160,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       console.error('Erreur lors du vidage du panier:', error);
       throw error;
     } finally {
-      setIsLoading(false);
+      setIsMutating(false);
     }
   };
 
@@ -155,16 +169,17 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       cart,
       itemCount,
       isLoading,
+      isMutating,
       addToCart,
       updateQuantity,
-      updateVariant,    // ⭐ AJOUT
+      updateVariant,
       removeFromCart,
       clearCart,
       refreshCart,
-      isSidebarOpen,   // ⭐ AJOUT
-      openSidebar,     // ⭐ AJOUT
-      closeSidebar,    // ⭐ AJOUT
-      toggleSidebar,   // ⭐ AJOUT
+      isSidebarOpen,
+      openSidebar,
+      closeSidebar,
+      toggleSidebar,
     }}>
       {children}
     </CartContext.Provider>

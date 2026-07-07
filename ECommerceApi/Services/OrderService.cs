@@ -12,6 +12,7 @@ namespace ECommerceApi.Services
         private readonly ICartService _cartService;
         private readonly IProductService _productService;
         private readonly IPaymentService _paymentService;
+        private readonly IShippingService _shippingService;
         private readonly ILogger<OrderService> _logger;
 
         public OrderService(
@@ -19,12 +20,14 @@ namespace ECommerceApi.Services
             ICartService cartService,
             IProductService productService,
             IPaymentService paymentService,
+            IShippingService shippingService,
             ILogger<OrderService> logger)
         {
             _context = context;
             _cartService = cartService;
             _productService = productService;
             _paymentService = paymentService;
+            _shippingService = shippingService;
             _logger = logger;
         }
 
@@ -51,6 +54,14 @@ namespace ECommerceApi.Services
                         throw new Exception($"Stock insuffisant pour {product.Name}. Disponible: {product.Stock}, Demandé: {item.Quantity}");
                 }
 
+                var shippingSummary = await _shippingService.CalculateCartShippingAsync(userId);
+
+                if (!shippingSummary.AllShopsConfigured)
+                    throw new Exception("Une ou plusieurs boutiques de votre panier n'ont pas encore configuré leur livraison. Veuillez réessayer plus tard ou retirer ces articles.");
+
+                if (shippingSummary.Breakdown.Count == 0)
+                    throw new Exception("Impossible de calculer la livraison pour ce panier.");
+
                 // 3. Générer le numéro de commande
                 var orderNumber = GenerateOrderNumber();
 
@@ -64,7 +75,7 @@ namespace ECommerceApi.Services
                     PaymentMethod = orderDto.PaymentMethod,
                     TotalAmount = cart.TotalAmount,
                     TaxAmount = orderDto.TaxAmount,
-                    ShippingCost = orderDto.ShippingCost,
+                    ShippingCost = shippingSummary.TotalShipping,
                     DiscountAmount = orderDto.DiscountAmount,
                     ShippingAddress = orderDto.ShippingAddress,
                     ShippingCity = orderDto.ShippingCity,
@@ -78,6 +89,22 @@ namespace ECommerceApi.Services
                 };
 
                 _context.Orders.Add(order);
+                await _context.SaveChangesAsync();
+
+                // ⭐ Persister le snapshot de livraison par boutique avec MinDays et MaxDays
+                foreach (var shopBreakdown in shippingSummary.Breakdown)
+                {
+                    _context.OrderShopShippings.Add(new OrderShopShipping
+                    {
+                        OrderId = order.Id,
+                        ShopId = shopBreakdown.ShopId,
+                        ShippingMethodName = shopBreakdown.ShippingMethodName,
+                        ShippingCost = shopBreakdown.ShippingCost,
+                        Subtotal = shopBreakdown.Subtotal,
+                        MinDays = shopBreakdown.MinDays,   // ⭐ AJOUT
+                        MaxDays = shopBreakdown.MaxDays,   // ⭐ AJOUT
+                    });
+                }
                 await _context.SaveChangesAsync();
 
                 // 5. Ajouter les items et mettre à jour le stock
@@ -125,7 +152,6 @@ namespace ECommerceApi.Services
                 }
                 else
                 {
-                    // Pour le cash à la livraison, pas de paiement Stripe
                     _logger.LogInformation($"📦 Commande {order.OrderNumber} en cash à la livraison");
                 }
 
@@ -147,15 +173,19 @@ namespace ECommerceApi.Services
                 .Include(o => o.Items)
                 .ThenInclude(i => i.Product)
                 .ThenInclude(p => p.Shop)
+                .Include(o => o.ShopShippings)
                 .FirstOrDefaultAsync(o => o.Id == orderId);
         }
 
+        // ⭐ MODIFICATION — GetOrderByNumberAsync avec MinDays et MaxDays
         public async Task<OrderResponseDto?> GetOrderByNumberAsync(string orderNumber)
         {
             return await _context.Orders
                 .Include(o => o.User)
                 .Include(o => o.Items)
                 .ThenInclude(i => i.Product)
+                .Include(o => o.ShopShippings)
+                .ThenInclude(s => s.Shop)
                 .Where(o => o.OrderNumber == orderNumber)
                 .Select(o => new OrderResponseDto
                 {
@@ -198,6 +228,16 @@ namespace ECommerceApi.Services
                         ShopId = i.Product != null ? i.Product.ShopId : null,
                         ShopName = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Name : null,
                         IsReviewed = i.IsReviewed
+                    }).ToList(),
+                    ShippingBreakdown = o.ShopShippings.Select(s => new OrderShopShippingDto
+                    {
+                        ShopId = s.ShopId,
+                        ShopName = s.Shop != null ? s.Shop.Name : null,
+                        ShippingMethodName = s.ShippingMethodName,
+                        ShippingCost = s.ShippingCost,
+                        Subtotal = s.Subtotal,
+                        MinDays = s.MinDays,   // ⭐ AJOUT
+                        MaxDays = s.MaxDays,   // ⭐ AJOUT
                     }).ToList()
                 })
                 .FirstOrDefaultAsync();
@@ -227,16 +267,20 @@ namespace ECommerceApi.Services
                 .Where(o => o.UserId == userId)
                 .Include(o => o.Items)
                 .ThenInclude(i => i.Product)
+                .Include(o => o.ShopShippings)
                 .OrderByDescending(o => o.CreatedAt)
                 .ToListAsync();
         }
 
+        // ⭐ MODIFICATION — GetShopOrdersAsync avec MinDays et MaxDays
         public async Task<List<OrderResponseDto>> GetShopOrdersAsync(int shopId)
         {
             return await _context.Orders
                 .Include(o => o.User)
                 .Include(o => o.Items)
                 .ThenInclude(i => i.Product)
+                .Include(o => o.ShopShippings)
+                .ThenInclude(s => s.Shop)
                 .Where(o => o.Items.Any(i => i.Product.ShopId == shopId))
                 .OrderByDescending(o => o.CreatedAt)
                 .Select(o => new OrderResponseDto
@@ -280,7 +324,19 @@ namespace ECommerceApi.Services
                         ShopId = i.Product != null ? i.Product.ShopId : null,
                         ShopName = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Name : null,
                         IsReviewed = i.IsReviewed
-                    }).ToList()
+                    }).ToList(),
+                    ShippingBreakdown = o.ShopShippings
+                        .Where(s => s.ShopId == shopId)
+                        .Select(s => new OrderShopShippingDto
+                        {
+                            ShopId = s.ShopId,
+                            ShopName = s.Shop != null ? s.Shop.Name : null,
+                            ShippingMethodName = s.ShippingMethodName,
+                            ShippingCost = s.ShippingCost,
+                            Subtotal = s.Subtotal,
+                            MinDays = s.MinDays,   // ⭐ AJOUT
+                            MaxDays = s.MaxDays,   // ⭐ AJOUT
+                        }).ToList()
                 })
                 .ToListAsync();
         }
@@ -305,7 +361,6 @@ namespace ECommerceApi.Services
 
         public async Task<bool> IsUserShopOwnerAsync(int userId, int orderId)
         {
-            // Récupérer les IDs des boutiques du vendeur
             var shopIds = await _context.Shops
                 .Where(s => s.OwnerId == userId && s.IsActive)
                 .Select(s => s.Id)
@@ -314,7 +369,6 @@ namespace ECommerceApi.Services
             if (!shopIds.Any())
                 return false;
 
-            // Vérifier si la commande contient des produits de ces boutiques
             return await _context.OrderItems
                 .Include(oi => oi.Product)
                 .AnyAsync(oi => oi.OrderId == orderId &&
@@ -395,13 +449,10 @@ namespace ECommerceApi.Services
             if (order == null)
                 return false;
 
-            // Vérifier si la commande peut être annulée
             var statusNum = (int)order.Status;
             
-            // Cas 1: Commande en attente ou en traitement - Annulation simple
-            if (statusNum == 0 || statusNum == 1) // Pending (0) ou Processing (1)
+            if (statusNum == 0 || statusNum == 1)
             {
-                // Restaurer le stock
                 foreach (var item in order.Items)
                 {
                     var product = await _context.Products.FindAsync(item.ProductId);
@@ -418,14 +469,12 @@ namespace ECommerceApi.Services
                 return true;
             }
             
-            // Cas 2: Commande livrée - Vérifier délai de 14 jours
-            if (statusNum == 3) // Delivered
+            if (statusNum == 3)
             {
                 var daysSinceOrder = (DateTime.UtcNow - order.CreatedAt).TotalDays;
                 
                 if (daysSinceOrder <= 14)
                 {
-                    // Demander le remboursement via Stripe
                     try
                     {
                         if (!string.IsNullOrEmpty(order.PaymentIntentId))
@@ -449,8 +498,7 @@ namespace ECommerceApi.Services
                 }
             }
             
-            // Cas 3: Commande expédiée mais pas livrée
-            if (statusNum == 2) // Shipped
+            if (statusNum == 2)
             {
                 order.Status = OrderStatus.Cancelled;
                 order.UpdatedAt = DateTime.UtcNow;
@@ -471,7 +519,6 @@ namespace ECommerceApi.Services
             if (order == null)
                 return false;
 
-            // Vérifier que la commande est livrée et dans les 14 jours
             if (order.Status != OrderStatus.Delivered)
                 return false;
 
@@ -479,7 +526,6 @@ namespace ECommerceApi.Services
             if (daysSinceOrder > 14)
                 return false;
 
-            // Vérifier qu'une demande n'existe pas déjà
             if (order.Status == OrderStatus.ReturnRequested)
                 return false;
 
@@ -488,7 +534,6 @@ namespace ECommerceApi.Services
 
             await _context.SaveChangesAsync();
 
-            // TODO: Envoyer un email au vendeur et au client
             _logger.LogInformation($"📧 Demande de retour pour commande {order.OrderNumber} par utilisateur {userId}");
 
             return true;
@@ -506,7 +551,6 @@ namespace ECommerceApi.Services
             if (order.Status != OrderStatus.ReturnRequested)
                 return false;
 
-            // Restaurer le stock
             foreach (var item in order.Items)
             {
                 var product = await _context.Products.FindAsync(item.ProductId);
@@ -516,7 +560,6 @@ namespace ECommerceApi.Services
                 }
             }
 
-            // Effectuer le remboursement Stripe
             try
             {
                 if (!string.IsNullOrEmpty(order.PaymentIntentId))
@@ -536,8 +579,6 @@ namespace ECommerceApi.Services
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation($"💰 Remboursement effectué pour commande {order.OrderNumber}");
-                
-                // TODO: Envoyer un email au client confirmant le remboursement
                 
                 return true;
             }
@@ -559,24 +600,25 @@ namespace ECommerceApi.Services
             if (order.Status != OrderStatus.ReturnRequested)
                 return false;
 
-            order.Status = OrderStatus.Delivered; // Remettre en livré
+            order.Status = OrderStatus.Delivered;
             order.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
             _logger.LogInformation($"❌ Demande de retour refusée pour commande {order.OrderNumber}");
-            
-            // TODO: Envoyer un email au client expliquant le refus
 
             return true;
         }
 
+        // ⭐ MODIFICATION — GetOrdersByStatusAsync avec MinDays et MaxDays
         public async Task<List<OrderResponseDto>> GetOrdersByStatusAsync(OrderStatus status)
         {
             return await _context.Orders
                 .Include(o => o.User)
                 .Include(o => o.Items)
                 .ThenInclude(i => i.Product)
+                .Include(o => o.ShopShippings)
+                .ThenInclude(s => s.Shop)
                 .Where(o => o.Status == status)
                 .OrderByDescending(o => o.CreatedAt)
                 .Select(o => new OrderResponseDto
@@ -620,6 +662,16 @@ namespace ECommerceApi.Services
                         ShopId = i.Product != null ? i.Product.ShopId : null,
                         ShopName = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Name : null,
                         IsReviewed = i.IsReviewed
+                    }).ToList(),
+                    ShippingBreakdown = o.ShopShippings.Select(s => new OrderShopShippingDto
+                    {
+                        ShopId = s.ShopId,
+                        ShopName = s.Shop != null ? s.Shop.Name : null,
+                        ShippingMethodName = s.ShippingMethodName,
+                        ShippingCost = s.ShippingCost,
+                        Subtotal = s.Subtotal,
+                        MinDays = s.MinDays,   // ⭐ AJOUT
+                        MaxDays = s.MaxDays,   // ⭐ AJOUT
                     }).ToList()
                 })
                 .ToListAsync();

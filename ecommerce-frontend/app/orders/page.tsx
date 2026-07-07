@@ -147,27 +147,20 @@ export default function OrdersPage() {
     return 'text-yellow-600 dark:text-yellow-400';
   };
 
+  // ⭐ MODIFICATION — ordre des vérifications inversé
   const getItemImage = (item: any, orderId: number, itemIndex: number) => {
     const imageKey = `${orderId}-${itemIndex}`;
-    
-    // Si l'image existe déjà, l'utiliser
-    if (item.productImage) {
-      return getImageUrl(item.productImage);
-    }
-    
-    // Si erreur d'image, retourner le placeholder
+
+    // ⭐ APRÈS — on vérifie D'ABORD si cette image a déjà échoué
     if (imageErrors[imageKey]) {
       return '/images/product-placeholder.svg';
     }
-    
-    // Essayer de trouver une image dans le produit
+    if (item.productImage) {
+      return getImageUrl(item.productImage);
+    }
     if (item.product?.imageUrl) {
       return getImageUrl(item.product.imageUrl);
     }
-    if (item.product?.imageUrl1) {
-      return getImageUrl(item.product.imageUrl1);
-    }
-    
     return '/images/product-placeholder.svg';
   };
 

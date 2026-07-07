@@ -18,6 +18,9 @@ const CartRecommendations = ({ currentItemIds }: CartRecommendationsProps) => {
   const [loading, setLoading] = useState(true);
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
 
+  // ⭐ AJOUT — clé stable dérivée du contenu, pas de la référence du tableau
+  const itemIdsKey = currentItemIds.join(',');
+
   useEffect(() => {
     const fetchRecommendations = async () => {
       try {
@@ -26,7 +29,8 @@ const CartRecommendations = ({ currentItemIds }: CartRecommendationsProps) => {
           pageSize: 4,
         });
         
-        console.log('📦 Réponse recommandations:', response);
+        // ⭐ SUPPRIMÉ — console.log de debug
+        // console.log('📦 Réponse recommandations:', response);
         
         let products: Product[] = [];
         const data: any = response;
@@ -55,7 +59,7 @@ const CartRecommendations = ({ currentItemIds }: CartRecommendationsProps) => {
     };
 
     fetchRecommendations();
-  }, [currentItemIds]);
+  }, [itemIdsKey]);   // ⭐ MODIFIÉ (était [currentItemIds])
 
   const handleImageError = (productId: number) => {
     setImageErrors(prev => ({ ...prev, [productId]: true }));

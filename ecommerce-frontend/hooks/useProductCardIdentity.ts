@@ -84,6 +84,15 @@ export function useProductCardIdentity(shopId: number | null | undefined, produc
       const linkedPage = pages.find(p => p.linkedProductId === productId);
       const style = linkedPage?.productPageStyle;
 
+      // ⭐ LOG DE DÉBOGAGE
+      console.log('🔍 Identity check', {
+        productId,
+        shopId,
+        pagesCount: pages.length,
+        linkedPage,
+        style,
+      });
+
       if (style) {
         const preset = TEMPLATE_PRESETS[style.template] || TEMPLATE_PRESETS.classic;
         const templateDefault = style.backgroundColor || FALLBACK_IDENTITY.panelColor;

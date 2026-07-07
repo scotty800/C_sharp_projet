@@ -59,13 +59,15 @@ const CartItem = ({ item }: CartItemProps) => {
   const mutedColor = identity.mutedTextColor || identity.textColor + '80';
 
   return (
+    // ⭐ MODIFICATION — ajout de transition dans le style inline
     <div
-      className="flex flex-col sm:flex-row gap-5 p-5 mb-4 last:mb-0 transition-shadow"
+      className="flex flex-col sm:flex-row gap-5 p-5 mb-4 last:mb-0"
       style={{
         backgroundColor: identity.panelColor,
         borderRadius: `${identity.borderRadius}px`,
         boxShadow: identity.boxShadow,
         border: identity.source === 'product-page' ? `1px solid ${identity.borderColor}` : '1px solid #eeeeee',
+        transition: 'background-color 300ms ease, border-color 300ms ease, box-shadow 300ms ease',   // ⭐ AJOUT
       }}
     >
       {/* Image — ouvre le popup */}

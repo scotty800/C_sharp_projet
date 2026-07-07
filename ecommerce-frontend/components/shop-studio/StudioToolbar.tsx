@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { FiArrowLeft, FiSave, FiMonitor, FiTablet, FiSmartphone, FiEye, FiZoomIn, FiZoomOut, FiMaximize } from 'react-icons/fi';
+import { FiArrowLeft, FiSave, FiMonitor, FiTablet, FiSmartphone, FiEye, FiZoomIn, FiZoomOut, FiMaximize, FiBarChart2 } from 'react-icons/fi';
 import ProductPageToolbarButton from './Productpagetoolbarbutton';
 
 interface Props {
@@ -14,13 +14,13 @@ interface Props {
   onZoomOut: () => void;
   onZoomReset: () => void;
   zoom: number;
-  onOpenProductPage: () => void; // ← NOUVEAU
+  onOpenProductPage: () => void;
 }
 
 export default function StudioToolbar({ 
   shop, saving, onSave, previewMode, onPreviewModeChange,
   onZoomIn, onZoomOut, onZoomReset, zoom,
-  onOpenProductPage, // ← NOUVEAU
+  onOpenProductPage,
 }: Props) {
   const router = useRouter();
 
@@ -99,7 +99,7 @@ export default function StudioToolbar({
         </div>
       </div>
 
-      {/* ── Droite : Page Produit + save + voir ── */}
+      {/* ── Droite : Page Produit + Dashboard + save + voir ── */}
       <div className="flex items-center gap-2">
         {saving && (
           <div className="flex items-center gap-1.5 text-[11px]" style={{ color: '#f59e0b' }}>
@@ -108,8 +108,20 @@ export default function StudioToolbar({
           </div>
         )}
 
-        {/* ← NOUVEAU BOUTON PAGE PRODUIT */}
         <ProductPageToolbarButton onOpen={onOpenProductPage} />
+
+        {/* ⭐ AJOUT — bouton Dashboard */}
+        <button
+          onClick={() => router.push(`/dashboard/seller?shopId=${shop?.id}`)}
+          title="Voir le tableau de bord"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+          style={{ background: '#11121a', border: '1px solid #1b1c26', color: '#6b7280' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#e5e7eb'; (e.currentTarget as HTMLElement).style.borderColor = '#2d303f'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#6b7280'; (e.currentTarget as HTMLElement).style.borderColor = '#1b1c26'; }}
+        >
+          <FiBarChart2 size={13} />
+          Dashboard
+        </button>
 
         <div className="w-px h-4" style={{ background: '#1b1c26' }} />
 

@@ -109,18 +109,20 @@ function SidebarCartItem({
   const mutedColor = identity.mutedTextColor || identity.textColor + '80';
 
   return (
+    // ⭐ MODIFICATION — ajout de transition dans le style inline
     <li
-      className="flex gap-3 p-3 transition-shadow"
+      className="flex gap-3 p-3"
       style={{
         backgroundColor: identity.panelColor,
         borderRadius: `${identity.borderRadius}px`,
         boxShadow: identity.boxShadow,
         border: identity.source === 'product-page' ? `1px solid ${identity.borderColor}` : '1px solid #eeeeee',
+        transition: 'background-color 300ms ease, border-color 300ms ease, box-shadow 300ms ease',
       }}
     >
-      {/* Image — non cliquable */}
+      {/* ⭐ MODIFICATION — Image avec style amélioré */}
       <div
-        className="relative w-16 h-16 flex-shrink-0 overflow-hidden bg-gray-100 dark:bg-gray-800"
+        className="relative w-16 h-16 flex-shrink-0 overflow-hidden bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700"
         style={{ borderRadius: `${Math.max(identity.borderRadius - 4, 0)}px` }}
       >
         <Image
