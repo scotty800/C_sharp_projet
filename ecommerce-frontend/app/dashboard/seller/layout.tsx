@@ -67,15 +67,19 @@ export default function SellerDashboardLayout({
         return statusStr === 'ReturnRequested' || statusNum === 6;
       }).length;
       
-      // Compter les commandes en attente de confirmation (Pending = 0)
+      // ⭐ MODIFICATION — Élargir le filtre des commandes à traiter
       const pendingShipmentCount = orders.filter(order => {
         const statusStr = String(order.status);
         const statusNum = typeof order.status === 'number' ? order.status : parseInt(order.status as any);
-        return statusStr === 'Pending' || statusNum === 0;
+        return (
+          statusStr === 'Pending' || statusNum === 0 ||
+          statusStr === 'Processing' || statusNum === 1 ||
+          statusStr === 'Shipped' || statusNum === 2
+        );
       }).length;
       
       console.log('🔔 Retours en attente:', pendingReturnCount);
-      console.log('🔔 Livraisons en attente:', pendingShipmentCount);
+      console.log('🔔 Commandes en cours de traitement:', pendingShipmentCount);
       
       setPendingReturnsCount(pendingReturnCount);
       setPendingShipmentsCount(pendingShipmentCount);
@@ -117,7 +121,6 @@ export default function SellerDashboardLayout({
           const shopExists = transformedShops.some(s => s.id === Number(shopIdFromUrl));
           if (shopExists) {
             setSelectedShop(Number(shopIdFromUrl));
-            // Vérifier les notifications pour cette boutique
             checkNotifications(Number(shopIdFromUrl));
           } else if (transformedShops.length > 0) {
             setSelectedShop(transformedShops[0].id);
@@ -147,7 +150,7 @@ export default function SellerDashboardLayout({
     const pollInterval = setInterval(() => {
       console.log('🔄 Vérification auto des notifications...');
       checkNotifications(selectedShop);
-    }, 5000); // Toutes les 5 secondes
+    }, 5000);
 
     return () => clearInterval(pollInterval);
   }, [selectedShop, checkNotifications]);
@@ -255,14 +258,14 @@ export default function SellerDashboardLayout({
                 </Link>
               )}
 
-              {/* Badge Commandes en attente de confirmation */}
+              {/* ⭐ MODIFICATION — Badge Commandes en cours de traitement */}
               {pendingShipmentsCount > 0 && (
                 <Link
                   href={`/dashboard/seller/orders?shopId=${selectedShop}`}
                   className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors relative animate-pulse"
                 >
                   <FiTruck size={18} />
-                  Commandes à traiter
+                  Commandes en cours de traitement
                   <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-bounce">
                     {pendingShipmentsCount}
                   </span>

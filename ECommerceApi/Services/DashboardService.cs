@@ -74,12 +74,22 @@ namespace ECommerceApi.Services
                 .OrderBy(d => d.Date)
                 .ToList();
 
+            // ⭐ AJOUT — DailyRevenue
+            dashboard.DailyRevenue = orders
+                .GroupBy(o => o.CreatedAt.Date)
+                .Select(g => new DailyStatDto
+                {
+                    Date = g.Key.ToString("yyyy-MM-dd"),
+                    Count = g.Count(),
+                    Amount = g.Sum(o => o.FinalAmount)
+                })
+                .OrderBy(d => d.Date)
+                .ToList();
 
             dashboard.TotalProductsSold = orders
                 .SelectMany(o => o.Items)
                 .Where(i => i.Product.ShopId == shopId)
                 .Sum(i => i.Quantity);
-
 
             dashboard.TopProductsByViews = await GetTopProductsByViewsAsync(shopId, 5);
 
@@ -88,6 +98,7 @@ namespace ECommerceApi.Services
             return dashboard;
         }
 
+        // ⭐ MODIFICATION — GetTopProductsByViewsAsync avec ProductImage
         public async Task<List<ProductStatsDto>> GetTopProductsByViewsAsync(int shopId, int limit = 10)
         {
             var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
@@ -119,10 +130,12 @@ namespace ECommerceApi.Services
                         .Where(oi => oi.ProductId == item.ProductId && oi.Order.CreatedAt >= thirtyDaysAgo)
                         .ToListAsync();
 
+                    // ⭐ APRÈS — avec ProductImage
                     result.Add(new ProductStatsDto
                     {
                         ProductId = product.Id,
                         ProductName = product.Name,
+                        ProductImage = product.ImageUrl ?? product.ImageUrl1 ?? product.ImageUrl2 ?? product.ImageUrl3,
                         Price = product.Price,
                         Views = item.Views,
                         Orders = orders.Count,
@@ -138,11 +151,11 @@ namespace ECommerceApi.Services
             return result;
         }
 
+        // ⭐ MODIFICATION — GetTopProductsBySalesAsync avec ProductImage
         public async Task<List<ProductStatsDto>> GetTopProductsBySalesAsync(int shopId, int limit = 10)
         {
             var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
 
-            // Récupérer les OrderItems avec les relations Product et Order
             var orderItems = await _context.OrderItems
                 .Include(oi => oi.Product)
                 .Include(oi => oi.Order)
@@ -151,13 +164,14 @@ namespace ECommerceApi.Services
                              && oi.Order.Status != OrderStatus.Cancelled)
                 .ToListAsync();
 
-            // Group by ProductId
+            // ⭐ APRÈS — avec ProductImage
             var productSales = orderItems
                 .GroupBy(oi => oi.ProductId)
                 .Select(g => new
                 {
                     ProductId = g.Key,
                     ProductName = g.First().Product.Name,
+                    ProductImage = g.First().Product.ImageUrl ?? g.First().Product.ImageUrl1 ?? g.First().Product.ImageUrl2 ?? g.First().Product.ImageUrl3,
                     Price = g.First().Product.Price,
                     QuantitySold = g.Sum(oi => oi.Quantity),
                     Revenue = g.Sum(oi => oi.Quantity * oi.UnitPrice),
@@ -174,10 +188,12 @@ namespace ECommerceApi.Services
                 var views = await _context.ProductViews
                     .CountAsync(pv => pv.ProductId == item.ProductId && pv.ViewedAt >= thirtyDaysAgo);
 
+                // ⭐ APRÈS — avec ProductImage
                 result.Add(new ProductStatsDto
                 {
                     ProductId = item.ProductId,
                     ProductName = item.ProductName,
+                    ProductImage = item.ProductImage,
                     Price = item.Price,
                     Views = views,
                     Orders = item.Orders,
@@ -191,6 +207,7 @@ namespace ECommerceApi.Services
 
             return result;
         }
+
         public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(int shopId)
         {
             var now = DateTime.UtcNow;
@@ -211,7 +228,6 @@ namespace ECommerceApi.Services
 
             summary.TotalVisits = await _context.ShopVisits
                 .CountAsync(v => v.ShopId == shopId);
-
 
             var orders = await _context.Orders
                 .Include(o => o.Items)
@@ -236,8 +252,8 @@ namespace ECommerceApi.Services
                 : 0;
 
             summary.AverageOrderValue = summary.TotalOrders > 0
-            ? Math.Round((double)(summary.TotalRevenue / summary.TotalOrders), 2)
-            : 0;
+                ? Math.Round((double)(summary.TotalRevenue / summary.TotalOrders), 2)
+                : 0;
 
             return summary;
         }

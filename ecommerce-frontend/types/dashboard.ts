@@ -13,20 +13,32 @@ export interface DailyStats {
   amount?: number;
 }
 
+// ⭐ APRÈS — aligné sur ShopDashboardDto réel
 export interface ShopDashboard {
+  totalVisits: number;
+  uniqueVisitors: number;
+  totalOrders: number;
+  totalRevenue: number;
+  totalProductsSold: number;
   dailyVisits: DailyStats[];
   dailyOrders: DailyStats[];
   dailyRevenue: DailyStats[];
-  topProducts: TopProduct[];
-  stats: DashboardStats;
+  topProductsByViews: TopProduct[];
+  topProductsBySales: TopProduct[];
+  visitsByDevice: Record<string, number>;
+  visitsByHour: Record<string, number>;
 }
 
 export interface TopProduct {
-  id: number;
-  name: string;
+  productId: number;
+  productName: string;
+  productImage?: string;
+  price: number;
   views: number;
-  sales: number;
+  orders: number;
+  quantitySold: number;
   revenue: number;
+  conversionRate: number;
 }
 
 export interface DashboardSummary {

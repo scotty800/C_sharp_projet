@@ -2,107 +2,66 @@
 
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { 
-  StatsCard, 
-  RecentOrders, 
-  Chart, 
-  TopProducts
-} from '@/components/dashboard';
-import { 
-  FiDollarSign, 
-  FiShoppingBag, 
-  FiUsers, 
-  FiEye,
-  FiPackage,
-  FiStar
+import { StatsCard, TopProducts } from '@/components/dashboard';
+import { RealChart } from '@/components/dashboard/RealChart';
+import {
+  FiDollarSign, FiShoppingBag, FiEye, FiUsers, FiPackage, FiTrendingUp
 } from 'react-icons/fi';
 import { dashboardService } from '@/services/api/dashboard';
-import { orderService } from '@/services/api/orders';
-import { OrderResponseDto } from '@/types/order';
+import { ShopDashboard } from '@/types';
 import { formatPrice } from '@/services/utils/formatters';
 
-export default function SellerDashboard() {
+const DEVICE_COLORS: Record<string, string> = {
+  mobile: '#6366f1',
+  desktop: '#10b981',
+  tablet: '#f59e0b',
+  unknown: '#9ca3af',
+};
+
+const DEVICE_LABELS: Record<string, string> = {
+  mobile: 'Mobile',
+  desktop: 'Ordinateur',
+  tablet: 'Tablette',
+  unknown: 'Inconnu',
+};
+
+// ⭐ Construit un tableau complet 00h → 23h, même si certaines heures n'ont aucune visite
+function buildHourlyData(visitsByHour: Record<string, number>) {
+  const labels: string[] = [];
+  const values: number[] = [];
+  for (let h = 0; h < 24; h++) {
+    const key = h.toString().padStart(2, '0') + 'h';
+    labels.push(key);
+    values.push(visitsByHour[key] || 0);
+  }
+  return { labels, values };
+}
+
+export default function SellerStatsPage() {
   const searchParams = useSearchParams();
   const shopId = Number(searchParams.get('shopId'));
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<any>(null);
-  const [recentOrders, setRecentOrders] = useState<OrderResponseDto[]>([]);
-  const [topProducts, setTopProducts] = useState<any[]>([]);
-  
-  // Initialiser avec des données vides
-  const [chartData, setChartData] = useState<{
-    labels: string[];
-    values: number[];
-  }>({
-    labels: [],
-    values: [],
-  });
+  const [dashboard, setDashboard] = useState<ShopDashboard | null>(null);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!shopId) {
-        setLoading(false);
-        return;
-      }
+    if (!shopId) {
+      setLoading(false);
+      return;
+    }
 
+    const fetchStats = async () => {
       try {
         setLoading(true);
-        
-        // Récupérer les stats du dashboard
-        try {
-          const dashboardStats = await dashboardService.getDashboardSummary(shopId);
-          setStats(dashboardStats || {});
-        } catch (error) {
-          console.error('Erreur chargement stats:', error);
-          setStats({});
-        }
-
-        // Récupérer les commandes récentes
-        try {
-          const orders = await orderService.getShopOrders(shopId);
-          setRecentOrders(Array.isArray(orders) ? orders.slice(0, 5) : []);
-        } catch (error) {
-          console.error('Erreur chargement commandes:', error);
-          setRecentOrders([]);
-        }
-
-        // Récupérer les produits les plus vendus
-        try {
-          const products = await dashboardService.getTopProductsByViews(shopId, 5);
-          setTopProducts(Array.isArray(products) ? products : []);
-        } catch (error) {
-          console.error('Erreur chargement top produits:', error);
-          setTopProducts([]);
-        }
-
-        // Récupérer les données du graphique
-        try {
-          const dashboard = await dashboardService.getShopDashboard(shopId);
-          if (dashboard && dashboard.dailyRevenue && dashboard.dailyRevenue.length > 0) {
-            const validValues = dashboard.dailyRevenue
-              .map(d => d.amount)
-              .filter((amount): amount is number => amount !== undefined && amount !== null);
-            
-            if (validValues.length > 0) {
-              setChartData({
-                labels: dashboard.dailyRevenue.map(d => 
-                  new Date(d.date).toLocaleDateString('fr-FR', { weekday: 'short' })
-                ),
-                values: validValues,
-              });
-            }
-          }
-        } catch (error) {
-          console.error('Erreur chargement graphique:', error);
-        }
+        const data = await dashboardService.getShopDashboard(shopId);
+        setDashboard(data);
       } catch (error) {
-        console.error('Erreur chargement dashboard:', error);
+        console.error('Erreur chargement statistiques:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDashboardData();
+    fetchStats();
   }, [shopId]);
 
   if (loading) {
@@ -113,99 +72,172 @@ export default function SellerDashboard() {
     );
   }
 
-  // Calculer les tendances (comparaison mois précédent)
-  const calculateTrend = (current: number, previous: number) => {
-    if (!previous || previous === 0) return undefined;
-    const change = ((current - previous) / previous) * 100;
-    return {
-      value: Math.round(Math.abs(change) * 10) / 10,
-      isPositive: change > 0,
-    };
+  if (!dashboard) {
+    return (
+      <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <p className="text-gray-500 dark:text-gray-400">Aucune statistique disponible</p>
+      </div>
+    );
+  }
+
+  const conversionRate = dashboard.totalVisits > 0
+    ? ((dashboard.totalOrders / dashboard.totalVisits) * 100).toFixed(1)
+    : 'N/A';
+
+  const summaryCards = [
+    { title: 'Visites totales (30j)', value: dashboard.totalVisits, icon: FiEye, color: 'blue' as const },
+    { title: 'Visiteurs uniques', value: dashboard.uniqueVisitors, icon: FiUsers, color: 'purple' as const },
+    { title: 'Commandes (30j)', value: dashboard.totalOrders, icon: FiShoppingBag, color: 'green' as const },
+    { title: "Chiffre d'affaires (30j)", value: formatPrice(dashboard.totalRevenue), icon: FiDollarSign, color: 'primary' as const },
+    { title: 'Produits vendus', value: dashboard.totalProductsSold, icon: FiPackage, color: 'orange' as const },
+    { title: 'Taux de conversion', value: conversionRate === 'N/A' ? 'N/A' : `${conversionRate}%`, icon: FiTrendingUp, color: 'blue' as const },
+  ];
+
+  // ─── Revenus par jour ───
+  const revenueChartData = {
+    labels: dashboard.dailyRevenue.map(d => new Date(d.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })),
+    datasets: [{
+      label: 'Revenus (€)',
+      data: dashboard.dailyRevenue.map(d => d.amount || 0),
+      borderColor: '#6366f1',
+      backgroundColor: '#6366f120',
+      fill: true,
+      tension: 0.4,
+    }],
   };
 
-  // Valeurs mockées pour les mois précédents (à remplacer par de vraies données)
-  const previousMonthRevenue = stats?.monthRevenue ? stats.monthRevenue * 0.8 : 0; // Exemple: -20%
-  const previousMonthOrders = stats?.monthOrders ? stats.monthOrders * 1.1 : 0;   // Exemple: +10%
-  const previousMonthVisits = stats?.monthVisits ? stats.monthVisits * 0.95 : 0;  // Exemple: -5%
+  // ─── Commandes par jour ───
+  const ordersChartData = {
+    labels: dashboard.dailyOrders.map(d => new Date(d.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })),
+    datasets: [{
+      label: 'Commandes',
+      data: dashboard.dailyOrders.map(d => d.count),
+      backgroundColor: '#10b981',
+      borderRadius: 6,
+    }],
+  };
 
-  const statCards = stats ? [
-    {
-      title: 'Chiffre d\'affaires',
-      value: formatPrice(stats.monthRevenue || 0),
-      icon: FiDollarSign,
-      trend: calculateTrend(stats.monthRevenue || 0, previousMonthRevenue),
-      color: 'primary' as const,
-    },
-    {
-      title: 'Commandes',
-      value: stats.monthOrders || 0,
-      icon: FiShoppingBag,
-      trend: calculateTrend(stats.monthOrders || 0, previousMonthOrders),
-      color: 'green' as const,
-    },
-    {
-      title: 'Visiteurs',
-      value: stats.monthVisits || 0,
-      icon: FiEye,
-      trend: calculateTrend(stats.monthVisits || 0, previousMonthVisits),
-      color: 'blue' as const,
-    },
-    {
-      title: 'Taux de conversion',
-      value: `${((stats.monthOrders / (stats.monthVisits || 1)) * 100 || 0).toFixed(1)}%`,
-      icon: FiUsers,
-      trend: undefined, // Pas de tendance pour le taux de conversion
-      color: 'purple' as const,
-    },
-  ] : [];
+  // ─── Visites par jour ───
+  const visitsChartData = {
+    labels: dashboard.dailyVisits.map(d => new Date(d.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })),
+    datasets: [{
+      label: 'Visites',
+      data: dashboard.dailyVisits.map(d => d.count),
+      borderColor: '#f59e0b',
+      backgroundColor: '#f59e0b20',
+      fill: true,
+      tension: 0.4,
+    }],
+  };
+
+  // ─── Répartition par appareil ───
+  const deviceEntries = Object.entries(dashboard.visitsByDevice || {});
+  const deviceChartData = {
+    labels: deviceEntries.map(([key]) => DEVICE_LABELS[key] || key),
+    datasets: [{
+      data: deviceEntries.map(([, count]) => count),
+      backgroundColor: deviceEntries.map(([key]) => DEVICE_COLORS[key] || '#9ca3af'),
+      borderWidth: 0,
+    }],
+  };
+
+  // ─── Visites par heure ───
+  const hourly = buildHourlyData(dashboard.visitsByHour || {});
+  const hourlyChartData = {
+    labels: hourly.labels,
+    datasets: [{
+      label: 'Visites',
+      data: hourly.values,
+      backgroundColor: '#8b5cf6',
+      borderRadius: 4,
+    }],
+  };
 
   return (
     <div className="space-y-8">
-      {/* En-tête */}
       <div>
-        <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Tableau de bord</h1>
+        <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Statistiques détaillées</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Bienvenue dans votre espace vendeur. Voici un aperçu de votre activité.
+          Analyse complète de votre activité sur les 30 derniers jours.
         </p>
       </div>
 
-      {/* Statistiques */}
-      {stats ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {statCards.map((stat, index) => (
-            <StatsCard key={index} {...stat} />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
-          <p className="text-gray-500 dark:text-gray-400">Aucune statistique disponible</p>
-        </div>
-      )}
+      {/* Cartes résumé */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {summaryCards.map((stat, index) => (
+          <StatsCard key={index} {...stat} />
+        ))}
+      </div>
 
-      {/* Graphique et produits populaires */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          {chartData.values.length > 0 ? (
-            <Chart data={chartData} title="Évolution des ventes" />
+      {/* Revenus */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+        <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Évolution des revenus</h3>
+        {dashboard.dailyRevenue.length > 0 ? (
+          <RealChart type="line" data={revenueChartData} height={300} />
+        ) : (
+          <div className="h-72 flex items-center justify-center">
+            <p className="text-gray-500 dark:text-gray-400">Aucune donnée de vente disponible</p>
+          </div>
+        )}
+      </div>
+
+      {/* Commandes + Visites côte à côte */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Commandes par jour</h3>
+          {dashboard.dailyOrders.length > 0 ? (
+            <RealChart type="bar" data={ordersChartData} height={260} />
           ) : (
-            <div className="h-80 flex items-center justify-center">
-              <p className="text-gray-500 dark:text-gray-400">Aucune donnée de vente disponible</p>
+            <div className="h-64 flex items-center justify-center">
+              <p className="text-gray-500 dark:text-gray-400">Aucune commande</p>
             </div>
           )}
         </div>
-        <div className="lg:col-span-1">
-          <TopProducts products={topProducts} />
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Visites par jour</h3>
+          {dashboard.dailyVisits.length > 0 ? (
+            <RealChart type="line" data={visitsChartData} height={260} />
+          ) : (
+            <div className="h-64 flex items-center justify-center">
+              <p className="text-gray-500 dark:text-gray-400">Aucune visite</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Commandes récentes */}
-      {recentOrders && recentOrders.length > 0 ? (
-        <RecentOrders orders={recentOrders} />
-      ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-12 text-center">
-          <p className="text-gray-500 dark:text-gray-400">Aucune commande récente</p>
+      {/* Device + Heures côte à côte */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Répartition par appareil</h3>
+          {deviceEntries.length > 0 ? (
+            <RealChart type="doughnut" data={deviceChartData} height={260} />
+          ) : (
+            <div className="h-64 flex items-center justify-center">
+              <p className="text-gray-500 dark:text-gray-400">Aucune donnée disponible</p>
+            </div>
+          )}
         </div>
-      )}
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Visites par heure</h3>
+          <RealChart type="bar" data={hourlyChartData} height={260} />
+        </div>
+      </div>
+
+      {/* ⭐ MODIFICATION — Top produits avec titres et messages personnalisés */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TopProducts
+          products={dashboard.topProductsBySales}
+          title="Produits les plus vendus"
+          emptyMessage="Aucun produit vendu sur les 30 derniers jours"
+        />
+        <TopProducts
+          products={dashboard.topProductsByViews}
+          title="Produits les plus consultés"
+          emptyMessage="Aucune vue produit enregistrée sur les 30 derniers jours"
+        />
+      </div>
     </div>
   );
 }

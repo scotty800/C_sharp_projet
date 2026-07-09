@@ -31,6 +31,7 @@ namespace ECommerceApi.Controllers
             _context = context;
         }
 
+        // ⭐ MODIFICATION — Retourne directement le dashboard sans wrapper
         [HttpGet("shop/{shopId}")]
         public async Task<IActionResult> GetShopDashboard(
             int shopId,
@@ -45,11 +46,8 @@ namespace ECommerceApi.Controllers
 
             var dashboard = await _dashboardService.GetShopDashboardAsync(shopId, startDate, endDate);
 
-            return Ok(new
-            {
-                shop = new { shop.Id, shop.Name, shop.Slug },
-                dashboard
-            });
+            // ⭐ Retourner directement le dashboard, le frontend n'a pas besoin du shop ici
+            return Ok(dashboard);
         }
 
         [HttpGet("shop/{shopId}/top-views")]
@@ -64,6 +62,14 @@ namespace ECommerceApi.Controllers
         {
             var summary = await _dashboardService.GetDashboardSummaryAsync(shopId);
             return Ok(summary);
+        }
+
+        // ⭐ AJOUT — Nouvel endpoint pour les produits les plus vendus
+        [HttpGet("shop/{shopId}/top-products-sales")]
+        public async Task<IActionResult> GetTopProductsBySales(int shopId, [FromQuery] int limit = 10)
+        {
+            var products = await _dashboardService.GetTopProductsBySalesAsync(shopId, limit);
+            return Ok(products);
         }
 
         [HttpGet("shop/{shopId}/export")]

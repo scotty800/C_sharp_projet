@@ -2,8 +2,6 @@
 
 import Link from 'next/link';
 import { 
-  FiPlus, 
-  FiPackage, 
   FiSettings, 
   FiDownload,
   FiUpload,
@@ -15,19 +13,8 @@ interface QuickActionsProps {
 }
 
 const QuickActions = ({ shopId }: QuickActionsProps) => {
+  // ⭐ MODIFICATION — "Ajouter un produit" et "Gérer le stock" retirés
   const actions = [
-    {
-      icon: FiPlus,
-      label: 'Ajouter un produit',
-      href: `/dashboard/seller/products/new${shopId ? `?shopId=${shopId}` : ''}`,
-      color: 'bg-primary hover:bg-primary-dark',
-    },
-    {
-      icon: FiPackage,
-      label: 'Gérer le stock',
-      href: `/dashboard/seller/products${shopId ? `?shopId=${shopId}` : ''}`,
-      color: 'bg-blue-500 hover:bg-blue-600',
-    },
     {
       icon: FiPercent,
       label: 'Promotions',
@@ -57,7 +44,7 @@ const QuickActions = ({ shopId }: QuickActionsProps) => {
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {actions.map((action, index) => {
         const Icon = action.icon;
         return (

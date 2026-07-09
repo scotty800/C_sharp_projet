@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   FiHome, 
-  FiShoppingBag, 
   FiPackage, 
   FiUsers, 
   FiSettings, 
@@ -14,7 +13,7 @@ import {
   FiLogOut,
   FiChevronLeft,
   FiChevronRight,
-  FiRefreshCw  // ← Ajoute cette importation
+  FiRefreshCw
 } from 'react-icons/fi';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,11 +27,11 @@ const Sidebar = ({ shopId }: SidebarProps) => {
   const { logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
 
+  // ⭐ MODIFICATION — Ligne "Produits" retirée
   const menuItems = [
     { icon: FiHome, label: 'Aperçu', href: `/dashboard/seller${shopId ? `?shopId=${shopId}` : ''}` },
-    { icon: FiShoppingBag, label: 'Produits', href: `/dashboard/seller/products${shopId ? `?shopId=${shopId}` : ''}` },
     { icon: FiPackage, label: 'Commandes', href: `/dashboard/seller/orders${shopId ? `?shopId=${shopId}` : ''}` },
-    { icon: FiRefreshCw, label: 'Demandes de retour', href: `/dashboard/seller/returns${shopId ? `?shopId=${shopId}` : ''}` }, // ← AJOUTE CETTE LIGNE
+    { icon: FiRefreshCw, label: 'Demandes de retour', href: `/dashboard/seller/returns${shopId ? `?shopId=${shopId}` : ''}` },
     { icon: FiUsers, label: 'Clients', href: `/dashboard/seller/customers${shopId ? `?shopId=${shopId}` : ''}` },
     { icon: FiBarChart2, label: 'Statistiques', href: `/dashboard/seller/stats${shopId ? `?shopId=${shopId}` : ''}` },
     { icon: FiCreditCard, label: 'Paiements', href: `/dashboard/seller/payments${shopId ? `?shopId=${shopId}` : ''}` },

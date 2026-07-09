@@ -30,16 +30,18 @@ namespace ECommerceApi.DTO
         public decimal? Amount { get; set; }
     }
 
+    // ⭐ APRÈS
     public class ProductStatsDto
     {
         public int ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
+        public string? ProductImage { get; set; }
         public decimal Price { get; set; }
         public int Views { get; set; }
         public int Orders { get; set; }
         public int QuantitySold { get; set; }
         public decimal Revenue { get; set; }
-        public double ConversionRate { get; set; } // (Orders / Views) * 100
+        public double ConversionRate { get; set; }
     }
 
     public class DashboardSummaryDto

@@ -2,7 +2,7 @@ import api from './axios';
 import { ShopDashboard, TopProduct, DashboardSummary, RealtimeStats } from '@/types';
 
 export const dashboardService = {
-  // Récupérer le dashboard d'une boutique
+  // ⭐ MODIFICATION — Le backend renvoie directement le dashboard
   async getShopDashboard(
     shopId: number, 
     startDate?: Date, 
@@ -17,6 +17,14 @@ export const dashboardService = {
   // Récupérer les produits les plus vus
   async getTopProductsByViews(shopId: number, limit = 10): Promise<TopProduct[]> {
     const response = await api.get<TopProduct[]>(`/dashboard/shop/${shopId}/top-views`, {
+      params: { limit },
+    });
+    return response.data;
+  },
+
+  // ⭐ AJOUT — Récupérer les produits les plus vendus
+  async getTopProductsBySales(shopId: number, limit = 10): Promise<TopProduct[]> {
+    const response = await api.get<TopProduct[]>(`/dashboard/shop/${shopId}/top-products-sales`, {
       params: { limit },
     });
     return response.data;

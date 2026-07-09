@@ -2,40 +2,50 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Product } from '@/types/product';
 import { formatPrice } from '@/services/utils/formatters';
-import { FiTrendingUp, FiEye } from 'react-icons/fi';
+import { FiTrendingUp } from 'react-icons/fi';
+import { TopProduct } from '@/types';
 
+// ⭐ MODIFICATION — Interface avec title et emptyMessage optionnels
 interface TopProductsProps {
-  products: (Product & { sales: number; revenue: number })[];
+  products: TopProduct[];
+  title?: string;
+  emptyMessage?: string;
 }
 
-const TopProducts = ({ products = [] }: TopProductsProps) => {
+// ⭐ MODIFICATION — Props avec valeurs par défaut
+const TopProducts = ({
+  products = [],
+  title = 'Produits les plus vendus',
+  emptyMessage = 'Aucun produit vendu',
+}: TopProductsProps) => {
   if (!products || products.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center">
-        <p className="text-gray-500 dark:text-gray-400">Aucun produit vendu</p>
+        <p className="text-gray-500 dark:text-gray-400">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+      {/* ⭐ MODIFICATION — Titre dynamique */}
       <div className="p-6 border-b dark:border-gray-700">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Produits les plus vendus</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
       </div>
 
       <div className="divide-y divide-gray-200 dark:divide-gray-700">
         {products.map((product, index) => {
-          // ✅ CLÉ UNIQUE : Utilisation de l'ID du produit avec fallback
-          const productKey = product.id || `product-${index}`;
-          // ✅ TEXTE ALTERNATIF : Validation pour éviter les alt vides
-          const altText = product.name && product.name.trim() ? product.name : 'Produit image';
+          // ⭐ MODIFICATION — Utilisation de productId
+          const productKey = product.productId || `product-${index}`;
+          const altText = product.productName && product.productName.trim() 
+            ? product.productName 
+            : 'Produit image';
 
           return (
             <div key={productKey} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50">
               <div className="flex items-center gap-4">
-                {/* Rang (l'index est utilisé pour l'affichage, PAS pour la clé) */}
+                {/* Rang */}
                 <div className="w-8 text-center">
                   {index === 0 && <FiTrendingUp className="text-green-500" size={20} />}
                   {index > 0 && (
@@ -43,11 +53,11 @@ const TopProducts = ({ products = [] }: TopProductsProps) => {
                   )}
                 </div>
 
-                {/* Image avec attribut ALT validé */}
-                <Link href={`/product/${product.id}`} className="flex-shrink-0">
+                {/* ⭐ MODIFICATION — Utilisation de productImage et productId */}
+                <Link href={`/product/${product.productId}`} className="flex-shrink-0">
                   <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
                     <Image
-                      src={product.imageUrl || '/images/product-placeholder.svg'}
+                      src={product.productImage || '/images/product-placeholder.svg'}
                       alt={altText}
                       fill
                       className="object-cover"
@@ -57,16 +67,16 @@ const TopProducts = ({ products = [] }: TopProductsProps) => {
                   </div>
                 </Link>
 
-                {/* Infos */}
+                {/* ⭐ MODIFICATION — Utilisation de productName et quantitySold */}
                 <div className="flex-1 min-w-0">
                   <Link 
-                    href={`/product/${product.id}`}
+                    href={`/product/${product.productId}`}
                     className="text-sm font-medium text-gray-900 dark:text-white hover:text-primary transition-colors line-clamp-1"
                   >
-                    {product.name}
+                    {product.productName}
                   </Link>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {product.sales} ventes
+                    {product.quantitySold} vendu{product.quantitySold > 1 ? 's' : ''}
                   </p>
                 </div>
 
@@ -79,14 +89,6 @@ const TopProducts = ({ products = [] }: TopProductsProps) => {
                     {formatPrice(product.price)}/unité
                   </p>
                 </div>
-
-                {/* Actions */}
-                <Link
-                  href={`/dashboard/seller/products/${product.id}`}
-                  className="p-2 text-gray-400 dark:text-gray-500 hover:text-primary transition-colors"
-                >
-                  <FiEye size={18} />
-                </Link>
               </div>
             </div>
           );
