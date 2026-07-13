@@ -25,7 +25,7 @@ public class PaymentController : ControllerBase
     }
 
     [HttpPost("create-intent")]
-    [Authorize]  // ✅ Authentification requise
+    [Authorize]
     public async Task<IActionResult> CreatePaymentIntent([FromBody] CreatePaymentIntentDto intentDto)
     {
         try
@@ -38,8 +38,6 @@ public class PaymentController : ControllerBase
             if (order == null || order.UserId != userId)
                 return NotFound(new { message = "Commande non trouvée" });
 
-            // ✅ Créer un PaymentIntent SANS payment method
-            // Le frontend va ajouter la méthode de paiement via Stripe.js
             var paymentIntent = await _paymentService.CreatePaymentIntentAsync(
                 order.FinalAmount,
                 order.OrderNumber
@@ -47,7 +45,6 @@ public class PaymentController : ControllerBase
 
             _logger.LogInformation("✅ PaymentIntent créé: {PaymentIntentId}", paymentIntent.Id);
 
-            // Mettre à jour le statut
             await _orderService.UpdatePaymentStatusAsync(
                 order.Id,
                 PaymentStatus.Pending,
@@ -75,8 +72,85 @@ public class PaymentController : ControllerBase
         }
     }
 
+    // ⭐ NOUVEAU ENDPOINT — Création d'une session de checkout
+    [HttpPost("create-checkout-intent")]
+    [Authorize]
+    public async Task<IActionResult> CreateCheckoutIntent([FromBody] CreateCheckoutIntentDto dto)
+    {
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var result = await _orderService.CreateCheckoutSessionAsync(userId, dto);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Erreur create-checkout-intent");
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ⭐ NOUVEAU ENDPOINT — Finalisation de la commande après paiement
+    [HttpPost("finalize-order")]
+    [Authorize]
+    public async Task<IActionResult> FinalizeOrder([FromBody] FinalizeOrderDto dto)
+    {
+        try
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+            var order = await _orderService.FinalizeOrderAsync(userId, dto.PaymentIntentId);
+            return Ok(new { orderId = order.Id, orderNumber = order.OrderNumber });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Erreur finalize-order");
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    // ⭐ ENDPOINT SUPPRIMÉ — GetPendingOrder n'est plus utilisé
+    /*
+    [HttpGet("pending-order")]
+    [Authorize]
+    public async Task<IActionResult> GetPendingOrder()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var order = await _orderService.GetPendingUnpaidOrderAsync(userId);
+
+        if (order == null || string.IsNullOrEmpty(order.PaymentIntentId))
+            return Ok(new { hasPendingOrder = false });
+
+        try
+        {
+            var paymentIntent = await _paymentService.GetPaymentIntentAsync(order.PaymentIntentId);
+
+            if (paymentIntent.Status == "succeeded")
+            {
+                await _orderService.UpdatePaymentStatusAsync(order.Id, PaymentStatus.Paid, order.PaymentIntentId);
+                return Ok(new { hasPendingOrder = false, alreadyPaid = true, orderId = order.Id });
+            }
+
+            if (paymentIntent.Status == "canceled")
+                return Ok(new { hasPendingOrder = false });
+
+            return Ok(new
+            {
+                hasPendingOrder = true,
+                orderId = order.Id,
+                orderNumber = order.OrderNumber,
+                clientSecret = paymentIntent.ClientSecret,
+                amount = order.FinalAmount
+            });
+        }
+        catch (StripeException)
+        {
+            return Ok(new { hasPendingOrder = false });
+        }
+    }
+    */
+
     [HttpPost("confirm")]
-    [Authorize]  // ✅ Authentification requise
+    [Authorize]
     public async Task<IActionResult> ConfirmPayment([FromBody] ConfirmPaymentDto confirmDto)
     {
         try
@@ -90,8 +164,6 @@ public class PaymentController : ControllerBase
             if (order == null || order.UserId != userId)
                 return NotFound(new { message = "Commande non trouvée" });
 
-            // ✅ Récupérer le PaymentIntent (qui a déjà été confirmé par le frontend)
-            // Le frontend a déjà collecté et traité la méthode de paiement
             var paymentIntent = await _paymentService.GetPaymentIntentAsync(confirmDto.PaymentIntentId);
 
             _logger.LogInformation("📦 PaymentIntent récupéré: status={Status}", paymentIntent.Status);
@@ -100,14 +172,12 @@ public class PaymentController : ControllerBase
             {
                 _logger.LogInformation("✅ Paiement réussi pour commande {OrderId}", confirmDto.OrderId);
 
-                // Mettre à jour le statut de paiement
                 await _orderService.UpdatePaymentStatusAsync(
                     confirmDto.OrderId,
                     PaymentStatus.Paid,
                     confirmDto.PaymentIntentId
                 );
 
-                // Mettre à jour le statut de la commande
                 await _orderService.UpdateOrderStatusAsync(
                     confirmDto.OrderId,
                     OrderStatus.Processing
@@ -122,7 +192,6 @@ public class PaymentController : ControllerBase
             }
             else if (paymentIntent.Status == "requires_payment_method")
             {
-                // ❌ Le PaymentIntent attend une méthode de paiement
                 _logger.LogWarning("⚠️ PaymentIntent attend une méthode de paiement: {PaymentIntentId}", confirmDto.PaymentIntentId);
                 return BadRequest(new
                 {
@@ -151,7 +220,7 @@ public class PaymentController : ControllerBase
     }
 
     [HttpPost("{orderId}/refund")]
-    [Authorize(Roles = "Admin")]  // ✅ Admin uniquement
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RefundPayment(int orderId, [FromBody] RefundRequestDto refundDto)
     {
         try
@@ -188,7 +257,7 @@ public class PaymentController : ControllerBase
     }
 
     [HttpGet("intent/{paymentIntentId}")]
-    [Authorize]  // ✅ Authentification requise
+    [Authorize]
     public async Task<IActionResult> GetPaymentIntent(string paymentIntentId)
     {
         try

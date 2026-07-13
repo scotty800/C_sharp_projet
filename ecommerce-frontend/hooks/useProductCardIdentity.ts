@@ -52,16 +52,18 @@ const shopStyleCache = new Map<
   { promise: Promise<{ pages: StudioPage[]; customization: any }>; timestamp: number }
 >();
 
+// ⭐ MODIFICATION — utilise l'endpoint public (pas d'auth requise)
 function loadShopStyleData(shopId: number) {
   const cached = shopStyleCache.get(shopId);
   const isExpired = !cached || Date.now() - cached.timestamp > CACHE_TTL_MS;
 
   if (isExpired) {
-    const promise = Promise.all([
-      shopCustomizationService.getBlocks(shopId).catch(() => []),
-      shopCustomizationService.getByShopId(shopId).catch(() => null),
-    ]).then(([blocksFromApi, customization]) => {
+    // ⭐ CORRECTION — un seul appel à l'endpoint public (pas d'auth requise,
+    // fonctionne pour n'importe quel visiteur/client, pas seulement le propriétaire)
+    const promise = shopCustomizationService.getPublished(shopId).catch(() => null).then((published) => {
+      const blocksFromApi = published?.blocks ?? [];
       const { pages } = parsePagesAndBlocks(blocksFromApi as any[]);
+      const customization = published?.customization ?? null;
       return { pages, customization };
     });
     shopStyleCache.set(shopId, { promise, timestamp: Date.now() });

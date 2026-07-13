@@ -64,4 +64,60 @@ export const paymentService = {
       throw error;
     }
   },
+
+  // ⭐ NOUVEAU — Créer une session de checkout
+  async createCheckoutIntent(data: {
+    paymentMethod: number;
+    shippingAddress: string;
+    shippingCity: string;
+    shippingPostalCode: string;
+    shippingCountry: string;
+    billingAddress?: string;
+    billingCity?: string;
+    billingPostalCode?: string;
+    billingCountry?: string;
+    notes?: string;
+  }): Promise<{
+    checkoutSessionId: number;
+    clientSecret?: string;
+    paymentIntentId?: string;
+    subtotal: number;
+    shippingCost: number;
+    taxAmount: number;
+    total: number;
+    requiresOnlinePayment: boolean;
+    orderId?: number;
+  }> {
+    try {
+      console.log('📤 Création checkout intent');
+      console.log('  URL finale:', api.defaults.baseURL + '/payments/create-checkout-intent');
+      console.log('  Données:', data);
+      
+      const response = await api.post('/payments/create-checkout-intent', data);
+      console.log('✅ Checkout intent créé:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Erreur createCheckoutIntent:', error.response?.data);
+      throw error;
+    }
+  },
+
+  // ⭐ NOUVEAU — Finaliser la commande après paiement
+  async finalizeOrder(paymentIntentId: string): Promise<{ orderId: number; orderNumber: string }> {
+    try {
+      console.log('📤 Finalisation de la commande');
+      console.log('  URL finale:', api.defaults.baseURL + '/payments/finalize-order');
+      console.log('  PaymentIntentId:', paymentIntentId);
+      
+      const response = await api.post('/payments/finalize-order', { paymentIntentId });
+      console.log('✅ Commande finalisée:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Erreur finalizeOrder:', error.response?.data);
+      throw error;
+    }
+  },
+
+  // ⭐ MÉTHODE SUPPRIMÉE — getPendingOrder n'est plus utilisée
+  // async getPendingOrder(): Promise<{ ... }> { ... }
 };

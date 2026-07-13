@@ -11,18 +11,18 @@ public class OrderController : ControllerBase
 {
     private readonly IOrderService _orderService;
     private readonly ICartService _cartService;
-    private readonly IInvoiceService _invoiceService;   // ⭐ AJOUT
+    private readonly IInvoiceService _invoiceService;
     private readonly ILogger<OrderController> _logger;
 
     public OrderController(
         IOrderService orderService,
         ICartService cartService,
-        IInvoiceService invoiceService,   // ⭐ AJOUT
+        IInvoiceService invoiceService,
         ILogger<OrderController> logger)
     {
         _orderService = orderService;
         _cartService = cartService;
-        _invoiceService = invoiceService;   // ⭐ AJOUT
+        _invoiceService = invoiceService;
         _logger = logger;
     }
 
@@ -58,7 +58,7 @@ public class OrderController : ControllerBase
         }
     }
 
-    // ⭐ MODIFICATION — GetMyOrders avec cascade sur les 4 champs d'image
+    // ⭐ MODIFICATION — GetMyOrders avec ShopSlug
     [HttpGet("my-orders")]
     [Authorize]
     public async Task<IActionResult> GetMyOrders()
@@ -99,7 +99,6 @@ public class OrderController : ControllerBase
             DeliveredAt = o.DeliveredAt,
             Items = o.Items.Select(i =>
             {
-                // ⭐ APRÈS — cascade sur les 4 champs d'image possibles
                 var imageUrl = i.Product?.ImageUrl 
                     ?? i.Product?.ImageUrl1 
                     ?? i.Product?.ImageUrl2 
@@ -116,7 +115,10 @@ public class OrderController : ControllerBase
                     TotalPrice = i.TotalPrice,
                     ShopId = i.Product?.ShopId,
                     ShopName = i.Product?.Shop?.Name,
-                    IsReviewed = i.IsReviewed
+                    ShopSlug = i.Product?.Shop?.Slug,   // ⭐ AJOUT
+                    IsReviewed = i.IsReviewed,
+                    SelectedColor = i.SelectedColor,
+                    SelectedSize = i.SelectedSize
                 };
             }).ToList()
         }).ToList();
@@ -124,7 +126,7 @@ public class OrderController : ControllerBase
         return Ok(orderDtos);
     }
 
-    // ⭐ MODIFICATION — GetOrderById avec cascade sur les 4 champs d'image
+    // ⭐ MODIFICATION — GetOrderById avec ShopSlug
     [HttpGet("{id}")]
     [Authorize]
     public async Task<IActionResult> GetOrderById(int id)
@@ -172,7 +174,6 @@ public class OrderController : ControllerBase
                 Id = i.Id,
                 ProductId = i.ProductId,
                 ProductName = i.Product?.Name ?? "",
-                // ⭐ APRÈS — cascade sur les 4 champs d'image
                 ProductImage = i.Product?.ImageUrl 
                     ?? i.Product?.ImageUrl1 
                     ?? i.Product?.ImageUrl2 
@@ -182,7 +183,10 @@ public class OrderController : ControllerBase
                 TotalPrice = i.TotalPrice,
                 ShopId = i.Product?.ShopId,
                 ShopName = i.Product?.Shop?.Name,
-                IsReviewed = i.IsReviewed
+                ShopSlug = i.Product?.Shop?.Slug,   // ⭐ AJOUT
+                IsReviewed = i.IsReviewed,
+                SelectedColor = i.SelectedColor,
+                SelectedSize = i.SelectedSize
             }).ToList()
         };
 
@@ -257,23 +261,23 @@ public class OrderController : ControllerBase
         var isShopOwner = await _orderService.IsUserShopOwnerAsync(userId, id);
 
         if (!isAdmin && !isShopOwner)
+            return Forbid();
+
+        try
         {
-            _logger.LogWarning($"⚠️ Utilisateur {userId} non autorisé pour commande {id}");
-            return Unauthorized(new { message = "Vous n'êtes pas autorisé à modifier cette commande" });
+            var updated = await _orderService.UpdateOrderStatusAsync(id, statusDto.Status);
+
+            if (!updated)
+                return NotFound(new { message = "Erreur lors de la mise à jour" });
+
+            _logger.LogInformation($"✅ Commande {id} mise à jour vers {statusDto.Status} par user {userId}");
+
+            return Ok(new { message = $"Statut mis à jour: {statusDto.Status}", status = statusDto.Status });
         }
-
-        var updated = await _orderService.UpdateOrderStatusAsync(id, statusDto.Status);
-
-        if (!updated)
-            return NotFound(new { message = "Erreur lors de la mise à jour" });
-
-        _logger.LogInformation($"✅ Commande {id} mise à jour vers {statusDto.Status} par user {userId}");
-
-        return Ok(new
+        catch (InvalidOperationException ex)
         {
-            message = $"Statut mis à jour: {statusDto.Status}",
-            status = statusDto.Status
-        });
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("stats")]
@@ -347,7 +351,6 @@ public class OrderController : ControllerBase
         return Ok(new { message = "Demande de retour refusée. Le client sera notifié." });
     }
 
-    // ⭐ NOUVEAU ENDPOINT — Téléchargement de la facture PDF
     [HttpGet("{id}/invoice")]
     [Authorize]
     public async Task<IActionResult> DownloadInvoice(int id)

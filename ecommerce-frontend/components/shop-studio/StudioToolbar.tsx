@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { FiArrowLeft, FiSave, FiMonitor, FiTablet, FiSmartphone, FiEye, FiZoomIn, FiZoomOut, FiMaximize, FiBarChart2 } from 'react-icons/fi';
+import { FiArrowLeft, FiSave, FiMonitor, FiTablet, FiSmartphone, FiEye, FiZoomIn, FiZoomOut, FiMaximize, FiBarChart2, FiUploadCloud } from 'react-icons/fi';
 import ProductPageToolbarButton from './Productpagetoolbarbutton';
 
 interface Props {
@@ -15,12 +15,20 @@ interface Props {
   onZoomReset: () => void;
   zoom: number;
   onOpenProductPage: () => void;
+  onOpenPreview: () => void;       // ⭐ AJOUT
+  onPublish: () => void;           // ⭐ AJOUT
+  publishing: boolean;             // ⭐ AJOUT
+  isPublished?: boolean;           // ⭐ AJOUT — pour afficher un badge d'état
 }
 
 export default function StudioToolbar({ 
   shop, saving, onSave, previewMode, onPreviewModeChange,
   onZoomIn, onZoomOut, onZoomReset, zoom,
   onOpenProductPage,
+  onOpenPreview,
+  onPublish,
+  publishing,
+  isPublished,
 }: Props) {
   const router = useRouter();
 
@@ -99,7 +107,7 @@ export default function StudioToolbar({
         </div>
       </div>
 
-      {/* ── Droite : Page Produit + Dashboard + save + voir ── */}
+      {/* ── Droite : Page Produit + Dashboard + save + voir + publier ── */}
       <div className="flex items-center gap-2">
         {saving && (
           <div className="flex items-center gap-1.5 text-[11px]" style={{ color: '#f59e0b' }}>
@@ -110,7 +118,6 @@ export default function StudioToolbar({
 
         <ProductPageToolbarButton onOpen={onOpenProductPage} />
 
-        {/* ⭐ AJOUT — bouton Dashboard */}
         <button
           onClick={() => router.push(`/dashboard/seller?shopId=${shop?.id}`)}
           title="Voir le tableau de bord"
@@ -125,14 +132,17 @@ export default function StudioToolbar({
 
         <div className="w-px h-4" style={{ background: '#1b1c26' }} />
 
-        <a href={`/shop/${shop?.slug}`} target="_blank" rel="noopener noreferrer"
+        {/* ⭐ Aperçu — ouvre désormais le rendu isolé du brouillon */}
+        <button
+          onClick={onOpenPreview}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
           style={{ background: '#11121a', border: '1px solid #1b1c26', color: '#6b7280' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#e5e7eb'; (e.currentTarget as HTMLElement).style.borderColor = '#2d303f'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#6b7280'; (e.currentTarget as HTMLElement).style.borderColor = '#1b1c26'; }}>
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#6b7280'; (e.currentTarget as HTMLElement).style.borderColor = '#1b1c26'; }}
+        >
           <FiEye size={13} />
           Aperçu
-        </a>
+        </button>
 
         <button onClick={onSave} disabled={saving}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
@@ -142,6 +152,40 @@ export default function StudioToolbar({
           <FiSave size={13} />
           Sauvegarder
         </button>
+
+        <div className="w-px h-4" style={{ background: '#1b1c26' }} />
+
+        {/* ⭐ NOUVEAU — Publier */}
+        <button
+          onClick={onPublish}
+          disabled={publishing || saving}
+          title={isPublished ? 'Republier les dernières modifications' : 'Rendre la boutique visible aux clients'}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+          style={{
+            background: publishing ? '#1e1f2e' : 'linear-gradient(135deg, #10b981, #059669)',
+            color: '#ffffff',
+            boxShadow: publishing ? 'none' : '0 0 12px rgba(16,185,129,0.35)',
+          }}
+          onMouseEnter={e => { if (!publishing) (e.currentTarget as HTMLElement).style.transform = 'scale(1.02)'; }}
+          onMouseLeave={e => { if (!publishing) (e.currentTarget as HTMLElement).style.transform = 'scale(1)'; }}
+        >
+          {publishing ? (
+            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white" />
+          ) : (
+            <FiUploadCloud size={13} />
+          )}
+          {publishing ? 'Publication...' : isPublished ? 'Republier' : 'Publier'}
+        </button>
+
+        {isPublished && !publishing && (
+          <span
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full"
+            style={{ background: 'rgba(16,185,129,0.12)', color: '#10b981' }}
+            title="La boutique est actuellement visible par les clients"
+          >
+            ● En ligne
+          </span>
+        )}
       </div>
     </div>
   );

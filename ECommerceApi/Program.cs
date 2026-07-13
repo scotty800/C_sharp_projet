@@ -84,6 +84,9 @@ builder.Services.AddScoped<IShippingService, ShippingService>();
 builder.Services.AddScoped<IInvoiceService, InvoiceService>(); // ⭐ AJOUT
 builder.Services.AddScoped<AuthService>();
 
+// ⭐ RETIRÉ — Service de nettoyage des commandes abandonnées
+// builder.Services.AddHostedService<AbandonedOrderCleanupService>();
+
 // 🔐 Authentification JWT
 builder.Services.AddAuthentication(options =>
 {

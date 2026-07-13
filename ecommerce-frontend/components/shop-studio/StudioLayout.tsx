@@ -36,6 +36,8 @@ import { useBlockAnimation } from '@/hooks/useBlockAnimation';
 import { animationEngine } from '@/components/shop-studio/lib/animations/engine';
 import type { AnimationParams, BlockAnimationsConfig } from '@/types/animations';
 import { FiPlay, FiEyeOff } from 'react-icons/fi';
+// ⭐ IMPORT pour les toasts
+import toast from 'react-hot-toast';
 
 export interface BlockPosition {
   x: number;
@@ -388,6 +390,8 @@ export default function StudioLayout() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // ⭐ NOUVEAU ÉTAT publishing
+  const [publishing, setPublishing] = useState(false);
   const [isCropperOpen, setIsCropperOpen] = useState(false);
   const [zIndexVersion, setZIndexVersion] = useState(0);
   const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set());
@@ -1177,7 +1181,6 @@ export default function StudioLayout() {
               cur.imageUrl1 !== product.imageUrl1 || cur.imageUrl2 !== product.imageUrl2 || cur.imageUrl3 !== product.imageUrl3 ||
               cur.price !== product.price || cur.name !== product.name || cur.stock !== product.stock ||
               cur.sizes?.join(',') !== product.sizes?.join(',') || cur.colors?.join(',') !== product.colors?.join(',') ||
-              // ⭐ NOUVEAU: comparer les colorVariants
               JSON.stringify(cur.colorVariants) !== JSON.stringify(product.colorVariants)) {
             blockChanged = true;
             return { ...slot, linkedProduct: product };
@@ -1241,7 +1244,6 @@ export default function StudioLayout() {
           imageUrl1: imageUrl1,
           imageUrl2: imageUrl2,
           imageUrl3: imageUrl3,
-          // ⭐ NOUVEAU: colorVariants
           colorVariants: (p.colorVariants || p.variants || []).map((v: any) => ({
             ...v,
             sizes: Array.isArray(v.sizes) ? v.sizes : (Array.isArray(v.size) ? v.size : []),
@@ -1306,7 +1308,6 @@ export default function StudioLayout() {
             imageUrl1: imageUrl1,
             imageUrl2: imageUrl2,
             imageUrl3: imageUrl3,
-            // ⭐ NOUVEAU: colorVariants
             colorVariants: (p.colorVariants || p.variants || []).map((v: any) => ({
               ...v,
               sizes: Array.isArray(v.sizes) ? v.sizes : (Array.isArray(v.size) ? v.size : []),
@@ -1381,7 +1382,6 @@ export default function StudioLayout() {
               }
             }
             
-            // ⭐ colorVariants est passé via le spread { ...p, ...updates }
             const updatedProduct: StudioProduct = { 
               ...p, 
               ...updates,
@@ -1880,7 +1880,7 @@ export default function StudioLayout() {
     return [...new Set(fonts.filter(f => f && f !== 'Inter'))];
   }, [state.customization, state.blocks]);
 
-  // ⭐ loadData AVEC colorVariants
+  // ⭐ loadData AVEC colorVariants ET publication
   useEffect(() => {
     const loadData = async () => {
       if (!user) {
@@ -2070,6 +2070,7 @@ export default function StudioLayout() {
         setProductsList(normalizedProducts);
         setProductsVersion(prev => prev + 1);
 
+        // ⭐⭐ CONSTRUCTION DE CUSTOMIZATION AVEC PUBLICATION ⭐⭐
         setState(prev => ({
           ...prev,
           shop,
@@ -2086,6 +2087,9 @@ export default function StudioLayout() {
             backgroundValue: background?.backgroundValue || null,
             backgroundOpacity: background?.backgroundOpacity ?? 100,
             pageAnimationsConfig: loadedPageAnimationsConfig,
+            // ⭐ NOUVEAU : publication
+            isPublished: customization?.IsPublished ?? false,
+            publishedAt: customization?.PublishedAt ?? null,
           },
           filters: filters || { shopId: shop.id, globalFilter: 'none' },
           canvasFilters,
@@ -2252,6 +2256,76 @@ export default function StudioLayout() {
       setSaving(false);
     }
   }, [id, state.blocks, state.isDirty, state.canvasFilters, state.pages, sanitizeNumber]);
+
+  // ⭐⭐ NOUVELLE FONCTION openPreview ⭐⭐
+  const openPreview = useCallback(() => {
+    if (!state.shop) return;
+
+    const blocksByPageObj: Record<string, any[]> = {};
+    state.pages.forEach(p => {
+      blocksByPageObj[p.id] = state.blocks.filter(
+        b => (b.pageId || DEFAULT_PAGE_ID) === p.id && !isNavbarBlockType(b.type)
+      );
+    });
+
+    const globalBlocks = state.blocks.filter(b => isNavbarBlockType(b.type));
+
+    const previewData = {
+      shop: state.shop,
+      customization: state.customization,
+      canvasFilters: state.canvasFilters,
+      pages: state.pages,
+      blocksByPage: blocksByPageObj,
+      globalBlocks,
+      hasStudioContent: state.blocks.length > 0,
+      productsList,
+      globalProductCustomizations: Object.fromEntries(globalProductCustomizations),
+      usedFonts: getAllUsedFonts(),
+    };
+
+    try {
+      sessionStorage.setItem(`studio_preview:${state.shop.id}`, JSON.stringify(previewData));
+      window.open(`/preview/${state.shop.id}`, '_blank');
+    } catch (e) {
+      console.error('Erreur ouverture aperçu:', e);
+    }
+  }, [state.shop, state.pages, state.blocks, state.customization, state.canvasFilters, productsList, globalProductCustomizations, getAllUsedFonts]);
+
+  // ⭐⭐ NOUVELLE FONCTION handlePublish ⭐⭐
+  const handlePublish = useCallback(async () => {
+    if (!id) return;
+
+    const confirmed = window.confirm(
+      'Publier maintenant ? Les clients verront immédiatement ces modifications sur la boutique.'
+    );
+    if (!confirmed) return;
+
+    setPublishing(true);
+    try {
+      // ⭐ On s'assure que le brouillon en base est bien à jour avant de le figer
+      if (stateRef.current.isDirty) {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        await saveChanges();
+      }
+
+      await shopCustomizationService.publish(Number(id));
+
+      setState(prev => ({
+        ...prev,
+        customization: { ...prev.customization, isPublished: true, publishedAt: new Date().toISOString() },
+      }));
+
+      toast.success('Boutique publiée avec succès');
+    } catch (error) {
+      console.error('❌ Erreur publication:', error);
+      toast.error('Erreur lors de la publication');
+    } finally {
+      setPublishing(false);
+    }
+  }, [id, saveChanges]);
 
   useEffect(() => {
     const handleForceSave = () => {
@@ -2578,6 +2652,7 @@ export default function StudioLayout() {
       <GoogleFontsLoader fonts={usedFonts} />
 
       <div className="fixed inset-0 flex flex-col bg-gray-900 overflow-hidden">
+        {/* ⭐ Passage des props de publication à StudioToolbar */}
         <StudioToolbar
           shop={state.shop}
           saving={saving}
@@ -2589,6 +2664,10 @@ export default function StudioLayout() {
           onZoomReset={handleZoomReset}
           zoom={state.zoom}
           onOpenProductPage={() => setShowProductPageSidebar(true)}
+          onOpenPreview={openPreview}
+          onPublish={handlePublish}
+          publishing={publishing}
+          isPublished={!!state.customization?.isPublished}
         />
 
         <GlobalNavbarsBar

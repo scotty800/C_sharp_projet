@@ -52,16 +52,16 @@ export const shopCustomizationService = {
   },
 
   async updateBlocks(shopId: number, blocks: Block[]): Promise<void> {
-  try {
-    await api.put(`/shops/${shopId}/customization/blocks`, blocks, {
-      timeout: 60000, // ← ajouter ceci
-    });
-    console.log('✅ Blocs sauvegardés avec succès');
-  } catch (error: any) {
-    console.error('❌ Erreur updateBlocks:', error.response?.status, error.response?.data);
-    throw error;
-  }
-},
+    try {
+      await api.put(`/shops/${shopId}/customization/blocks`, blocks, {
+        timeout: 60000,
+      });
+      console.log('✅ Blocs sauvegardés avec succès');
+    } catch (error: any) {
+      console.error('❌ Erreur updateBlocks:', error.response?.status, error.response?.data);
+      throw error;
+    }
+  },
 
   // ⭐ AJOUTER CETTE MÉTHODE POUR RÉCUPÉRER LES FILTRES DU CANVAS
   async getCanvasFilters(shopId: number): Promise<any> {
@@ -89,6 +89,25 @@ export const shopCustomizationService = {
     } catch (error: any) {
       console.error('❌ Erreur updateCanvasFilters:', error.response?.status, error.response?.data);
       throw error;
+    }
+  },
+
+  // ⭐ NOUVEAU - Récupérer les données publiées de la boutique (endpoint public)
+  async getPublished(shopId: number): Promise<any> {
+    try {
+      const response = await api.get(`/shops/${shopId}/customization/published`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Erreur getPublished:', error.response?.status);
+      // Retourner un état "non publié" par défaut
+      return {
+        isPublished: false,
+        publishedAt: null,
+        blocks: [],
+        background: { backgroundColor: '#FFFFFF', backgroundType: 'solid', backgroundValue: null, backgroundOpacity: 100 },
+        canvasFilters: { globalBrightness: 1, globalContrast: 1, globalSaturation: 1, globalBlur: 0, globalCssFilter: 'none' },
+        customization: null,
+      };
     }
   },
 
@@ -379,14 +398,14 @@ export const shopCustomizationService = {
   },
 
   async getBackground(shopId: number): Promise<any> {
-  try {
-    const response = await api.get(`/shops/${shopId}/customization/background`);
-    return response.data;
-  } catch (error) {
-    console.error('Erreur getBackground:', error);
-    return { backgroundColor: '#FFFFFF', backgroundType: 'solid', backgroundOpacity: 100 };
-  }
-},
+    try {
+      const response = await api.get(`/shops/${shopId}/customization/background`);
+      return response.data;
+    } catch (error) {
+      console.error('Erreur getBackground:', error);
+      return { backgroundColor: '#FFFFFF', backgroundType: 'solid', backgroundOpacity: 100 };
+    }
+  },
 
   async getFeaturedProducts(shopId: number, limit: number = 10): Promise<any[]> {
     try {

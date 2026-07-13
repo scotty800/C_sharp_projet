@@ -41,6 +41,9 @@ namespace ECommerceApi.Data
         public DbSet<ShopShippingMethod> ShopShippingMethods { get; set; }
         public DbSet<OrderShopShipping> OrderShopShippings { get; set; }
 
+        // ⭐ NOUVEAU — Sessions de checkout Stripe
+        public DbSet<CheckoutSession> CheckoutSessions { get; set; }
+
         // ❌ SUPPRIMÉ - ImageSelection pour la bibliothèque d'images
         // public DbSet<ImageSelection> ImageSelections { get; set; }
 
@@ -175,6 +178,10 @@ namespace ECommerceApi.Data
 
             modelBuilder.Entity<OrderShopShipping>()
                 .HasIndex(s => new { s.OrderId, s.ShopId });
+
+            // ⭐ MODIFICATION — CONFIGURATION SIMPLIFIÉE POUR CHECKOUT SESSION
+            modelBuilder.Entity<CheckoutSession>()
+                .HasIndex(cs => new { cs.UserId, cs.PaymentIntentId });
         }
     }
 }

@@ -115,6 +115,9 @@ namespace ECommerceApi.DTO
         public int? ShopId { get; set; }
         public string? ShopName { get; set; }
         public bool IsReviewed { get; set; }
+        public string? SelectedColor { get; set; }
+        public string? SelectedSize { get; set; }
+        public string? ShopSlug { get; set; }
     }
 
     public class OrderResponseDto
@@ -186,6 +189,46 @@ namespace ECommerceApi.DTO
         public OrderStatus Status { get; set; }
         public string? TrackingNumber { get; set; }
     }
+
+    public class PendingOrderDto
+    {
+        public int OrderId { get; set; }
+        public string OrderNumber { get; set; } = string.Empty;
+        public string ClientSecret { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+    }
+
+    public class CreateCheckoutIntentDto
+{
+    [Required] public PaymentMethod PaymentMethod { get; set; }
+    [Required] public string ShippingAddress { get; set; } = string.Empty;
+    [Required] public string ShippingCity { get; set; } = string.Empty;
+    [Required] public string ShippingPostalCode { get; set; } = string.Empty;
+    [Required] public string ShippingCountry { get; set; } = string.Empty;
+    public string? BillingAddress { get; set; }
+    public string? BillingCity { get; set; }
+    public string? BillingPostalCode { get; set; }
+    public string? BillingCountry { get; set; }
+    public string? Notes { get; set; }
+}
+
+public class CheckoutIntentResponseDto
+{
+    public int CheckoutSessionId { get; set; }
+    public string? ClientSecret { get; set; }
+    public string? PaymentIntentId { get; set; }
+    public decimal Subtotal { get; set; }
+    public decimal ShippingCost { get; set; }
+    public decimal TaxAmount { get; set; }
+    public decimal Total { get; set; }
+    public bool RequiresOnlinePayment { get; set; }
+    public int? OrderId { get; set; } // rempli immédiatement si paiement à la livraison
+}
+
+public class FinalizeOrderDto
+{
+    [Required] public string PaymentIntentId { get; set; } = string.Empty;
+}
 
     // ============================================
     // REVIEW DTOs (Avis et Notes)

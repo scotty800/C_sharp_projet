@@ -40,7 +40,7 @@ namespace ECommerceApi.Controllers
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var customization = await _customizationService.GetByShopIdAsync(shopId);
             
@@ -101,7 +101,7 @@ namespace ECommerceApi.Controllers
                     BackgroundColor = s.BackgroundColor,
                     Order = s.Order,
                     IsVisible = s.IsVisible
-                }).ToList() ?? new(),
+                }).ToList() ?? new List<CustomSectionDto>(),
                 CustomAssets = customization.CustomAssets?.Select(a => new CustomAssetDto
                 {
                     Id = a.Id,
@@ -133,7 +133,7 @@ namespace ECommerceApi.Controllers
                     TextGlow = a.TextGlow,
                     LetterSpacing = a.LetterSpacing,
                     LineHeight = a.LineHeight
-                }).ToList() ?? new()
+                }).ToList() ?? new List<CustomAssetDto>()
             };
             
             return Ok(result);
@@ -144,7 +144,7 @@ namespace ECommerceApi.Controllers
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var result = await _customizationService.CreateOrUpdateAsync(shopId, userId, dto);
             return Ok(result);
@@ -155,7 +155,7 @@ namespace ECommerceApi.Controllers
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var customization = await _context.ShopCustomizations
                 .FirstOrDefaultAsync(c => c.ShopId == shopId);
@@ -175,35 +175,35 @@ namespace ECommerceApi.Controllers
         }
 
         [HttpGet("background")]
-public async Task<IActionResult> GetBackground(int shopId)
-{
-    var userId = GetUserId();
-    if (!await IsOwner(shopId, userId))
-        return Unauthorized();
+        public async Task<IActionResult> GetBackground(int shopId)
+        {
+            var userId = GetUserId();
+            if (!await IsOwner(shopId, userId))
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
-    var customization = await _context.ShopCustomizations
-        .FirstOrDefaultAsync(c => c.ShopId == shopId);
+            var customization = await _context.ShopCustomizations
+                .FirstOrDefaultAsync(c => c.ShopId == shopId);
 
-    if (customization == null)
-    {
-        return Ok(new { backgroundColor = "#FFFFFF", backgroundType = "solid", backgroundOpacity = 100 });
-    }
+            if (customization == null)
+            {
+                return Ok(new { backgroundColor = "#FFFFFF", backgroundType = "solid", backgroundOpacity = 100 });
+            }
 
-    return Ok(new 
-    { 
-        backgroundColor = customization.BackgroundColor ?? "#FFFFFF",
-        backgroundType = customization.BackgroundType ?? "solid",
-        backgroundValue = customization.BackgroundValue,
-        backgroundOpacity = customization.BackgroundOpacity ?? 100
-    });
-}
+            return Ok(new 
+            { 
+                backgroundColor = customization.BackgroundColor ?? "#FFFFFF",
+                backgroundType = customization.BackgroundType ?? "solid",
+                backgroundValue = customization.BackgroundValue,
+                backgroundOpacity = customization.BackgroundOpacity ?? 100
+            });
+        }
 
         [HttpDelete]
         public async Task<IActionResult> DeleteCustomization(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var result = await _customizationService.DeleteCustomizationAsync(shopId, userId);
             return Ok(new { deleted = result });
@@ -224,7 +224,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var section = await _customizationService.AddSectionAsync(shopId, userId, dto);
             return CreatedAtAction(nameof(GetSections), new { shopId }, section);
@@ -235,7 +235,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var section = await _customizationService.UpdateSectionAsync(shopId, userId, sectionId, dto);
             if (section == null)
@@ -249,7 +249,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var deleted = await _customizationService.DeleteSectionAsync(shopId, userId, sectionId);
 
@@ -264,7 +264,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var result = await _customizationService.ReorderSectionsAsync(shopId, userId, sectionIds);
             return Ok(result);
@@ -277,7 +277,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var assets = await _context.Assets
                 .Where(a => a.ShopId == shopId && a.IsActive)
@@ -333,7 +333,7 @@ public async Task<IActionResult> GetBackground(int shopId)
             {
                 var userId = GetUserId();
                 if (!await IsOwner(shopId, userId))
-                    return Unauthorized();
+                    return Forbid();  // ⭐ Unauthorized() → Forbid()
 
                 if (file == null || file.Length == 0)
                     return BadRequest("Fichier requis");
@@ -397,7 +397,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var asset = await _customizationService.AddAssetAsync(shopId, userId, dto);
             return CreatedAtAction(nameof(GetAssets), new { shopId }, asset);
@@ -408,7 +408,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var asset = await _customizationService.UpdateAssetAsync(shopId, userId, assetId, dto);
 
@@ -425,7 +425,7 @@ public async Task<IActionResult> GetBackground(int shopId)
             {
                 var userId = GetUserId();
                 if (!await IsOwner(shopId, userId))
-                    return Unauthorized();
+                    return Forbid();  // ⭐ Unauthorized() → Forbid()
 
                 var asset = await _context.Assets
                     .FirstOrDefaultAsync(a => a.Id == assetId && a.ShopId == shopId);
@@ -465,7 +465,7 @@ public async Task<IActionResult> GetBackground(int shopId)
             {
                 var userId = GetUserId();
                 if (!await IsOwner(shopId, userId))
-                    return Unauthorized();
+                    return Forbid();  // ⭐ Unauthorized() → Forbid()
 
                 var asset = await _context.Assets
                     .FirstOrDefaultAsync(a => a.Id == assetId && a.ShopId == shopId);
@@ -490,7 +490,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
             
             dto.ProductId = productId;
             var result = await _customizationService.UpdateProductCustomizationAsync(shopId, userId, dto);
@@ -520,7 +520,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var result = await _customizationService.ApplyTemplateAsync(shopId, userId, templateId, overrideExisting);
             return Ok(result);
@@ -531,7 +531,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var result = await _customizationService.SaveSnapshotAsync(shopId, userId, name);
             return Ok(new { name, saved = true });
@@ -542,7 +542,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var result = await _customizationService.RestoreSnapshotAsync(shopId, userId, name);
             return Ok(result);
@@ -560,7 +560,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var published = await _customizationService.PublishAsync(shopId, userId);
             return Ok(new { published });
@@ -571,7 +571,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var unpublished = await _customizationService.UnpublishAsync(shopId, userId);
             return Ok(new { published = !unpublished });
@@ -600,7 +600,7 @@ public async Task<IActionResult> GetBackground(int shopId)
             {
                 var userId = GetUserId();
                 if (!await IsOwner(shopId, userId))
-                    return Unauthorized();
+                    return Forbid();  // ⭐ Unauthorized() → Forbid()
 
                 var customization = await _context.ShopCustomizations
                     .FirstOrDefaultAsync(c => c.ShopId == shopId);
@@ -637,7 +637,7 @@ public async Task<IActionResult> GetBackground(int shopId)
             {
                 var userId = GetUserId();
                 if (!await IsOwner(shopId, userId))
-                    return Unauthorized();
+                    return Forbid();  // ⭐ Unauthorized() → Forbid()
 
                 var customization = await _context.ShopCustomizations
                     .FirstOrDefaultAsync(c => c.ShopId == shopId);
@@ -689,7 +689,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var customization = await _context.ShopCustomizations
                 .FirstOrDefaultAsync(c => c.ShopId == shopId);
@@ -705,7 +705,6 @@ public async Task<IActionResult> GetBackground(int shopId)
                 });
             }
 
-            // ⭐ CORRECTION : Les propriétés sont des valeurs non-nullables
             return Ok(new
             {
                 globalBrightness = customization.CanvasBrightness,
@@ -721,7 +720,7 @@ public async Task<IActionResult> GetBackground(int shopId)
         {
             var userId = GetUserId();
             if (!await IsOwner(shopId, userId))
-                return Unauthorized();
+                return Forbid();  // ⭐ Unauthorized() → Forbid()
 
             var customization = await _context.ShopCustomizations
                 .FirstOrDefaultAsync(c => c.ShopId == shopId);
@@ -736,7 +735,6 @@ public async Task<IActionResult> GetBackground(int shopId)
                 _context.ShopCustomizations.Add(customization);
             }
 
-            // ⭐ CORRECTION : Les DTO ont des float normaux, pas nullable
             customization.CanvasBrightness = dto.GlobalBrightness;
             customization.CanvasContrast = dto.GlobalContrast;
             customization.CanvasSaturation = dto.GlobalSaturation;
@@ -746,6 +744,88 @@ public async Task<IActionResult> GetBackground(int shopId)
 
             await _context.SaveChangesAsync();
             return Ok(new { message = "Filtres du canvas mis à jour" });
+        }
+
+        // ==================== ENDPOINT PUBLIC (boutique) ====================
+        // Aucune authentification : c'est cet endpoint que la boutique publique
+        // doit appeler, jamais les endpoints /blocks, /background, /canvas-filters
+        // ou /customization ci-dessus qui sont réservés au Studio (brouillon).
+
+        [HttpGet("published")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetPublishedData(int shopId)
+        {
+            var customization = await _context.ShopCustomizations
+                .FirstOrDefaultAsync(c => c.ShopId == shopId);
+
+            var hasSnapshot = !string.IsNullOrEmpty(customization?.PublishedBlocksJson);
+
+            if (!hasSnapshot)
+            {
+                // Jamais publiée : la boutique publique doit afficher un état "en préparation"
+                return Ok(new
+                {
+                    isPublished = false,
+                    publishedAt = (DateTime?)null,
+                    blocks = new List<BlockDto>(),
+                    background = new { backgroundColor = "#FFFFFF", backgroundType = "solid", backgroundValue = (string?)null, backgroundOpacity = 100 },
+                    canvasFilters = new { globalBrightness = 1f, globalContrast = 1f, globalSaturation = 1f, globalBlur = 0f, globalCssFilter = "none" },
+                    customization = (object?)null
+                });
+            }
+
+            var blocks = JsonSerializer.Deserialize<List<BlockDto>>(customization!.PublishedBlocksJson!) ?? new List<BlockDto>();
+
+            // ⭐ CORRECTION DE L'ERREUR CS0173
+            object background;
+            if (string.IsNullOrEmpty(customization.PublishedBackgroundJson))
+            {
+                background = new { backgroundColor = "#FFFFFF", backgroundType = "solid", backgroundValue = (string?)null, backgroundOpacity = 100 };
+            }
+            else
+            {
+                background = JsonSerializer.Deserialize<JsonElement>(customization.PublishedBackgroundJson);
+            }
+
+            // ⭐ CORRECTION DE L'ERREUR CS0173
+            object canvasFilters;
+            if (string.IsNullOrEmpty(customization.PublishedCanvasFiltersJson))
+            {
+                canvasFilters = new { globalBrightness = 1f, globalContrast = 1f, globalSaturation = 1f, globalBlur = 0f, globalCssFilter = "none" };
+            }
+            else
+            {
+                canvasFilters = JsonSerializer.Deserialize<JsonElement>(customization.PublishedCanvasFiltersJson);
+            }
+
+            object? customizationDto = null;
+            if (!string.IsNullOrEmpty(customization.PublishedCustomizationJson))
+            {
+                customizationDto = JsonSerializer.Deserialize<JsonElement>(customization.PublishedCustomizationJson);
+            }
+
+            return Ok(new
+            {
+                isPublished = customization.IsPublished,
+                publishedAt = customization.PublishedAt,
+                blocks,
+                background,
+                canvasFilters,
+                customization = customizationDto
+            });
+        }
+
+        // ==================== MÉTHODES PRIVÉES ====================
+
+        private int GetUserId()
+        {
+            return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        }
+
+        private async Task<bool> IsOwner(int shopId, int userId)
+        {
+            var shop = await _shopService.GetShopByIdAsync(shopId);
+            return shop != null && shop.OwnerId == userId;
         }
 
         private List<BlockDto> GetDefaultBlocksWithFullPosition()
@@ -881,19 +961,6 @@ public async Task<IActionResult> GetBackground(int shopId)
             });
             
             return blocks;
-        }
-
-        // ==================== MÉTHODES PRIVÉES ====================
-
-        private int GetUserId()
-        {
-            return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-        }
-
-        private async Task<bool> IsOwner(int shopId, int userId)
-        {
-            var shop = await _shopService.GetShopByIdAsync(shopId);
-            return shop != null && shop.OwnerId == userId;
         }
     }
 }

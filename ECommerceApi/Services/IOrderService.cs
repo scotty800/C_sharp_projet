@@ -27,5 +27,10 @@ namespace ECommerceApi.Services
         Task<bool> RequestReturnAsync(int orderId, int userId);
         Task<bool> ApproveReturnAsync(int orderId);
         Task<bool> RejectReturnAsync(int orderId);
+
+
+        Task<CheckoutIntentResponseDto> CreateCheckoutSessionAsync(int userId, CreateCheckoutIntentDto dto);
+        Task<Order> FinalizeOrderAsync(int userId, string paymentIntentId);
+        
     }
 }

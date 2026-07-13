@@ -11,6 +11,11 @@ import { FiPackage, FiTruck, FiCheckCircle, FiClock, FiEye, FiArrowRight } from 
 import { formatPrice, formatDate } from '@/services/utils/formatters';
 import { getImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
+// ⭐ NOUVEAUX IMPORTS
+import { resolveProductDisplay, getResolvedImages } from '@/components/shop-studio/lib/resolveProductDisplay';
+import { productService } from '@/services/api/products';
+// ⭐ NOUVEAU IMPORT
+import OrderProductViewModal from '@/components/orders/OrderProductViewModal';
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -18,7 +23,12 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderResponseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  // ⭐ NOUVEAU ÉTAT
+  const [productsById, setProductsById] = useState<Record<number, any>>({});
+  // ⭐ NOUVEAU ÉTAT — pour la popup
+  const [selectedItem, setSelectedItem] = useState<any>(null);
 
+  // ⭐ MODIFICATION — fetchOrders avec chargement des produits
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/auth/login?redirect=/orders');
@@ -34,6 +44,23 @@ export default function OrdersPage() {
         console.log('✅ Commandes reçues:', data);
         console.log('📦 Structure de la première commande:', JSON.stringify(data[0], null, 2));
         setOrders(data);
+
+        // ⭐ Charger les produits pour la résolution d'images par variante
+        // On charge uniquement les premiers produits de chaque commande pour optimiser
+        const uniqueIds = [...new Set(
+          data.flatMap((order) => order.items.slice(0, 3).map((item) => item.productId))
+        )];
+        const entries = await Promise.all(
+          uniqueIds.map(async (pid) => {
+            try {
+              const p = await productService.getProductById(pid);
+              return [pid, p] as const;
+            } catch {
+              return [pid, null] as const;
+            }
+          })
+        );
+        setProductsById(Object.fromEntries(entries.filter(([, p]) => p)));
       } catch (error) {
         console.error('Erreur chargement commandes:', error);
         toast.error('Impossible de charger vos commandes');
@@ -147,14 +174,25 @@ export default function OrdersPage() {
     return 'text-yellow-600 dark:text-yellow-400';
   };
 
-  // ⭐ MODIFICATION — ordre des vérifications inversé
+  // ⭐ MODIFICATION — getItemImage avec résolution par variante
   const getItemImage = (item: any, orderId: number, itemIndex: number) => {
     const imageKey = `${orderId}-${itemIndex}`;
 
-    // ⭐ APRÈS — on vérifie D'ABORD si cette image a déjà échoué
+    // ⭐ Vérifier si cette image a déjà échoué
     if (imageErrors[imageKey]) {
       return '/images/product-placeholder.svg';
     }
+
+    // ⭐ Résoudre l'image selon la couleur choisie (variante)
+    const product = productsById[item.productId];
+    if (product) {
+      const studioProduct = { ...product, isInStock: (product.stock ?? 0) > 0 } as any;
+      const display = resolveProductDisplay(studioProduct, item.selectedColor);
+      const images = getResolvedImages(display);
+      if (images[0]) return getImageUrl(images[0]);
+    }
+
+    // ⭐ Fallback sur l'image du produit
     if (item.productImage) {
       return getImageUrl(item.productImage);
     }
@@ -228,13 +266,18 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                {/* Aperçu des articles */}
+                {/* ⭐ MODIFICATION — Aperçu des articles avec bouton cliquable */}
                 <div className="p-6">
                   <div className="flex flex-wrap gap-4 mb-4">
                     {order.items.slice(0, 3).map((item, index) => {
                       const imageUrl = getItemImage(item, order.id, index);
                       return (
-                        <div key={item.id} className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700">
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setSelectedItem(item)}
+                          className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 hover:ring-2 hover:ring-primary transition-all"
+                        >
                           <Image
                             src={imageUrl}
                             alt={item.productName}
@@ -248,7 +291,7 @@ export default function OrdersPage() {
                               }));
                             }}
                           />
-                        </div>
+                        </button>
                       );
                     })}
                     {order.items.length > 3 && (
@@ -287,6 +330,14 @@ export default function OrdersPage() {
           </div>
         )}
       </div>
+
+      {/* ⭐ NOUVEAU — Popup de visualisation du produit */}
+      <OrderProductViewModal
+        item={selectedItem}
+        product={selectedItem ? productsById[selectedItem.productId] : null}
+        isOpen={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+      />
     </div>
   );
 }

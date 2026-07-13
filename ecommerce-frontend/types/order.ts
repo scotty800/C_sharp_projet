@@ -171,6 +171,9 @@ export interface OrderItemDto {
   shopId?: number;
   shopName?: string;
   isReviewed: boolean;
+  selectedColor?: string;
+  selectedSize?: string;
+  shopSlug?: string;
 }
 
 export interface UpdateOrderStatusDto {

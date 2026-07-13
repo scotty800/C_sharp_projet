@@ -99,6 +99,7 @@ namespace ECommerceApi.Models
 
         // Publication et versioning
         public bool IsPublished { get; set; } = false;
+        public DateTime? PublishedAt { get; set; }  // ⭐ MODIFICATION — nullable
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public int Version { get; set; } = 1;
 
@@ -129,9 +130,14 @@ namespace ECommerceApi.Models
 
         public string? ImageSelectionsJson { get; set; }
 
+        // ⭐ NOUVEAU — Snapshot publié (lu par la boutique publique, jamais par le Studio)
+        public string? PublishedBlocksJson { get; set; }
+        public string? PublishedBackgroundJson { get; set; }
+        public string? PublishedCanvasFiltersJson { get; set; }
+        public string? PublishedCustomizationJson { get; set; }
+
         // Dates
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime? PublishedAt { get; set; }
         public DateTime? UnpublishedAt { get; set; }
     }
 }

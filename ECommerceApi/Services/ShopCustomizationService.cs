@@ -446,6 +446,8 @@ namespace ECommerceApi.Services
                 .ToListAsync();
         }
 
+        // ⭐⭐⭐ PUBLISH / UNPUBLISH MODIFIÉS ⭐⭐⭐
+
         public async Task<bool> PublishAsync(int shopId, int userId)
         {
             await VerifyOwnershipAsync(shopId, userId);
@@ -453,6 +455,30 @@ namespace ECommerceApi.Services
             var customization = await GetByShopIdAsync(shopId);
             if (customization == null)
                 return false;
+
+            // ⭐ Copie intégrale du brouillon vers le snapshot publié
+            customization.PublishedBlocksJson = customization.BlocksJson;
+
+            customization.PublishedBackgroundJson = JsonSerializer.Serialize(new
+            {
+                backgroundColor = customization.BackgroundColor ?? "#FFFFFF",
+                backgroundType = customization.BackgroundType ?? "solid",
+                backgroundValue = customization.BackgroundValue,
+                backgroundOpacity = customization.BackgroundOpacity ?? 100
+            });
+
+            customization.PublishedCanvasFiltersJson = JsonSerializer.Serialize(new
+            {
+                globalBrightness = customization.CanvasBrightness,
+                globalContrast = customization.CanvasContrast,
+                globalSaturation = customization.CanvasSaturation,
+                globalBlur = customization.CanvasBlur,
+                globalCssFilter = customization.CanvasCssFilter ?? "none"
+            });
+
+            // Réutilise la méthode privée existante qui construit déjà le DTO complet
+            var fullDto = await GetCustomizationDtoFromEntityAsync(customization);
+            customization.PublishedCustomizationJson = JsonSerializer.Serialize(fullDto);
 
             customization.IsPublished = true;
             customization.PublishedAt = DateTime.UtcNow;
@@ -469,6 +495,9 @@ namespace ECommerceApi.Services
             if (customization == null)
                 return false;
 
+            // ⭐ On ne touche PAS au snapshot publié : les visiteurs continuent
+            // de voir la dernière version publiée. IsPublished sert uniquement
+            // d'indicateur dans le Studio (ex: badge "modifications non publiées").
             customization.IsPublished = false;
             customization.UnpublishedAt = DateTime.UtcNow;
 
@@ -503,7 +532,6 @@ namespace ECommerceApi.Services
                 .ToListAsync();
         }
 
-        // CORRECTION 3: Ajout du return manquant (ligne 508)
         public async Task<Asset> AddAssetToMarketplaceAsync(int userId, AddAssetDto dto)
         {
             var user = await _context.Users.FindAsync(userId);
@@ -546,7 +574,6 @@ namespace ECommerceApi.Services
             _context.Assets.Add(asset);
             await _context.SaveChangesAsync();
             
-            // CORRECTION: Ajout du return manquant
             return asset;
         }
 

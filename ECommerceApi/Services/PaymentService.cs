@@ -82,6 +82,33 @@ namespace ECommerceApi.Services
             }
         }
 
+        // ⭐ MÉTHODE CONSERVÉE MAIS COMMENTÉE (plus jamais appelée)
+        /*
+        public async Task<bool> CancelPaymentIntentAsync(string paymentIntentId)
+        {
+            try
+            {
+                var service = new PaymentIntentService();
+                var intent = await service.GetAsync(paymentIntentId);
+
+                if (intent.Status == "succeeded" || intent.Status == "canceled")
+                {
+                    _logger.LogInformation($"ℹ️ PaymentIntent {paymentIntentId} déjà '{intent.Status}', annulation ignorée");
+                    return intent.Status == "canceled";
+                }
+
+                var cancelled = await service.CancelAsync(paymentIntentId);
+                _logger.LogInformation($"🚫 PaymentIntent annulé: {paymentIntentId} - Statut: {cancelled.Status}");
+                return cancelled.Status == "canceled";
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError($"❌ Erreur annulation PaymentIntent {paymentIntentId}: {ex.Message}");
+                return false;
+            }
+        }
+        */
+
         public async Task<bool> RefundPaymentAsync(string paymentIntentId, decimal? amount = null)
         {
             try

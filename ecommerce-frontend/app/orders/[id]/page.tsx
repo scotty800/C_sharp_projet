@@ -12,6 +12,11 @@ import { FiArrowLeft, FiPackage, FiTruck, FiCheckCircle, FiClock, FiXCircle, FiR
 import { formatPrice, formatDate } from '@/services/utils/formatters';
 import { getImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
+// ⭐ NOUVEAUX IMPORTS
+import { resolveProductDisplay, getResolvedImages } from '@/components/shop-studio/lib/resolveProductDisplay';
+import { productService } from '@/services/api/products';
+// ⭐ NOUVEAU IMPORT
+import OrderProductViewModal from '@/components/orders/OrderProductViewModal';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
@@ -22,8 +27,11 @@ export default function OrderDetailPage() {
   const [cancelling, setCancelling] = useState(false);
   const [requestingReturn, setRequestingReturn] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  // ⭐ AJOUT — État pour les erreurs d'images
   const [imageErrors, setImageErrors] = useState<Record<number, boolean>>({});
+  // ⭐ NOUVEAU ÉTAT
+  const [productsById, setProductsById] = useState<Record<number, any>>({});
+  // ⭐ NOUVEAU ÉTAT — pour la popup
+  const [selectedItem, setSelectedItem] = useState<any>(null);
 
   // ✅ Calculer si le délai de rétractation est dépassé (14 jours)
   const isReturnPeriodExpired = (orderDate: string): boolean => {
@@ -97,15 +105,12 @@ export default function OrderDetailPage() {
       setCancelling(true);
       toast.loading('Traitement en cours...', { id: 'cancel' });
 
-      // Appeler l'API d'annulation
       const result = await orderService.cancelOrder(order.id);
       
       toast.success(result.message || 'Commande annulée avec succès', { id: 'cancel' });
 
-      // Recharger la commande
       await fetchOrder();
 
-      // Rediriger vers la liste des commandes après 2 secondes
       setTimeout(() => {
         router.push('/orders');
       }, 2000);
@@ -133,12 +138,10 @@ export default function OrderDetailPage() {
       setRequestingReturn(true);
       toast.loading('Demande de retour en cours...', { id: 'return' });
 
-      // Appeler l'API pour demander un retour
       await orderService.requestReturn(order.id);
 
       toast.success('Demande de retour envoyée ! Un e-mail vous a été adressé.', { id: 'return' });
       
-      // Recharger la commande
       await fetchOrder();
     } catch (error: any) {
       console.error('❌ Erreur demande de retour:', error);
@@ -149,13 +152,27 @@ export default function OrderDetailPage() {
     }
   };
 
-  // ✅ Fonction pour charger la commande
+  // ⭐ MODIFICATION — fetchOrder avec chargement des produits
   const fetchOrder = async () => {
     try {
       const data = await orderService.getOrderById(Number(id));
       console.log('✅ Commande mise à jour:', data);
       setOrder(data);
       setLastUpdate(new Date());
+
+      // ⭐ Charger les produits pour la résolution d'images par variante
+      const uniqueIds = [...new Set(data.items.map((i) => i.productId))];
+      const entries = await Promise.all(
+        uniqueIds.map(async (pid) => {
+          try {
+            const p = await productService.getProductById(pid);
+            return [pid, p] as const;
+          } catch {
+            return [pid, null] as const;
+          }
+        })
+      );
+      setProductsById(Object.fromEntries(entries.filter(([, p]) => p)));
     } catch (error) {
       console.error('Erreur chargement commande:', error);
     }
@@ -169,7 +186,6 @@ export default function OrderDetailPage() {
 
     if (!id) return;
 
-    // Charger la commande au démarrage
     const loadOrder = async () => {
       try {
         setLoading(true);
@@ -181,7 +197,6 @@ export default function OrderDetailPage() {
 
     loadOrder();
 
-    // ✅ POLLING : Recharger toutes les 5 secondes pour les mises à jour en temps réel
     const interval = setInterval(() => {
       console.log('🔄 Vérification de mise à jour...');
       fetchOrder();
@@ -304,7 +319,6 @@ export default function OrderDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="container mx-auto px-4 max-w-4xl">
-        {/* Fil d'Ariane */}
         <div className="mb-6">
           <Link href="/orders" className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-primary transition-colors">
             <FiArrowLeft />
@@ -312,7 +326,6 @@ export default function OrderDetailPage() {
           </Link>
         </div>
 
-        {/* En-tête avec boutons d'action */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
@@ -331,7 +344,6 @@ export default function OrderDetailPage() {
                 {getStatusText(order.status)}
               </span>
               
-              {/* ✅ Bouton d'annulation (pour commandes en attente/traitement) */}
               {cancelInfo.can && cancelInfo.reason === 'annulation' && !isCancelled && !isRefunded && !isReturnRequested && (
                 <button
                   onClick={handleCancelOrder}
@@ -343,7 +355,6 @@ export default function OrderDetailPage() {
                 </button>
               )}
 
-              {/* ✅ Bouton pour demander un retour (pour commandes livrées dans les 14 jours) */}
               {isDelivered && daysSinceOrder <= 14 && !isCancelled && !isRefunded && !isReturnRequested && (
                 <button
                   onClick={handleRequestReturn}
@@ -355,7 +366,6 @@ export default function OrderDetailPage() {
                 </button>
               )}
 
-              {/* Message d'information sur le délai de rétractation */}
               {isDelivered && daysSinceOrder <= 14 && !isCancelled && !isRefunded && !isReturnRequested && (
                 <p className="text-xs text-green-600 dark:text-green-400 mt-1">
                   ⚡ Délai de rétractation: {14 - daysSinceOrder} jours restants
@@ -375,11 +385,9 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Suivi de la commande - Timeline */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
           <h2 className="text-lg font-semibold mb-6 text-gray-900 dark:text-white">Suivi de votre commande</h2>
 
-          {/* Statut actuel avec icône */}
           <div className={`mb-8 p-4 rounded-lg flex items-start gap-4 ${
             isCancelled || isRefunded ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : 
             isReturnRequested ? 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800' :
@@ -403,9 +411,7 @@ export default function OrderDetailPage() {
           </div>
 
           {!isCancelled && !isRefunded ? (
-            /* Timeline normale pour commande non annulée */
             <div className="space-y-6">
-              {/* Étape 1: Confirmée */}
               <div className="flex gap-4">
                 <div className="flex flex-col items-center">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -421,7 +427,6 @@ export default function OrderDetailPage() {
                 </div>
               </div>
 
-              {/* Étape 2: En traitement */}
               <div className="flex gap-4">
                 <div className="flex flex-col items-center">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -438,7 +443,6 @@ export default function OrderDetailPage() {
                 </div>
               </div>
 
-              {/* Étape 3: Expédiée */}
               <div className="flex gap-4">
                 <div className="flex flex-col items-center">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -458,7 +462,6 @@ export default function OrderDetailPage() {
                 </div>
               </div>
 
-              {/* Étape 4: Livrée */}
               <div className="flex gap-4">
                 <div className="flex flex-col items-center">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
@@ -484,7 +487,6 @@ export default function OrderDetailPage() {
               </div>
             </div>
           ) : (
-            /* Message pour commande annulée/remboursée */
             <div className="text-center py-8">
               {isRefunded ? (
                 <>
@@ -507,31 +509,56 @@ export default function OrderDetailPage() {
           )}
         </div>
 
-        {/* Articles commandés */}
+        {/* ⭐ MODIFICATION — Articles commandés avec image cliquable */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Articles commandés</h2>
           <div className="space-y-4">
             {order.items.map((item) => (
               <div key={item.id} className="flex gap-4 pb-4 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
-                <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
-                  {/* ⭐ MODIFICATION — Image avec gestion d'erreur */}
-                  <Image
-                    src={
-                      imageErrors[item.id] || !item.productImage
-                        ? '/images/product-placeholder.svg'
-                        : getImageUrl(item.productImage)
+                {/* ⭐ MODIFICATION — Image cliquable avec bouton */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedItem(item)}
+                  className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0"
+                >
+                  {(() => {
+                    const product = productsById[item.productId];
+                    let imageUrl: string | null = null;
+
+                    if (product) {
+                      const studioProduct = { ...product, isInStock: (product.stock ?? 0) > 0 } as any;
+                      const display = resolveProductDisplay(studioProduct, item.selectedColor);
+                      const images = getResolvedImages(display);
+                      imageUrl = images[0] || null;
                     }
-                    alt={item.productName}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                    onError={() => setImageErrors(prev => ({ ...prev, [item.id]: true }))}
-                  />
-                </div>
+                    if (!imageUrl) imageUrl = item.productImage || null;
+
+                    return (
+                      <Image
+                        src={
+                          imageErrors[item.id] || !imageUrl
+                            ? '/images/product-placeholder.svg'
+                            : getImageUrl(imageUrl)
+                        }
+                        alt={item.productName}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                        onError={() => setImageErrors(prev => ({ ...prev, [item.id]: true }))}
+                      />
+                    );
+                  })()}
+                </button>
                 <div className="flex-1">
                   <p className="font-medium text-gray-900 dark:text-white">{item.productName}</p>
                   {item.shopName && (
                     <p className="text-sm text-gray-500 dark:text-gray-400">Boutique: {item.shopName}</p>
+                  )}
+                  {item.selectedColor && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Couleur: {item.selectedColor}</p>
+                  )}
+                  {item.selectedSize && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Taille: {item.selectedSize}</p>
                   )}
                   <p className="text-sm text-gray-500 dark:text-gray-400">Quantité: {item.quantity}</p>
                   <p className="text-sm font-semibold text-primary mt-1">
@@ -543,7 +570,6 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* ⭐ MODIFICATION — Récapitulatif avec bouton de téléchargement de facture */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Récapitulatif</h2>
           <div className="space-y-3">
@@ -565,7 +591,6 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          {/* ⭐ AJOUT — Bouton de téléchargement de facture */}
           <button
             onClick={() => orderService.downloadInvoice(order.id, order.orderNumber)}
             className="w-full mt-4 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold py-3 px-4 rounded-lg transition-colors"
@@ -574,7 +599,6 @@ export default function OrderDetailPage() {
           </button>
         </div>
 
-        {/* Adresses */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
             <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Adresse de livraison</h2>
@@ -595,6 +619,14 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ⭐ NOUVEAU — Popup de visualisation du produit */}
+      <OrderProductViewModal
+        item={selectedItem}
+        product={selectedItem ? productsById[selectedItem.productId] : null}
+        isOpen={!!selectedItem}
+        onClose={() => setSelectedItem(null)}
+      />
     </div>
   );
 }

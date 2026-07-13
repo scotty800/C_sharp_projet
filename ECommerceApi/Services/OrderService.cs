@@ -3,6 +3,7 @@ using ECommerceApi.DTO;
 using ECommerceApi.Models;
 using ECommerceApi.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace ECommerceApi.Services
 {
@@ -91,7 +92,7 @@ namespace ECommerceApi.Services
                 _context.Orders.Add(order);
                 await _context.SaveChangesAsync();
 
-                // ⭐ Persister le snapshot de livraison par boutique avec MinDays et MaxDays
+                // Persister le snapshot de livraison par boutique avec MinDays et MaxDays
                 foreach (var shopBreakdown in shippingSummary.Breakdown)
                 {
                     _context.OrderShopShippings.Add(new OrderShopShipping
@@ -101,8 +102,8 @@ namespace ECommerceApi.Services
                         ShippingMethodName = shopBreakdown.ShippingMethodName,
                         ShippingCost = shopBreakdown.ShippingCost,
                         Subtotal = shopBreakdown.Subtotal,
-                        MinDays = shopBreakdown.MinDays,   // ⭐ AJOUT
-                        MaxDays = shopBreakdown.MaxDays,   // ⭐ AJOUT
+                        MinDays = shopBreakdown.MinDays,
+                        MaxDays = shopBreakdown.MaxDays,
                     });
                 }
                 await _context.SaveChangesAsync();
@@ -166,6 +167,212 @@ namespace ECommerceApi.Services
             }
         }
 
+        // ⭐ NOUVELLE MÉTHODE — Création d'une session de checkout
+        public async Task<CheckoutIntentResponseDto> CreateCheckoutSessionAsync(int userId, CreateCheckoutIntentDto dto)
+        {
+            var cart = await _cartService.GetCartDetailsAsync(userId);
+            if (!cart.Items.Any())
+                throw new Exception("Le panier est vide");
+
+            foreach (var item in cart.Items)
+            {
+                var product = await _productService.GetProductByIdAsync(item.ProductId);
+                if (product == null)
+                    throw new Exception($"Produit {item.ProductId} non trouvé");
+                if (product.Stock < item.Quantity)
+                    throw new Exception($"Stock insuffisant pour {product.Name}");
+            }
+
+            var shippingSummary = await _shippingService.CalculateCartShippingAsync(userId);
+            if (!shippingSummary.AllShopsConfigured)
+                throw new Exception("Une ou plusieurs boutiques n'ont pas encore configuré leur livraison.");
+
+            var subtotal = cart.TotalAmount;
+            var taxAmount = subtotal * 0.2m;
+            var shippingCost = shippingSummary.TotalShipping;
+            var total = subtotal + taxAmount + shippingCost;
+
+            var snapshot = cart.Items.Select(i => new {
+                i.ProductId, i.Quantity, UnitPrice = i.ProductPrice,
+                SelectedColor = i.SelectedColor, SelectedSize = i.SelectedSize
+            });
+            var breakdown = shippingSummary.Breakdown.Select(b => new
+            {
+                b.ShopId, b.ShippingMethodName, b.ShippingCost, b.Subtotal, b.MinDays, b.MaxDays
+            });
+
+            var session = new CheckoutSession
+            {
+                UserId = userId,
+                ShippingAddress = dto.ShippingAddress,
+                ShippingCity = dto.ShippingCity,
+                ShippingPostalCode = dto.ShippingPostalCode,
+                ShippingCountry = dto.ShippingCountry,
+                BillingAddress = dto.BillingAddress ?? dto.ShippingAddress,
+                BillingCity = dto.BillingCity ?? dto.ShippingCity,
+                BillingPostalCode = dto.BillingPostalCode ?? dto.ShippingPostalCode,
+                BillingCountry = dto.BillingCountry ?? dto.ShippingCountry,
+                Notes = dto.Notes,
+                TaxAmount = taxAmount,
+                ShippingCost = shippingCost,
+                CartSnapshotJson = JsonSerializer.Serialize(snapshot),
+                ShippingBreakdownJson = JsonSerializer.Serialize(breakdown),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.CheckoutSessions.Add(session);
+            await _context.SaveChangesAsync();
+
+            if (dto.PaymentMethod == PaymentMethod.CashOnDelivery)
+            {
+                var order = await CreateOrderFromSnapshotAsync(userId, session, PaymentStatus.Pending, OrderStatus.Pending, PaymentMethod.CashOnDelivery);
+                session.IsFinalized = true;
+                await _context.SaveChangesAsync();
+
+                return new CheckoutIntentResponseDto
+                {
+                    CheckoutSessionId = session.Id,
+                    Subtotal = subtotal,
+                    ShippingCost = shippingCost,
+                    TaxAmount = taxAmount,
+                    Total = total,
+                    RequiresOnlinePayment = false,
+                    OrderId = order.Id
+                };
+            }
+
+            var reference = $"CHK-{session.Id}-{DateTime.UtcNow.Ticks}";
+            var paymentIntent = await _paymentService.CreatePaymentIntentAsync(total, reference);
+
+            session.PaymentIntentId = paymentIntent.Id;
+            await _context.SaveChangesAsync();
+
+            return new CheckoutIntentResponseDto
+            {
+                CheckoutSessionId = session.Id,
+                ClientSecret = paymentIntent.ClientSecret,
+                PaymentIntentId = paymentIntent.Id,
+                Subtotal = subtotal,
+                ShippingCost = shippingCost,
+                TaxAmount = taxAmount,
+                Total = total,
+                RequiresOnlinePayment = true
+            };
+        }
+
+        // ⭐ NOUVELLE MÉTHODE — Finalisation de la commande après paiement
+        public async Task<Order> FinalizeOrderAsync(int userId, string paymentIntentId)
+        {
+            var session = await _context.CheckoutSessions
+                .Where(s => s.UserId == userId && s.PaymentIntentId == paymentIntentId && !s.IsFinalized)
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (session == null)
+                throw new Exception("Session de paiement introuvable ou déjà traitée");
+
+            var paymentIntent = await _paymentService.GetPaymentIntentAsync(paymentIntentId);
+            if (paymentIntent.Status != "succeeded")
+                throw new Exception($"Le paiement n'est pas confirmé (statut Stripe: {paymentIntent.Status})");
+
+            var order = await CreateOrderFromSnapshotAsync(userId, session, PaymentStatus.Paid, OrderStatus.Processing, PaymentMethod.CreditCard);
+            order.PaymentIntentId = paymentIntentId;
+            order.PaidAt = DateTime.UtcNow;
+
+            session.IsFinalized = true;
+            await _context.SaveChangesAsync();
+
+            return order;
+        }
+
+        // ⭐ MÉTHODE PRIVÉE — Création d'une commande depuis un snapshot
+        private async Task<Order> CreateOrderFromSnapshotAsync(
+            int userId, CheckoutSession session, PaymentStatus paymentStatus, OrderStatus orderStatus, PaymentMethod paymentMethod)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var items = JsonSerializer.Deserialize<List<CheckoutSnapshotItem>>(session.CartSnapshotJson) ?? new();
+                var breakdown = JsonSerializer.Deserialize<List<CheckoutSnapshotShipping>>(session.ShippingBreakdownJson) ?? new();
+
+                decimal subtotal = 0;
+                foreach (var item in items)
+                {
+                    var product = await _context.Products.FindAsync(item.ProductId);
+                    if (product == null) throw new Exception($"Produit {item.ProductId} introuvable");
+                    if (product.Stock < item.Quantity) throw new Exception($"Stock insuffisant pour {product.Name}");
+                    subtotal += item.UnitPrice * item.Quantity;
+                }
+
+                var order = new Order
+                {
+                    OrderNumber = GenerateOrderNumber(),
+                    UserId = userId,
+                    Status = orderStatus,
+                    PaymentStatus = paymentStatus,
+                    PaymentMethod = paymentMethod,
+                    TotalAmount = subtotal,
+                    TaxAmount = session.TaxAmount,
+                    ShippingCost = session.ShippingCost,
+                    DiscountAmount = 0,
+                    ShippingAddress = session.ShippingAddress,
+                    ShippingCity = session.ShippingCity,
+                    ShippingPostalCode = session.ShippingPostalCode,
+                    ShippingCountry = session.ShippingCountry,
+                    BillingAddress = session.BillingAddress,
+                    BillingCity = session.BillingCity,
+                    BillingPostalCode = session.BillingPostalCode,
+                    BillingCountry = session.BillingCountry,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Orders.Add(order);
+                await _context.SaveChangesAsync();
+
+                foreach (var b in breakdown)
+                {
+                    _context.OrderShopShippings.Add(new OrderShopShipping
+                    {
+                        OrderId = order.Id,
+                        ShopId = b.ShopId,
+                        ShippingMethodName = b.ShippingMethodName,
+                        ShippingCost = b.ShippingCost,
+                        Subtotal = b.Subtotal,
+                        MinDays = b.MinDays,
+                        MaxDays = b.MaxDays
+                    });
+                }
+
+                foreach (var item in items)
+                {
+                    var product = await _context.Products.FindAsync(item.ProductId);
+                    product!.Stock -= item.Quantity;
+
+                    _context.OrderItems.Add(new OrderItem
+                    {
+                        OrderId = order.Id,
+                        ProductId = item.ProductId,
+                        Quantity = item.Quantity,
+                        UnitPrice = item.UnitPrice,
+                        SelectedColor = item.SelectedColor,
+                        SelectedSize = item.SelectedSize
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+
+                await ClearCartDirectly(userId);
+
+                await transaction.CommitAsync();
+                return order;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
         public async Task<Order?> GetOrderByIdAsync(int orderId)
         {
             return await _context.Orders
@@ -177,7 +384,7 @@ namespace ECommerceApi.Services
                 .FirstOrDefaultAsync(o => o.Id == orderId);
         }
 
-        // ⭐ MODIFICATION — GetOrderByNumberAsync avec MinDays et MaxDays
+        // ⭐ MODIFICATION — GetOrderByNumberAsync avec ShopSlug
         public async Task<OrderResponseDto?> GetOrderByNumberAsync(string orderNumber)
         {
             return await _context.Orders
@@ -227,7 +434,11 @@ namespace ECommerceApi.Services
                         TotalPrice = i.TotalPrice,
                         ShopId = i.Product != null ? i.Product.ShopId : null,
                         ShopName = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Name : null,
-                        IsReviewed = i.IsReviewed
+                        // ⭐ NOUVEAU
+                        ShopSlug = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Slug : null,
+                        IsReviewed = i.IsReviewed,
+                        SelectedColor = i.SelectedColor,
+                        SelectedSize = i.SelectedSize
                     }).ToList(),
                     ShippingBreakdown = o.ShopShippings.Select(s => new OrderShopShippingDto
                     {
@@ -236,8 +447,8 @@ namespace ECommerceApi.Services
                         ShippingMethodName = s.ShippingMethodName,
                         ShippingCost = s.ShippingCost,
                         Subtotal = s.Subtotal,
-                        MinDays = s.MinDays,   // ⭐ AJOUT
-                        MaxDays = s.MaxDays,   // ⭐ AJOUT
+                        MinDays = s.MinDays,
+                        MaxDays = s.MaxDays,
                     }).ToList()
                 })
                 .FirstOrDefaultAsync();
@@ -272,7 +483,7 @@ namespace ECommerceApi.Services
                 .ToListAsync();
         }
 
-        // ⭐ MODIFICATION — GetShopOrdersAsync avec MinDays et MaxDays
+        // ⭐ MODIFICATION — GetShopOrdersAsync avec ShopSlug
         public async Task<List<OrderResponseDto>> GetShopOrdersAsync(int shopId)
         {
             return await _context.Orders
@@ -281,7 +492,8 @@ namespace ECommerceApi.Services
                 .ThenInclude(i => i.Product)
                 .Include(o => o.ShopShippings)
                 .ThenInclude(s => s.Shop)
-                .Where(o => o.Items.Any(i => i.Product.ShopId == shopId))
+                .Where(o => o.Items.Any(i => i.Product.ShopId == shopId)
+                    && (o.PaymentStatus == PaymentStatus.Paid || o.PaymentMethod == PaymentMethod.CashOnDelivery))
                 .OrderByDescending(o => o.CreatedAt)
                 .Select(o => new OrderResponseDto
                 {
@@ -323,7 +535,11 @@ namespace ECommerceApi.Services
                         TotalPrice = i.TotalPrice,
                         ShopId = i.Product != null ? i.Product.ShopId : null,
                         ShopName = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Name : null,
-                        IsReviewed = i.IsReviewed
+                        // ⭐ NOUVEAU
+                        ShopSlug = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Slug : null,
+                        IsReviewed = i.IsReviewed,
+                        SelectedColor = i.SelectedColor,
+                        SelectedSize = i.SelectedSize
                     }).ToList(),
                     ShippingBreakdown = o.ShopShippings
                         .Where(s => s.ShopId == shopId)
@@ -334,8 +550,8 @@ namespace ECommerceApi.Services
                             ShippingMethodName = s.ShippingMethodName,
                             ShippingCost = s.ShippingCost,
                             Subtotal = s.Subtotal,
-                            MinDays = s.MinDays,   // ⭐ AJOUT
-                            MaxDays = s.MaxDays,   // ⭐ AJOUT
+                            MinDays = s.MinDays,
+                            MaxDays = s.MaxDays,
                         }).ToList()
                 })
                 .ToListAsync();
@@ -346,6 +562,16 @@ namespace ECommerceApi.Services
             var order = await _context.Orders.FindAsync(orderId);
             if (order == null)
                 return false;
+
+            var isPaid = order.PaymentStatus == PaymentStatus.Paid;
+            var isCashOnDelivery = order.PaymentMethod == PaymentMethod.CashOnDelivery;
+            var isCancelling = status == OrderStatus.Cancelled;
+
+            if (!isPaid && !isCashOnDelivery && !isCancelling)
+            {
+                throw new InvalidOperationException(
+                    "Impossible de modifier le statut : cette commande n'a pas encore été payée.");
+            }
 
             order.Status = status;
             order.UpdatedAt = DateTime.UtcNow;
@@ -610,7 +836,7 @@ namespace ECommerceApi.Services
             return true;
         }
 
-        // ⭐ MODIFICATION — GetOrdersByStatusAsync avec MinDays et MaxDays
+        // ⭐ MODIFICATION — GetOrdersByStatusAsync avec ShopSlug
         public async Task<List<OrderResponseDto>> GetOrdersByStatusAsync(OrderStatus status)
         {
             return await _context.Orders
@@ -661,7 +887,11 @@ namespace ECommerceApi.Services
                         TotalPrice = i.TotalPrice,
                         ShopId = i.Product != null ? i.Product.ShopId : null,
                         ShopName = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Name : null,
-                        IsReviewed = i.IsReviewed
+                        // ⭐ NOUVEAU
+                        ShopSlug = i.Product != null && i.Product.Shop != null ? i.Product.Shop.Slug : null,
+                        IsReviewed = i.IsReviewed,
+                        SelectedColor = i.SelectedColor,
+                        SelectedSize = i.SelectedSize
                     }).ToList(),
                     ShippingBreakdown = o.ShopShippings.Select(s => new OrderShopShippingDto
                     {
@@ -670,8 +900,8 @@ namespace ECommerceApi.Services
                         ShippingMethodName = s.ShippingMethodName,
                         ShippingCost = s.ShippingCost,
                         Subtotal = s.Subtotal,
-                        MinDays = s.MinDays,   // ⭐ AJOUT
-                        MaxDays = s.MaxDays,   // ⭐ AJOUT
+                        MinDays = s.MinDays,
+                        MaxDays = s.MaxDays,
                     }).ToList()
                 })
                 .ToListAsync();
@@ -762,6 +992,26 @@ namespace ECommerceApi.Services
 
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        // ⭐ CLASSES PRIVÉES POUR LA DÉSÉRIALISATION
+        private class CheckoutSnapshotItem
+        {
+            public int ProductId { get; set; }
+            public int Quantity { get; set; }
+            public decimal UnitPrice { get; set; }
+            public string? SelectedColor { get; set; }
+            public string? SelectedSize { get; set; }
+        }
+
+        private class CheckoutSnapshotShipping
+        {
+            public int ShopId { get; set; }
+            public string? ShippingMethodName { get; set; }
+            public decimal ShippingCost { get; set; }
+            public decimal Subtotal { get; set; }
+            public int MinDays { get; set; }
+            public int MaxDays { get; set; }
         }
     }
 }

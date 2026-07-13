@@ -99,6 +99,9 @@ namespace ECommerceApi.Models
 
         public decimal TotalPrice => Quantity * UnitPrice;
 
+        public string? SelectedColor { get; set; }
+        public string? SelectedSize { get; set; }
+
         // Pour les reviews
         public bool IsReviewed { get; set; } = false;
     }

@@ -61,24 +61,29 @@ function collectUsedFonts(customization: any, blocks: BlockUI[]): string[] {
 }
 
 export const shopRenderService = {
+  // ⭐ MODIFICATION — lire le snapshot publié au lieu du brouillon
   async getRenderData(shop: any): Promise<ShopRenderData> {
     const shopId = shop.id;
 
-    const [customization, blocksFromApi, canvasFilters, background, rawProducts] = await Promise.all([
-      shopCustomizationService.getByShopId(shopId).catch(() => null),
-      shopCustomizationService.getBlocks(shopId).catch(() => []),
-      shopCustomizationService.getCanvasFilters(shopId).catch(() => ({
-        globalCssFilter: 'none', globalBrightness: 1, globalContrast: 1, globalSaturation: 1, globalBlur: 0,
-      })),
-      shopCustomizationService.getBackground(shopId).catch(() => ({
-        backgroundColor: '#FFFFFF', backgroundType: 'solid', backgroundValue: null, backgroundOpacity: 100,
-      })),
+    // ⭐ Un seul appel à getPublished au lieu de quatre appels Studio
+    const [published, rawProducts] = await Promise.all([
+      shopCustomizationService.getPublished(shopId).catch(() => null),
       productService.getProductsByShopAll(shopId).catch(() => []),
     ]);
 
-    // ⭐ Récupération de pageAnimationsConfig depuis le bloc meta
+    // ⭐ Extraire les données du snapshot publié (ou valeurs par défaut)
+    const blocksFromApi: any[] = published?.blocks ?? [];
+    const canvasFilters = published?.canvasFilters ?? {
+      globalCssFilter: 'none', globalBrightness: 1, globalContrast: 1, globalSaturation: 1, globalBlur: 0,
+    };
+    const background = published?.background ?? {
+      backgroundColor: '#FFFFFF', backgroundType: 'solid', backgroundValue: null, backgroundOpacity: 100,
+    };
+    const customization = published?.customization ?? null;
+
+    // ⭐ Récupération de pageAnimationsConfig depuis le bloc meta (inchangé)
     let pageAnimationsConfig: any = null;
-    const pagesMetaRaw = (blocksFromApi as any[]).find((b: any) => b.type === PAGES_META_BLOCK_TYPE);
+    const pagesMetaRaw = blocksFromApi.find((b: any) => b.type === PAGES_META_BLOCK_TYPE);
     if (pagesMetaRaw?.settings?.pageAnimationsConfig) {
       try {
         const raw = pagesMetaRaw.settings.pageAnimationsConfig;
@@ -88,7 +93,6 @@ export const shopRenderService = {
       }
     }
 
-    // ⭐ parsePagesAndBlocks conserve linkedProductId
     const { pages, blocks, productCustomizations } = parsePagesAndBlocks(blocksFromApi as any[]);
 
     // ⭐ Isolation des Navbars (blocs globaux)
@@ -108,16 +112,20 @@ export const shopRenderService = {
       Object.entries(productCustomizations).map(([k, v]) => [Number(k), v as ProductCustomization])
     );
 
+    // ⭐ Finaliser la personnalisation avec les données publiées
     const finalCustomization = {
       ...(customization || {}),
       shopId,
-      primaryColor: customization?.PrimaryColor || shop.themeColor || '#2563EB',
+      primaryColor: customization?.primaryColor || shop.themeColor || '#2563EB',
       backgroundColor: background?.backgroundColor || shop.backgroundColor || '#FFFFFF',
-      textColor: customization?.TextColor || shop.textColor || '#1F2937',
+      textColor: customization?.textColor || shop.textColor || '#1F2937',
       backgroundType: background?.backgroundType || 'solid',
       backgroundValue: background?.backgroundValue || null,
       backgroundOpacity: background?.backgroundOpacity ?? 100,
       pageAnimationsConfig,
+      // ⭐ Ajout des informations de publication
+      isPublished: published?.isPublished ?? false,
+      publishedAt: published?.publishedAt ?? null,
     };
 
     const usedFonts = collectUsedFonts(finalCustomization, blocks);

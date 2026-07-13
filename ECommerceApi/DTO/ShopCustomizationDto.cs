@@ -55,6 +55,9 @@ namespace ECommerceApi.DTO
         public bool ShowFilterPanel { get; set; } = true;
         public string DefaultImageFilter { get; set; } = "none";
 
+        public bool IsPublished { get; set; } = false;
+        public DateTime? PublishedAt { get; set; }
+
         public List<int> ImageFilterIds { get; set; } = new();
         
         // Sections et assets
